@@ -1,0 +1,1869 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>InkConsent · Podere 173 Tattoo Studio</title>
+<meta name="description" content="Consenso informato digitale per studi di tatuaggio">
+<meta name="theme-color" content="#1B1A19">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+/* ============================================================
+   INKCONSENT — design tokens
+   Palette evokes tattoo stencil-transfer paper (violet carbon),
+   healed-ink black and vellum. Swap values in :root to re-skin
+   per studio — see STUDIO_CONFIG in the script for the rest of
+   the whitelabel surface (name, artists, informativa text).
+   ============================================================ */
+:root{
+  --paper:       #EDE8E2;
+  --paper-raised:#F8F5F0;
+  --ink:         #1B1A19;
+  --ink-soft:    #57514B;
+  --ink-faint:   #8B837A;
+  --stencil:     #5B3B63;
+  --stencil-deep:#402C46;
+  --stencil-tint:#E5DAE8;
+  --flesh:       #C98F6C;
+  --warn:        #9C3B26;
+  --warn-tint:   #F1DAD2;
+  --ok:          #3F6B4E;
+  --ok-tint:     #DCE6DE;
+  --line:        #C7BEB2;
+  --line-soft:   #DAD3C8;
+  --shadow: 0 1px 2px rgba(27,26,25,.06), 0 8px 24px -12px rgba(27,26,25,.18);
+  --radius: 3px;
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'IBM Plex Sans', -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--font-body);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+h1,h2,h3,.display{font-family:var(--font-display);font-weight:600;letter-spacing:-.01em;color:var(--ink);}
+.mono{font-family:var(--font-mono);}
+a{color:var(--stencil);}
+button{font-family:inherit;}
+::selection{background:var(--stencil-tint);}
+:focus-visible{outline:2px solid var(--stencil);outline-offset:2px;}
+@media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important;}}
+
+/* ---------- layout shell ---------- */
+#app-root{min-height:100vh;}
+
+.shell{display:flex;min-height:100vh;}
+.rail{
+  width:248px;flex:none;background:var(--ink);color:var(--paper);
+  display:flex;flex-direction:column;padding:22px 18px;
+}
+.rail-brand{display:flex;align-items:center;gap:10px;margin-bottom:28px;}
+.rail-mark{
+  width:34px;height:34px;border-radius:50%;background:var(--stencil);
+  color:var(--paper);display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-display);font-weight:700;font-size:15px;flex:none;
+}
+.rail-brand-name{font-family:var(--font-display);font-size:15px;line-height:1.2;font-weight:600;}
+.rail-brand-sub{font-size:11px;color:#B9AFA4;font-family:var(--font-mono);letter-spacing:.03em;}
+.rail-nav{display:flex;flex-direction:column;gap:2px;margin-bottom:auto;}
+.rail-btn{
+  all:unset;cursor:pointer;padding:10px 12px;border-radius:var(--radius);
+  font-size:13.5px;color:#D8D2CA;display:flex;align-items:center;gap:9px;
+}
+.rail-btn:hover{background:rgba(255,255,255,.06);}
+.rail-btn.active{background:var(--stencil);color:#fff;}
+.rail-foot{font-size:11px;color:#8A8178;font-family:var(--font-mono);padding-top:14px;border-top:1px solid rgba(255,255,255,.1);}
+
+.main{flex:1;min-width:0;padding:34px 40px 60px;}
+.main-inner{max-width:820px;margin:0 auto;}
+.topbar{max-width:820px;margin:0 auto 26px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.topbar h1{font-size:22px;margin:0;}
+.topbar p{margin:2px 0 0;color:var(--ink-soft);font-size:13.5px;}
+
+/* ---------- client (mobile self-fill) shell ---------- */
+.client-shell{max-width:480px;margin:0 auto;min-height:100vh;padding:0 0 48px;}
+.client-head{
+  background:var(--ink);color:var(--paper);padding:22px 22px 26px;
+  border-radius:0 0 18px 18px;
+}
+.client-head .rail-brand{margin-bottom:14px;}
+.progress-track{display:flex;gap:5px;}
+.progress-dash{height:3px;flex:1;background:rgba(255,255,255,.18);border-radius:2px;overflow:hidden;}
+.progress-dash i{display:block;height:100%;width:0%;background:var(--flesh);transition:width .35s ease;}
+.client-body{padding:22px 20px 0;}
+
+/* ---------- cards / surfaces ---------- */
+.card{
+  background:var(--paper-raised);border:1px solid var(--line-soft);
+  border-radius:var(--radius);padding:22px 22px 24px;box-shadow:var(--shadow);
+}
+.card + .card{margin-top:16px;}
+.field{margin-bottom:16px;}
+.field label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;}
+.field .hint{font-size:12px;color:var(--ink-faint);margin-top:4px;}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media (max-width:560px){.grid-2{grid-template-columns:1fr;}}
+
+input[type=text],input[type=date],input[type=tel],input[type=email],select,textarea{
+  width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius);
+  background:#fff;color:var(--ink);font-family:var(--font-body);font-size:14.5px;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--stencil);}
+textarea{resize:vertical;min-height:70px;}
+
+.check-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--line-soft);}
+.check-row:last-child{border-bottom:none;}
+.check-row input{margin-top:3px;width:16px;height:16px;accent-color:var(--stencil);flex:none;}
+.check-row .ct{font-size:14px;}
+.check-row .ct small{display:block;color:var(--ink-faint);font-size:12px;margin-top:1px;}
+
+.chip-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:8px;}
+.chip{
+  border:1px solid var(--line);border-radius:var(--radius);padding:9px 10px;
+  font-size:13px;cursor:pointer;background:#fff;text-align:center;user-select:none;
+}
+.chip.on{background:var(--stencil);border-color:var(--stencil);color:#fff;}
+
+.callout{border-radius:var(--radius);padding:14px 16px;font-size:13.5px;line-height:1.6;}
+.callout.warn{background:var(--warn-tint);border:1px solid #DEBBAF;color:#6B2113;}
+.callout.info{background:var(--stencil-tint);border:1px solid #CBB9CF;color:var(--stencil-deep);}
+.callout.ok{background:var(--ok-tint);border:1px solid #B9CDBD;color:#274935;}
+
+/* ---------- buttons ---------- */
+.btn{
+  all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  padding:11px 20px;border-radius:var(--radius);font-size:13.5px;font-weight:600;
+  letter-spacing:.01em;
+}
+.btn-primary{background:var(--ink);color:var(--paper);}
+.btn-primary:hover{background:#000;}
+.btn-accent{background:var(--stencil);color:#fff;}
+.btn-accent:hover{background:var(--stencil-deep);}
+.btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--line);}
+.btn-ghost:hover{border-color:var(--ink);}
+.btn-sm{padding:7px 12px;font-size:12.5px;}
+.btn[disabled]{opacity:.4;cursor:not-allowed;}
+.btn-row{display:flex;gap:10px;margin-top:22px;}
+
+/* ---------- stamp (signature design element) ---------- */
+.stamp{
+  display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);
+  font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  padding:4px 9px;border-radius:2px;border:1.5px solid currentColor;
+  transform:rotate(-2deg);position:relative;
+}
+.stamp::after{
+  content:"";position:absolute;inset:0;border-radius:2px;
+  background:repeating-linear-gradient(115deg,currentColor 0 1px,transparent 1px 3px);
+  opacity:.12;pointer-events:none;
+}
+.stamp-bozza{color:var(--ink-faint);}
+.stamp-attesa{color:var(--flesh);}
+.stamp-firmato{color:var(--ok);}
+.stamp-archiviato{color:var(--stencil);}
+
+/* ---------- archive table ---------- */
+.arch-row{
+  display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid var(--line-soft);
+  border-radius:var(--radius);background:var(--paper-raised);cursor:pointer;
+}
+.arch-row + .arch-row{margin-top:8px;}
+.arch-row:hover{border-color:var(--stencil);}
+.arch-idx{font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);width:64px;flex:none;}
+.arch-name{flex:1;min-width:0;}
+.arch-name b{font-size:14.5px;}
+.arch-name span{display:block;font-size:12px;color:var(--ink-faint);}
+.arch-empty{padding:48px 20px;text-align:center;color:var(--ink-faint);}
+.arch-empty b{display:block;color:var(--ink);font-family:var(--font-display);font-size:17px;margin-bottom:6px;}
+
+/* ---------- signature pad ---------- */
+.sigpad-wrap{border:1.5px dashed var(--line);border-radius:var(--radius);background:#fff;position:relative;}
+.sigpad-wrap canvas{display:block;width:100%;height:170px;touch-action:none;cursor:crosshair;}
+.sigpad-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:13px;pointer-events:none;}
+
+/* ---------- stepper ---------- */
+.steps{display:flex;gap:6px;margin-bottom:22px;flex-wrap:wrap;}
+.step-pill{
+  font-family:var(--font-mono);font-size:11px;padding:5px 10px;border-radius:20px;
+  border:1px solid var(--line);color:var(--ink-faint);
+}
+.step-pill.on{background:var(--ink);border-color:var(--ink);color:var(--paper);}
+.step-pill.done{border-color:var(--ok);color:var(--ok);}
+
+/* ---------- misc ---------- */
+.section-title{font-size:17px;margin:0 0 4px;}
+.section-desc{color:var(--ink-soft);font-size:13.5px;margin:0 0 18px;}
+.subhead{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--stencil-deep);margin:22px 0 10px;padding-top:14px;border-top:1px solid var(--line-soft);}
+.subhead:first-of-type{border-top:none;padding-top:0;margin-top:6px;}
+.kv{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line-soft);font-size:13.5px;}
+.kv:last-child{border-bottom:none;}
+.kv b{font-weight:600;}
+.qr-box{background:#fff;padding:14px;border-radius:var(--radius);display:inline-block;border:1px solid var(--line-soft);}
+.tag-row{display:flex;gap:6px;flex-wrap:wrap;}
+.tag{font-size:11.5px;background:var(--stencil-tint);color:var(--stencil-deep);padding:3px 9px;border-radius:20px;font-weight:600;}
+
+/* ---------- body diagram (richiesta preventivo) ---------- */
+.body-pair{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:14px 0;}
+.body-frame{position:relative;background:#fff;border:1px solid var(--line-soft);border-radius:var(--radius);width:140px;}
+.body-frame svg{display:block;width:100%;height:auto;cursor:crosshair;}
+.body-frame svg .bod{fill:none;stroke:var(--ink-faint);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.body-frame svg .bod-fill{fill:var(--paper);stroke:var(--ink-faint);stroke-width:2;}
+.body-label{text-align:center;font-family:var(--font-mono);font-size:10.5px;color:var(--ink-faint);padding:5px 0;border-top:1px solid var(--line-soft);text-transform:uppercase;letter-spacing:.04em;}
+.body-pin{
+  position:absolute;width:20px;height:20px;margin:-20px 0 0 -10px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--stencil);color:#fff;border-radius:50% 50% 50% 0;
+  transform:rotate(-45deg);font-family:var(--font-mono);font-size:9px;font-weight:700;
+  box-shadow:0 2px 4px rgba(0,0,0,.25);cursor:pointer;
+}
+.body-pin span{transform:rotate(45deg);}
+.gender-toggle{display:flex;gap:8px;margin-bottom:6px;}
+
+/* ---------- richieste (lead) list ---------- */
+.nav-badge{
+  background:var(--flesh);color:#fff;font-family:var(--font-mono);font-size:10.5px;font-weight:700;
+  border-radius:20px;padding:1px 7px;margin-left:auto;
+}
+.lead-row{display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid var(--line-soft);border-radius:var(--radius);background:var(--paper-raised);cursor:pointer;}
+.lead-row + .lead-row{margin-top:8px;}
+.lead-row:hover{border-color:var(--stencil);}
+.lead-main{flex:1;min-width:0;}
+.lead-main b{font-size:14.5px;}
+.lead-main span{display:block;font-size:12px;color:var(--ink-faint);}
+.wa-btn{
+  all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+  background:#25D366;color:#fff;padding:8px 12px;border-radius:var(--radius);font-size:12.5px;font-weight:600;
+}
+.wa-btn:hover{background:#1fb958;}
+.lead-status{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:4px 9px;border-radius:20px;border:1px solid currentColor;}
+.lead-status.nuova{color:var(--flesh);}
+.lead-status.contattato{color:var(--stencil);}
+.lead-status.fissato{color:var(--ok);}
+.lead-status.chiusa{color:var(--ink-faint);}
+
+@media (max-width:860px){
+  .rail{position:fixed;left:0;top:0;bottom:0;transform:translateX(-100%);transition:transform .25s ease;z-index:41;}
+  .rail.open{transform:translateX(0);box-shadow:20px 0 40px rgba(0,0,0,.35);}
+  .main{padding:20px 16px 60px;}
+  .mobile-topbar{display:flex !important;}
+}
+.mobile-topbar{display:none;align-items:center;gap:10px;margin-bottom:18px;}
+.rail-backdrop{
+  display:none;position:fixed;inset:0;background:rgba(20,18,16,.45);z-index:40;
+}
+.rail-backdrop.show{display:block;}
+.rail-close{display:none;}
+@media (max-width:860px){
+  .rail-close{display:block;all:unset;cursor:pointer;color:#B9AFA4;font-size:13px;margin-left:auto;}
+}
+</style>
+</head>
+<body>
+<div id="app-root"><!-- rendered by app.js --></div>
+
+<script>
+/* ============================================================
+   INKCONSENT — app.js (inline)
+   Single-file, offline-first PWA. State lives in localStorage;
+   Supabase sync is an optional bolt-on — see SUPABASE section
+   near the bottom. Nothing here requires a backend to work.
+   ============================================================ */
+
+/* ---------- STUDIO_CONFIG — the whitelabel surface ----------
+   This is the ONE block a studio (or Gem, selling this) needs
+   to touch to make the app theirs: identity, artists, and the
+   informativa text. Colors live in :root above as CSS vars —
+   swap those too for a full re-skin per studio.            */
+/* Valori base di fabbrica. La sezione "Setup studio" nelle impostazioni
+   può sovrascrivere identità e colori senza toccare il codice: le modifiche
+   vivono in localStorage (chiave inkconsent_studio_v1) e vengono fuse qui
+   sopra all'avvio. Così ogni studio personalizza la sua copia dell'app. */
+const STUDIO_DEFAULTS = {
+  studioName: "Podere 173 Tattoo Studio",
+  studioCity: "Ozieri (SS)",
+  studioMark: "P173",
+  artistsText: "GemBucher, Ospite / Guest", // editabile come testo, split su virgola
+  publicUrl: "https://tuo-studio.vercel.app",
+  colorInk: "#1B1A19",
+  colorStencil: "#5B3B63",
+  colorFlesh: "#C98F6C",
+};
+const STUDIO_STORE_KEY = "inkconsent_studio_v1";
+function loadStudioOverrides(){
+  try { return JSON.parse(localStorage.getItem(STUDIO_STORE_KEY)) || {}; }
+  catch(e){ return {}; }
+}
+function saveStudioOverrides(o){ localStorage.setItem(STUDIO_STORE_KEY, JSON.stringify(o)); }
+
+const STUDIO_CONFIG = {
+  informativaVersion: "v2.0 · modulo studio",
+  informativaUpdated: "2026-07-01",
+  retentionYears: 5, // "conservata dall'esercente per almeno cinque anni" — dal modulo cartaceo
+  // Testo trascritto dai moduli cartacei reali dello studio
+  // (Consenso_Informato_F_R.pdf e ...Minori.pdf). Restano comunque testi
+  // dello studio, non una consulenza legale: se li aggiorni, cambia
+  // informativaVersion così lo storico firmato resta coerente.
+  dichiarazioneConsenso: `Ho letto e compreso il Modulo di Consenso Informato.
+CONFERMO che quanto da me dichiarato corrisponde al vero.
+Mi impegno a seguire attentamente le istruzioni per la CURA del tatuaggio/piercing fino a completa guarigione.
+ESONERO l'esecutore del tatuaggio/piercing e lo studio da qualsiasi responsabilità in merito ai rischi di infezione e reazioni indesiderate sopra illustrate, e da ogni pretesa di risarcimento danni connessa alla prestazione commissionata.`,
+  privacyText: `Con la sottoscrizione del presente modulo, ai sensi e per gli effetti degli artt. 13 e 23 del D.Lgs. n. 196/2003, si fornisce il consenso al trattamento dei dati personali forniti a seguito della segnalazione inoltrata. Ai sensi del D.Lgs. 196/2003 i dati contenuti nella presente dichiarazione verranno utilizzati esclusivamente allo scopo per il quale essi sono richiesti.`,
+  disegnoText: `Dichiaro di essere stato informato sui rischi legati all'esecuzione e sulle precauzioni da tenere dopo l'effettuazione del tatuaggio o del piercing; di aver visionato il disegno del tatuaggio prima dell'esecuzione e di averne approvato il contenuto; confermo inoltre di essere consapevole che il tatuaggio verrà eseguito artigianalmente secondo il disegno approvato e di accettarne l'esecuzione.`,
+};
+
+/* Fonde defaults + override salvati dallo studio nei campi vivi di STUDIO_CONFIG,
+   e applica i colori come CSS variables. Chiamata all'avvio e dopo ogni salvataggio. */
+function applyStudioConfig(){
+  const o = { ...STUDIO_DEFAULTS, ...loadStudioOverrides() };
+  STUDIO_CONFIG.studioName = o.studioName;
+  STUDIO_CONFIG.studioCity = o.studioCity;
+  STUDIO_CONFIG.studioMark = o.studioMark;
+  STUDIO_CONFIG.publicUrl = o.publicUrl;
+  STUDIO_CONFIG.artists = o.artistsText.split(",").map(s => s.trim()).filter(Boolean);
+  if (!STUDIO_CONFIG.artists.length) STUDIO_CONFIG.artists = ["Artista"];
+  const r = document.documentElement.style;
+  r.setProperty("--ink", o.colorInk);
+  r.setProperty("--stencil", o.colorStencil);
+  r.setProperty("--flesh", o.colorFlesh);
+  return o;
+}
+
+const EFFETTI_FREQUENTI = [
+  "Ematomi locali nell'area tatuata",
+  "Dolori o una sensazione di malessere sia il giorno della seduta che il giorno successivo",
+  "Reazioni infiammatorie transitorie, eritemi o edemi (fino al sesto giorno)",
+  "Irritazioni della pelle, prurito o riscaldamento (si riducono nell'arco di 12-72 ore)",
+  "Formazione di croste (si riduce dopo 5 giorni), desquamazione pelle (si riduce entro 8 giorni)",
+  "Differenza di tonalità e perdita di pigmento",
+];
+const EFFETTI_RARI = [
+  "Formazione di pustole o mili in caso di pulizia non accurata prima e dopo l'esecuzione del tatuaggio",
+  "Formazione di bollicine da virus herpes simplex di tipo 1",
+  "Reazioni allergiche a componenti del colore del pigmento asettico",
+];
+
+/* ---------- SUPABASE (optional multi-device sync) ----------
+   Lascia vuoto per lavorare 100% offline/locale (default).
+   Per abilitare la sincronizzazione multi-dispositivo — utile
+   per il flusso "cliente compila da casa, studio vede in
+   negozio" — crea un progetto su supabase.com e incolla qui
+   url + anonKey. Schema tabella suggerito nel README.md.     */
+const SUPABASE_CONFIG = {
+  url: "",       // es: "https://xxxx.supabase.co"
+  anonKey: "",   // anon/public key del progetto
+  tenantId: "podere173", // identifica questo studio tra i tanti che usano l'app
+};
+
+/* ---------- reference data ----------
+   Le 15 condizioni sono trascritte 1:1 dal modulo cartaceo dello
+   studio ("Nelle condizioni di seguito riportate NON è possibile
+   eseguire alcun tatuaggio"). Non le ho riformulate.            */
+const HEALTH_QUESTIONS = [
+  { id: "q1",  label: "Soffre di emofilia o altri problemi di coagulazione del sangue" },
+  { id: "q2",  label: "Sta attualmente assumendo anticoagulanti (es. acido acetilsalicilico, eparina, aspirina, warfarin) o ha diabete mellito non controllato" },
+  { id: "q3",  label: "Ha qualsiasi forma di acne attiva nell'area da tatuare" },
+  { id: "q4",  label: "Soffre di dermatosi, tumori della pelle, cheloidi o estrema propensione alla loro formazione, cheratosi solari, o ha verruche o voglie nell'area di cute da tatuare" },
+  { id: "q5",  label: "Ha ferite aperte, eczemi ed eruzioni cutanee nell'area da tatuare" },
+  { id: "q6",  label: "Ha malattie infettive sistemiche (es. epatite di tipo A,B,C,D,E,F) o infezioni da HIV" },
+  { id: "q7",  label: "Ha infezioni locali della pelle acute (es. herpes, rosacea)" },
+  { id: "q8",  label: "Sta seguendo una terapia a base di corticosteroidi ad alto dosaggio" },
+  { id: "q9",  label: "È in cura chemioterapica o radioterapica" },
+  { id: "q10", label: "Ha effettuato un'operazione di chirurgia estetica nell'area di cute da trattare da meno di 12 mesi" },
+  { id: "q11", label: "Le sono state somministrate iniezioni di filler/acido ialuronico nell'area di cute da trattare da meno di 6 mesi" },
+  { id: "q12", label: "È sotto l'effetto di alcool e/o droghe" },
+  { id: "q13", label: "È in stato di gravidanza o in fase di allattamento" },
+  { id: "q14", label: "Soffre di eccessiva sensibilità al dolore" },
+  { id: "q15", label: "Ha avuto episodi di svenimento e/o vertigini" },
+];
+
+const BODY_ZONES = ["Testa/Viso","Collo","Torace","Schiena","Braccio Dx","Braccio Sx",
+  "Mano Dx","Mano Sx","Gamba Dx","Gamba Sx","Piede Dx","Piede Sx","Altro"];
+
+const STATUS = {
+  bozza:      { label: "Bozza",            cls: "stamp-bozza" },
+  attesa:     { label: "In attesa firma",  cls: "stamp-attesa" },
+  firmato:    { label: "Firmato cliente",  cls: "stamp-firmato" },
+  archiviato: { label: "Archiviato",       cls: "stamp-archiviato" },
+};
+const CLIENT_LAST_STEP = 6; // il cliente compila i passi 1-6; 7-8 sono fase studio
+
+/* ---------- utils ---------- */
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = (s="") => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtDate = (iso) => { if(!iso) return "—"; const d = new Date(iso); return d.toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit",year:"numeric"}); };
+const fmtDateTime = (iso) => { if(!iso) return "—"; const d = new Date(iso); return d.toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit",year:"numeric"}) + " · " + d.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"}); };
+const qs = (sel, root=document) => root.querySelector(sel);
+const qsa = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+function blankSession(){
+  return {
+    id: uid(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    status: "bozza",
+    filledByClientRemotely: false,
+    anagrafica: {
+      nome:"", cognome:"", nascita:"", luogoNascita:"", provNascita:"",
+      comuneResidenza:"", provinciaResidenza:"", via:"", numeroCivico:"",
+      cf:"", telefono:"", email:"",
+    },
+    minorenne: false,
+    tutore1: { nome:"", dataNascita:"", luogoNascita:"", provNascita:"", comuneResidenza:"", provResidenza:"", via:"", numeroCivico:"" },
+    tutore2: { nome:"", dataNascita:"", luogoNascita:"", provNascita:"", comuneResidenza:"", provResidenza:"", via:"", numeroCivico:"" },
+    documento: { intestatario:"padre", tipo:"", numero:"", dataRilascio:"", autorita:"", dataScadenza:"" },
+    sanitario: {}, // { questionId: "si"|"no" }
+    sanitarioNote: "",
+    tipoApplicazione: "tatuaggio", // "tatuaggio" | "piercing"
+    // --- ZONA (parte cliente) ---
+    zonaMode: "semplice", // "semplice" (chip) | "sagoma" (body diagram)
+    zone: [],             // usato in modalità semplice
+    zonaLibera: "",       // dettaglio libero della zona
+    genere: "maschile",   // per la sagoma
+    markers: [],          // { view: 'fronte'|'retro', xPct, yPct } per la sagoma
+    grandezza: "",        // dimensione indicativa del tatuaggio
+    zoneNei: null,        // "si" | "no"
+    zoneNeiNote: "",
+    informativaVersion: STUDIO_CONFIG.informativaVersion,
+    informativaLetta: false,
+    privacyConsenso: false,
+    disegnoConfermato: false,
+    firmaClienteData: null, // dataURL
+    firmaClienteAt: null,
+    // --- DATI SEDUTA (parte studio, post-seduta, davanti al cliente) ---
+    seduta: {
+      compilata: false,
+      dataApplicazione: "",   // data reale, NON precompilata
+      sedeEffettiva: "",      // zona effettivamente tatuata
+      materiali: "",
+      ago: "",
+      lottoPigmento: "",
+      schedaTecnicaAllegata: false,
+      reazioniAvverse: "",
+    },
+    artista: STUDIO_CONFIG.artists[0],
+    controfirmaData: null, // dataURL
+    controfirmaAt: null,
+    noteStudio: "",
+  };
+}
+
+/* ---------- storage (localStorage, offline-first) ---------- */
+const STORE_KEY = "inkconsent_sessions_v1";
+function loadSessions(){
+  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
+  catch(e){ return []; }
+}
+function saveSessions(list){
+  localStorage.setItem(STORE_KEY, JSON.stringify(list));
+}
+function upsertSession(session){
+  const list = loadSessions();
+  const i = list.findIndex(s => s.id === session.id);
+  session.updatedAt = new Date().toISOString();
+  if (i >= 0) list[i] = session; else list.unshift(session);
+  saveSessions(list);
+  maybeSyncToSupabase(session);
+  return session;
+}
+function deleteSession(id){
+  saveSessions(loadSessions().filter(s => s.id !== id));
+}
+function getSession(id){
+  return loadSessions().find(s => s.id === id) || null;
+}
+
+/* ---------- Supabase bridge (no-op until configured) ----------
+   Pattern coerente con il data-sync-bridge già usato su
+   InkAnimus_OS. Finché SUPABASE_CONFIG.url è vuoto, queste
+   funzioni non fanno nulla: l'app resta 100% locale.
+   Schema tabella suggerito in README.md.                      */
+async function maybeSyncToSupabase(session){
+  if (!SUPABASE_CONFIG.url || !SUPABASE_CONFIG.anonKey) return;
+  try{
+    await fetch(`${SUPABASE_CONFIG.url}/rest/v1/consents`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_CONFIG.anonKey,
+        "Authorization": `Bearer ${SUPABASE_CONFIG.anonKey}`,
+        "Prefer": "resolution=merge-duplicates",
+      },
+      body: JSON.stringify({ id: session.id, tenant_id: SUPABASE_CONFIG.tenantId, payload: session, status: session.status, updated_at: session.updatedAt }),
+    });
+  } catch(e){ console.warn("Sync Supabase fallita, resto locale:", e); }
+}
+async function fetchRemoteSession(sessionId){
+  if (!SUPABASE_CONFIG.url || !SUPABASE_CONFIG.anonKey) return null;
+  try{
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/consents?id=eq.${sessionId}&tenant_id=eq.${SUPABASE_CONFIG.tenantId}&select=payload`, {
+      headers: { "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${SUPABASE_CONFIG.anonKey}` },
+    });
+    const rows = await res.json();
+    return rows && rows[0] ? rows[0].payload : null;
+  } catch(e){ console.warn("Fetch remoto fallito:", e); return null; }
+}
+
+/* ============================================================
+   RICHIESTE PREVENTIVO — lead di consulenza, non un preventivo
+   scritto. Il cliente racconta cosa vuole e lascia i contatti;
+   tu ricevi la notifica, lo contatti su WhatsApp con la sua
+   richiesta già in mano e gli dai un appuntamento in studio,
+   dove il preventivo vero glielo dai di persona.
+   ============================================================ */
+const TATTOO_STYLES = ["Chicano","Illustrativo","Blackwork","Fine Line","Realistico",
+  "Old School","Neo Traditional","Giapponese","Dotwork","Lettering","Geometrico","Altro"];
+const DIMENSIONI = ["Piccolo (fino a 5cm)","Medio (5–15cm)","Grande (15cm+)","Non so ancora"];
+
+const LEAD_STATUS = {
+  nuova:      { label: "Nuova",     cls: "nuova" },
+  contattato: { label: "Contattato", cls: "contattato" },
+  fissato:    { label: "Appuntamento fissato", cls: "fissato" },
+  chiusa:     { label: "Chiusa",    cls: "chiusa" },
+};
+
+/* Notifica push gratuita via ntfy.sh — nessun account, nessuna chiave.
+   1) Installa l'app ntfy (Android/iOS/desktop) — gratis, nessuna registrazione.
+   2) Scegli un nome-topic non indovinabile, es. "podere173-xk92q", e iscriviti nell'app.
+   3) Incollalo qui sotto: da quel momento ogni richiesta inviata dal cliente
+      ti arriva come notifica push sul telefono, ovunque tu sia.
+   Il topic è pubblico su ntfy.sh (chiunque lo conosca può leggerlo), quindi
+   scegline uno lungo e casuale, non "podere173".                        */
+const NOTIFY_CONFIG = {
+  ntfyTopic: "", // es: "podere173-xk92q"
+};
+async function notifyNewRichiesta(r){
+  if (!NOTIFY_CONFIG.ntfyTopic) return;
+  try{
+    await fetch(`https://ntfy.sh/${NOTIFY_CONFIG.ntfyTopic}`, {
+      method: "POST",
+      headers: {
+        "Title": `Nuova richiesta: ${r.cliente.nome} ${r.cliente.cognome}`,
+        "Tags": "briefcase,tattoo",
+      },
+      body: `${r.cliente.telefono || "no telefono"} · ${r.stile.join(", ") || "stile non indicato"}\n${(r.descrizione || "").slice(0,120)}`,
+    });
+  } catch(e){ console.warn("Notifica ntfy non riuscita:", e); }
+}
+
+function blankRichiesta(){
+  return {
+    id: uid(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    status: "nuova",
+    cliente: { nome:"", cognome:"", nascita:"", telefono:"", email:"" },
+    stile: [],
+    stileAltro: "",
+    descrizione: "",
+    dimensione: "",
+    genere: "maschile",
+    markers: [], // { view: 'fronte'|'retro', xPct, yPct }
+    dataConsulenza: "",
+    noteStudio: "",
+  };
+}
+const RICHIESTE_KEY = "inkconsent_richieste_v1";
+function loadRichieste(){ try { return JSON.parse(localStorage.getItem(RICHIESTE_KEY)) || []; } catch(e){ return []; } }
+function saveRichieste(list){ localStorage.setItem(RICHIESTE_KEY, JSON.stringify(list)); }
+function upsertRichiesta(r){
+  const list = loadRichieste();
+  const i = list.findIndex(x => x.id === r.id);
+  r.updatedAt = new Date().toISOString();
+  if (i >= 0) list[i] = r; else list.unshift(r);
+  saveRichieste(list);
+  return r;
+}
+function getRichiesta(id){ return loadRichieste().find(r => r.id === id) || null; }
+
+/* ---------- WhatsApp click-to-chat ----------
+   Formato ufficiale wa.me: numero senza simboli, prefisso Italia
+   assunto se il cliente non l'ha scritto lui stesso.            */
+function waLink(telefono, message){
+  let digits = (telefono || "").replace(/[^\d]/g, "");
+  if (digits && !digits.startsWith("39") && digits.length <= 10) digits = "39" + digits;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+}
+function waMessageFor(r){
+  return `Ciao ${r.cliente.nome}! Grazie per la richiesta su ${STUDIO_CONFIG.studioName}. Quando saresti disponibile per una consulenza gratuita in studio e definire insieme il preventivo?`;
+}
+
+/* ---------- body diagram (fronte/retro, maschile/femminile) ----------
+   Silhouette semplici e neutre, in stile scheda-flash da studio —
+   servono a marcare zone, non a essere anatomicamente dettagliate. */
+function bodySvg(gender){
+  const f = gender === "femminile";
+  const shoulderW = f ? 30 : 38, waistW = f ? 20 : 30, hipW = f ? 34 : 26;
+  const cx = 70;
+  const shTop = 108, waistY = 190, hipY = 218, kneeY = 330, footY = 450;
+  const torso = `M${cx-shoulderW},${shTop} Q${cx},${shTop-10} ${cx+shoulderW},${shTop}
+    Q${cx+shoulderW+6},${(shTop+waistY)/2} ${cx+waistW},${waistY}
+    Q${cx+hipW},${(waistY+hipY)/2+6} ${cx+hipW},${hipY}
+    Q${cx+hipW-4},${hipY+14} ${cx+waistW-2},${hipY+18}
+    L${cx-waistW+2},${hipY+18} Q${cx-hipW+4},${hipY+14} ${cx-hipW},${hipY}
+    Q${cx-hipW},${(waistY+hipY)/2+6} ${cx-waistW},${waistY}
+    Q${cx-shoulderW-6},${(shTop+waistY)/2} ${cx-shoulderW},${shTop} Z`;
+  const armL = `M${cx-shoulderW+2},${shTop+6} Q${cx-shoulderW-22},${shTop+40} ${cx-shoulderW-26},${shTop+95} Q${cx-shoulderW-28},${shTop+140} ${cx-shoulderW-16},${shTop+168}`;
+  const armR = `M${cx+shoulderW-2},${shTop+6} Q${cx+shoulderW+22},${shTop+40} ${cx+shoulderW+26},${shTop+95} Q${cx+shoulderW+28},${shTop+140} ${cx+shoulderW+16},${shTop+168}`;
+  const legL = `M${cx-waistW+6},${hipY+16} Q${cx-hipW+10},${kneeY-20} ${cx-hipW+14},${kneeY} Q${cx-hipW+10},${kneeY+70} ${cx-hipW+16},${footY}`;
+  const legR = `M${cx+waistW-6},${hipY+16} Q${cx+hipW-10},${kneeY-20} ${cx+hipW-14},${kneeY} Q${cx+hipW-10},${kneeY+70} ${cx+hipW-16},${footY}`;
+  return `
+  <svg viewBox="0 0 140 480" xmlns="http://www.w3.org/2000/svg">
+    <ellipse class="bod-fill" cx="${cx}" cy="52" rx="22" ry="26"/>
+    <path class="bod" d="M${cx-10},${76} L${cx-10},${92} Q${cx},${98} ${cx+10},${92} L${cx+10},${76}" fill="none"/>
+    <path class="bod-fill" d="${torso}"/>
+    <path class="bod" d="${armL}" fill="none"/>
+    <path class="bod" d="${armR}" fill="none"/>
+    <path class="bod" d="${legL}" fill="none"/>
+    <path class="bod" d="${legR}" fill="none"/>
+  </svg>`;
+}
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const params = new URLSearchParams(location.search);
+const state = {
+  mode: params.get("client") === "1" ? "client" : (params.get("richiesta") === "1" ? "richiesta" : "studio"),
+  view: "archive",       // archive | form | settings | leads | lead-form
+  step: 1,
+  railOpen: false,
+};
+let draft = null; // sessione attualmente in editing (studio o cliente)
+
+function setField(path, value){
+  const parts = path.split(".");
+  let obj = draft;
+  for (let i = 0; i < parts.length - 1; i++) obj = obj[parts[i]];
+  obj[parts[parts.length - 1]] = value;
+}
+function getField(path){
+  return path.split(".").reduce((o,k) => (o ? o[k] : undefined), draft);
+}
+function setLeadField(path, value){
+  const parts = path.split(".");
+  let obj = leadDraft;
+  for (let i = 0; i < parts.length - 1; i++) obj = obj[parts[i]];
+  obj[parts[parts.length - 1]] = value;
+}
+
+function validateStep(step){
+  const errs = [];
+  if (step === 1){
+    if (!draft.anagrafica.nome.trim()) errs.push("Inserisci il nome.");
+    if (!draft.anagrafica.cognome.trim()) errs.push("Inserisci il cognome.");
+    if (!draft.anagrafica.nascita) errs.push("Inserisci la data di nascita.");
+    if (draft.minorenne){
+      if (!draft.tutore1.nome.trim()) errs.push("Inserisci i dati di almeno un genitore/tutore.");
+      if (!draft.documento.numero.trim()) errs.push("Inserisci gli estremi del documento del genitore/tutore firmatario.");
+    }
+  }
+  if (step === 2){
+    const unanswered = HEALTH_QUESTIONS.filter(q => !draft.sanitario[q.id]);
+    if (unanswered.length) errs.push("Rispondi a tutte le domande del questionario sanitario.");
+  }
+  if (step === 3){
+    if (draft.zonaMode === "sagoma"){
+      if (!draft.markers.length) errs.push("Segna almeno un punto sulla sagoma dove andrà il tatuaggio.");
+    } else {
+      if (!draft.zone.length && !draft.zonaLibera.trim()) errs.push("Indica la zona del corpo (seleziona o scrivi la zona).");
+    }
+    if (!draft.zoneNei) errs.push("Indica se l'area presenta nei.");
+  }
+  if (step === 4){
+    if (!draft.informativaLetta) errs.push("Conferma di aver letto e compreso il modulo di consenso informato.");
+  }
+  if (step === 5){
+    if (!draft.privacyConsenso) errs.push("Conferma il consenso al trattamento dei dati personali.");
+    if (!draft.disegnoConfermato) errs.push("Conferma di aver visionato e approvato il disegno.");
+  }
+  if (step === 6){
+    if (!draft.firmaClienteData) errs.push("È necessaria la firma del cliente per procedere.");
+  }
+  if (step === 7){
+    if (!draft.seduta.dataApplicazione) errs.push("Inserisci la data effettiva dell'applicazione.");
+  }
+  if (step === 8){
+    if (!draft.controfirmaData) errs.push("È necessaria la controfirma del tatuatore.");
+  }
+  return errs;
+}
+
+/* ============================================================
+   RENDER DISPATCHER
+   ============================================================ */
+function render(){
+  const root = qs("#app-root");
+  if (state.mode === "client") root.innerHTML = renderClientShell();
+  else if (state.mode === "richiesta") root.innerHTML = renderLeadShell();
+  else root.innerHTML = renderStudioShell();
+  afterRender();
+}
+function renderStepOnly(){
+  const host = qs("#step-content");
+  if (!host) return render();
+  host.innerHTML = renderStepBody(state.step, state.mode);
+  afterRender();
+}
+function renderLeadStepOnly(){
+  const host = qs("#lead-step-content");
+  if (!host) return render();
+  host.innerHTML = renderLeadStepBody(state.leadStep);
+  afterRender();
+}
+function afterRender(){
+  // (re)bind widgets that need direct DOM access after an innerHTML swap
+  const canvas = qs("#sig-canvas");
+  if (canvas) initSignaturePad(canvas, state.step === 8 ? "controfirmaData" : "firmaClienteData");
+  const qrHost = qs("#qr-host");
+  if (qrHost && window.QRCode) {
+    qrHost.innerHTML = "";
+    new QRCode(qrHost, { text: buildClientLink(qs("#qr-host").dataset.sid), width: 132, height: 132, colorDark: "#1B1A19", colorLight: "#ffffff" });
+  }
+}
+function buildClientLink(sessionId){
+  return `${STUDIO_CONFIG.publicUrl}/?client=1&session=${sessionId}`;
+}
+function buildLeadLink(){
+  return `${STUDIO_CONFIG.publicUrl}/?richiesta=1`;
+}
+
+/* ============================================================
+   STUDIO SHELL (rail + archive/form/settings/leads)
+   ============================================================ */
+function renderStudioShell(){
+  const nuoveLeads = loadRichieste().filter(l => l.status === "nuova").length;
+  return `
+  <div class="shell">
+    <div class="rail-backdrop ${state.railOpen ? "show" : ""}" data-action="toggle-rail"></div>
+    <nav class="rail ${state.railOpen ? "open" : ""}" id="rail">
+      <div class="rail-brand">
+        <div class="rail-mark">${esc(STUDIO_CONFIG.studioMark)}</div>
+        <div>
+          <div class="rail-brand-name">${esc(STUDIO_CONFIG.studioName)}</div>
+          <div class="rail-brand-sub">${esc(STUDIO_CONFIG.studioCity)}</div>
+        </div>
+        <button class="rail-close" data-action="toggle-rail">✕ Chiudi</button>
+      </div>
+      <div class="rail-nav">
+        <button class="rail-btn ${state.view==='archive'?'active':''}" data-action="nav" data-view="archive">📋 Archivio consensi</button>
+        <button class="rail-btn ${state.view==='form'?'active':''}" data-action="new-session">✎ Nuovo consenso</button>
+        <button class="rail-btn ${state.view==='leads'||state.view==='lead-detail'?'active':''}" data-action="nav" data-view="leads">💬 Richieste preventivo${nuoveLeads ? `<span class="nav-badge">${nuoveLeads}</span>` : ""}</button>
+        <button class="rail-btn ${state.view==='settings'?'active':''}" data-action="nav" data-view="settings">⚙ Impostazioni studio</button>
+      </div>
+      <div class="rail-foot">InkConsent · engine v1.0<br>Motore condiviso, personalizzabile per studio.</div>
+    </nav>
+    <div class="main">
+      <div class="mobile-topbar">
+        <button class="btn btn-ghost btn-sm" data-action="toggle-rail">☰ Menu</button>
+      </div>
+      <div id="studio-main">${renderStudioView()}</div>
+    </div>
+  </div>`;
+}
+function renderStudioView(){
+  if (state.view === "settings") return renderSettings();
+  if (state.view === "form" && draft) return renderStudioForm();
+  if (state.view === "leads") return renderLeads();
+  if (state.view === "lead-detail" && leadDraft) return renderLeadDetail();
+  return renderArchive();
+}
+
+function renderArchive(){
+  const sessions = loadSessions();
+  const notice = state.pdfWarning ? `<div class="callout warn" style="margin-bottom:14px;">Il consenso è stato salvato, ma il PDF non è stato generato (serve connessione internet per la libreria di export). Apri il record e usa "Scarica di nuovo il PDF".</div>` : "";
+  return `
+  <div class="topbar">
+    <div><h1>Archivio consensi</h1><p>${sessions.length} session${sessions.length===1?"e":"i"} salvat${sessions.length===1?"a":"e"} · ricercabili in caso di controllo</p></div>
+    <button class="btn btn-accent" data-action="new-session">+ Nuovo consenso</button>
+  </div>
+  <div class="main-inner">
+    ${notice}
+    <div class="field" style="max-width:320px;">
+      <input type="text" placeholder="Cerca per nome…" value="${esc(state.archiveQuery||"")}" data-action="search-archive">
+    </div>
+    <div id="archive-results">${renderArchiveResults(sessions)}</div>
+  </div>`;
+}
+function renderArchiveResults(sessions){
+  sessions = sessions || loadSessions();
+  const q = (state.archiveQuery || "").toLowerCase();
+  const filtered = q ? sessions.filter(s => `${s.anagrafica.nome} ${s.anagrafica.cognome}`.toLowerCase().includes(q)) : sessions;
+  if (!filtered.length) return `
+    <div class="arch-empty">
+      <b>Ancora nessun consenso qui</b>
+      Il primo si crea con "Nuovo consenso": anagrafica, questionario, informativa e firme in un unico flusso.
+    </div>`;
+  return filtered.map(s => `
+    <div class="arch-row" data-action="open-session" data-id="${s.id}">
+      <div class="arch-idx mono">#${s.id.slice(-6)}</div>
+      <div class="arch-name">
+        <b>${esc(s.anagrafica.cognome)} ${esc(s.anagrafica.nome)}</b>
+        <span>Aggiornato ${fmtDateTime(s.updatedAt)}${s.filledByClientRemotely ? " · compilato dal cliente" : ""}</span>
+      </div>
+      <span class="stamp ${STATUS[s.status].cls}">${STATUS[s.status].label}</span>
+    </div>`).join("");
+}
+
+/* ============================================================
+   SIGNATURE PAD — canvas a mano libera, salvata come dataURL
+   ============================================================ */
+function initSignaturePad(canvas, targetField){
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.lineWidth = 2.2;
+  ctx.lineCap = "round";
+  ctx.strokeStyle = "#1B1A19";
+
+  const existing = draft[targetField];
+  if (existing){
+    const img = new Image();
+    img.onload = () => ctx.drawImage(img, 0, 0, rect.width, rect.height);
+    img.src = existing;
+  }
+
+  let drawing = false, lastX = 0, lastY = 0;
+  const pos = (e) => {
+    const r = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX - r.left, y: t.clientY - r.top };
+  };
+  const start = (e) => { e.preventDefault(); drawing = true; const p = pos(e); lastX = p.x; lastY = p.y; };
+  const move = (e) => {
+    if (!drawing) return; e.preventDefault();
+    const p = pos(e);
+    ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(p.x, p.y); ctx.stroke();
+    lastX = p.x; lastY = p.y;
+  };
+  const end = () => {
+    if (!drawing) return;
+    drawing = false;
+    draft[targetField] = canvas.toDataURL("image/png");
+    if (targetField === "firmaClienteData") draft.firmaClienteAt = new Date().toISOString();
+    if (targetField === "controfirmaData") draft.controfirmaAt = new Date().toISOString();
+    upsertSession(draft);
+  };
+  canvas.addEventListener("mousedown", start);
+  canvas.addEventListener("mousemove", move);
+  window.addEventListener("mouseup", end);
+  canvas.addEventListener("touchstart", start, {passive:false});
+  canvas.addEventListener("touchmove", move, {passive:false});
+  canvas.addEventListener("touchend", end);
+}
+
+/* ============================================================
+   PDF EXPORT — jsPDF, client-side, nessun backend richiesto
+   ============================================================ */
+function buildPdf(s){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const M = 48; const BOTTOM = 780; let y = 56;
+  const ensure = (needed) => { if (y + needed > BOTTOM) { doc.addPage(); y = 56; } };
+  const heading = (txt) => { ensure(26); doc.setFont("helvetica","bold"); doc.setFontSize(12); doc.setTextColor("#1B1A19"); doc.text(txt, M, y); y += 18; doc.setFont("helvetica","normal"); };
+  const line = (txt, size=10.5, gap=14, color="#1B1A19") => {
+    doc.setFontSize(size); doc.setTextColor(color);
+    const split = doc.splitTextToSize(txt, 500);
+    ensure(gap * split.length);
+    doc.text(split, M, y); y += gap * split.length;
+  };
+
+  doc.setFont("helvetica","bold"); line(STUDIO_CONFIG.studioName, 15, 20);
+  doc.setFont("helvetica","normal");
+  line(`${STUDIO_CONFIG.studioCity} · Modulo di consenso informato per ${s.tipoApplicazione === "piercing" ? "piercing" : "tatuaggio"}`, 10, 18, "#57514B");
+  doc.setDrawColor("#C7BEB2"); doc.line(M, y, 547, y); y += 20;
+
+  heading("Dati cliente");
+  line(`${s.anagrafica.cognome} ${s.anagrafica.nome} · nato/a il ${fmtDate(s.anagrafica.nascita)}`);
+  line(`Residenza: ${s.anagrafica.comuneResidenza || "—"} (${s.anagrafica.provinciaResidenza || "—"})`);
+  line(`CF: ${s.anagrafica.cf || "—"} · Tel: ${s.anagrafica.telefono || "—"} · Email: ${s.anagrafica.email || "—"}`);
+  y += 4;
+
+  if (s.minorenne){
+    heading("Autorizzazione del minore — Genitori/Tutori");
+    line(`Tutore 1: ${s.tutore1.nome || "—"}, nato/a il ${fmtDate(s.tutore1.dataNascita)} a ${s.tutore1.luogoNascita || "—"} (${s.tutore1.provNascita || "—"})`);
+    line(`Residente in ${s.tutore1.comuneResidenza || "—"} (${s.tutore1.provResidenza || "—"}), via ${s.tutore1.via || "—"} n. ${s.tutore1.numeroCivico || "—"}`);
+    if (s.tutore2.nome){
+      line(`Tutore 2: ${s.tutore2.nome}, nato/a il ${fmtDate(s.tutore2.dataNascita)} a ${s.tutore2.luogoNascita || "—"} (${s.tutore2.provNascita || "—"})`);
+      line(`Residente in ${s.tutore2.comuneResidenza || "—"} (${s.tutore2.provResidenza || "—"}), via ${s.tutore2.via || "—"} n. ${s.tutore2.numeroCivico || "—"}`);
+    }
+    line(`Documento firmatario (${s.documento.intestatario}): ${s.documento.tipo || "—"} n. ${s.documento.numero || "—"}, rilasciato da ${s.documento.autorita || "—"} il ${fmtDate(s.documento.dataRilascio)}, scadenza ${fmtDate(s.documento.dataScadenza)}`);
+    y += 4;
+  }
+
+  heading("Questionario sanitario");
+  HEALTH_QUESTIONS.forEach(q => line(`${q.label} → ${(s.sanitario[q.id]||"—").toUpperCase()}`, 9, 12));
+  if (s.sanitarioNote) line(`Note: ${s.sanitarioNote}`, 9, 12);
+  y += 4;
+
+  heading("Zona e disegno (dichiarato dal cliente)");
+  line(`Tipo: ${s.tipoApplicazione === "piercing" ? "Piercing" : "Tatuaggio"}`);
+  if (s.zonaMode === "sagoma"){
+    line(`Zona (sagoma ${s.genere}): ${s.markers.length} punto/i segnati${s.zonaLibera ? " — " + s.zonaLibera : ""}`);
+  } else {
+    line(`Zona/e: ${s.zone.join(", ") || "—"}${s.zonaLibera ? " — " + s.zonaLibera : ""}`);
+  }
+  line(`Grandezza indicativa: ${s.grandezza || "—"}`);
+  line(`Nei nell'area da tatuare: ${s.zoneNei === "si" ? "Sì — " + (s.zoneNeiNote || "nessuna nota") : "No"}`);
+  y += 4;
+
+  heading(`Consenso informato (${s.informativaVersion})`);
+  line("Il cliente dichiara di aver letto e compreso il Modulo di Consenso Informato, di aver fornito dichiarazioni veritiere, di impegnarsi a seguire le istruzioni di cura ed esonera l'esecutore e lo studio da responsabilità per i rischi illustrati.", 9.5, 13);
+  line(`Consenso al trattamento dei dati personali (D.Lgs 196/2003): ${s.privacyConsenso ? "prestato" : "non prestato"}.`, 9.5, 13);
+  line(`Disegno visionato e approvato dal cliente: ${s.disegnoConfermato ? "sì" : "no"}.`, 9.5, 13);
+  y += 4;
+
+  const sd = s.seduta || {};
+  heading("Dati seduta (compilati in studio)");
+  line(`Data effettiva applicazione: ${sd.dataApplicazione ? fmtDate(sd.dataApplicazione) : "—"}`);
+  line(`Zona effettivamente trattata: ${sd.sedeEffettiva || "—"}`);
+  line(`Materiali usati: ${sd.materiali || "—"}`);
+  line(`Ago/configurazione: ${sd.ago || "—"} · Lotto pigmento: ${sd.lottoPigmento || "—"}`);
+  line(`Scheda tecnica allegata: ${sd.schedaTecnicaAllegata ? "Sì" : "No"}`);
+  if (sd.reazioniAvverse) line(`Reazioni avverse riscontrate: ${sd.reazioniAvverse}`);
+  y += 6;
+
+  ensure(100);
+  heading("Firme");
+  const sigY = y;
+  if (s.firmaClienteData) doc.addImage(s.firmaClienteData, "PNG", M, sigY, 220, 70);
+  if (s.controfirmaData) doc.addImage(s.controfirmaData, "PNG", M + 260, sigY, 220, 70);
+  y = sigY + 78;
+  doc.setFontSize(9); doc.setTextColor("#57514B");
+  doc.text(`${s.minorenne ? "Genitore/tutore" : "Cliente"} · firmato ${fmtDateTime(s.firmaClienteAt)}`, M, y);
+  doc.text(`Tatuatore (${s.artista}) · controfirmato ${fmtDateTime(s.controfirmaAt)}`, M + 260, y);
+  y += 24;
+  doc.setDrawColor("#C7BEB2"); doc.line(M, y, 547, y); y += 16;
+  doc.setFontSize(8); doc.setTextColor("#8B837A");
+  doc.text(`InkConsent · ID sessione ${s.id} · Stato: ${STATUS[s.status].label} · da conservare almeno ${STUDIO_CONFIG.retentionYears} anni`, M, y);
+
+  doc.save(`consenso-${s.anagrafica.cognome || "cliente"}-${s.id.slice(-6)}.pdf`);
+}
+
+/* ============================================================
+   RICHIESTE PREVENTIVO — vista cliente (lead intake)
+   ============================================================ */
+let leadDraft = null;
+const LEAD_STEP_LABELS = ["I tuoi dati","Il tatuaggio","Dove","Invio"];
+
+function validateLeadStep(step){
+  const errs = [];
+  if (step === 1){
+    if (!leadDraft.cliente.nome.trim()) errs.push("Inserisci il nome.");
+    if (!leadDraft.cliente.cognome.trim()) errs.push("Inserisci il cognome.");
+    if (!leadDraft.cliente.telefono.trim()) errs.push("Inserisci un numero di telefono: è come ti contattiamo su WhatsApp.");
+  }
+  if (step === 2){
+    if (!leadDraft.stile.length && !leadDraft.stileAltro.trim()) errs.push("Scegli almeno uno stile (o descrivilo in \"Altro\").");
+    if (!leadDraft.descrizione.trim()) errs.push("Racconta in poche righe cosa hai in mente.");
+  }
+  if (step === 3){
+    if (!leadDraft.markers.length) errs.push("Segna almeno un punto sul corpo dove vorresti il tatuaggio.");
+  }
+  return errs;
+}
+
+function renderLeadShell(){
+  if (!leadDraft) leadDraft = blankRichiesta();
+  const total = 4;
+  if (state.leadDone) return renderLeadDone();
+  return `
+  <div class="client-shell">
+    <div class="client-head">
+      <div class="rail-brand">
+        <div class="rail-mark">${esc(STUDIO_CONFIG.studioMark)}</div>
+        <div>
+          <div class="rail-brand-name" style="color:var(--paper);">${esc(STUDIO_CONFIG.studioName)}</div>
+          <div class="rail-brand-sub">Richiesta consulenza · passo ${state.leadStep} di ${total}</div>
+        </div>
+      </div>
+      <div class="progress-track">
+        ${Array.from({length: total}).map((_,i) => `<div class="progress-dash"><i style="width:${i < state.leadStep ? 100 : 0}%"></i></div>`).join("")}
+      </div>
+    </div>
+    <div class="client-body">
+      <div class="card" id="lead-step-content">${renderLeadStepBody(state.leadStep)}</div>
+    </div>
+  </div>`;
+}
+function renderLeadDone(){
+  return `
+  <div class="client-shell">
+    <div class="client-body" style="padding-top:60px;text-align:center;">
+      <div class="rail-mark" style="width:56px;height:56px;font-size:22px;margin:0 auto 18px;">${esc(STUDIO_CONFIG.studioMark)}</div>
+      <h2>Richiesta inviata${leadDraft.cliente.nome ? ", grazie " + esc(leadDraft.cliente.nome) : ""}!</h2>
+      <p class="section-desc">Ti scriviamo su WhatsApp al numero che ci hai lasciato per fissare una consulenza gratuita in studio, dove ti diamo un preventivo su misura.</p>
+    </div>
+  </div>`;
+}
+
+function renderLeadErrors(step){
+  const errs = state.leadShowErrors === step ? validateLeadStep(step) : [];
+  if (!errs.length) return "";
+  return `<div class="callout warn" style="margin-bottom:18px;">${errs.map(esc).join("<br>")}</div>`;
+}
+
+function renderLeadStepBody(step){
+  if (step === 1) return renderLeadStep1();
+  if (step === 2) return renderLeadStep2();
+  if (step === 3) return renderLeadStep3();
+  if (step === 4) return renderLeadStep4();
+  return "";
+}
+
+function renderLeadStep1(){
+  const c = leadDraft.cliente;
+  return `
+  ${renderLeadErrors(1)}
+  <h3 class="section-title">I tuoi dati</h3>
+  <p class="section-desc">Ci servono per ricontattarti su WhatsApp e fissare la consulenza.</p>
+  <div class="grid-2">
+    <div class="field"><label>Nome</label><input type="text" data-field-lead="cliente.nome" value="${esc(c.nome)}"></div>
+    <div class="field"><label>Cognome</label><input type="text" data-field-lead="cliente.cognome" value="${esc(c.cognome)}"></div>
+  </div>
+  <div class="field"><label>Data di nascita</label><input type="date" data-field-lead="cliente.nascita" value="${esc(c.nascita)}"></div>
+  <div class="grid-2">
+    <div class="field"><label>Telefono (WhatsApp)</label><input type="tel" data-field-lead="cliente.telefono" value="${esc(c.telefono)}" placeholder="333 1234567"></div>
+    <div class="field"><label>Email (facoltativa)</label><input type="email" data-field-lead="cliente.email" value="${esc(c.email)}"></div>
+  </div>
+  ${renderLeadNav(1)}`;
+}
+
+function renderLeadStep2(){
+  return `
+  ${renderLeadErrors(2)}
+  <h3 class="section-title">Il tatuaggio</h3>
+  <p class="section-desc">Che stile hai in mente?</p>
+  <div class="chip-grid">
+    ${TATTOO_STYLES.map(s => `<button class="chip ${leadDraft.stile.includes(s)?'on':''}" data-action="toggle-stile" data-s="${esc(s)}">${esc(s)}</button>`).join("")}
+  </div>
+  ${leadDraft.stile.includes("Altro") ? `
+  <div class="field" style="margin-top:12px;"><label>Descrivi lo stile</label><input type="text" data-field-lead="stileAltro" value="${esc(leadDraft.stileAltro)}"></div>` : ""}
+  <div class="field" style="margin-top:16px;">
+    <label>Raccontaci cosa hai in mente</label>
+    <textarea data-field-lead="descrizione" placeholder="Soggetto, riferimenti, dettagli…">${esc(leadDraft.descrizione)}</textarea>
+  </div>
+  <div class="field">
+    <label>Dimensione indicativa</label>
+    <div class="chip-grid">
+      ${DIMENSIONI.map(d => `<button class="chip ${leadDraft.dimensione===d?'on':''}" data-action="set-dimensione" data-d="${esc(d)}">${esc(d)}</button>`).join("")}
+    </div>
+  </div>
+  ${renderLeadNav(2)}`;
+}
+
+function renderLeadStep3(){
+  return `
+  ${renderLeadErrors(3)}
+  <h3 class="section-title">Dove vorresti farlo</h3>
+  <p class="section-desc">Tocca il punto sulla sagoma. Tocca un punto già segnato per rimuoverlo.</p>
+  <div class="gender-toggle">
+    <button class="chip ${leadDraft.genere==='maschile'?'on':''}" data-action="set-genere" data-g="maschile">Corpo maschile</button>
+    <button class="chip ${leadDraft.genere==='femminile'?'on':''}" data-action="set-genere" data-g="femminile">Corpo femminile</button>
+  </div>
+  <div class="body-pair">
+    ${renderBodyFrame("fronte")}
+    ${renderBodyFrame("retro")}
+  </div>
+  ${renderLeadNav(3)}`;
+}
+function renderBodyFrame(view){
+  const pins = leadDraft.markers.map((m,i) => m.view === view ? `<div class="body-pin" data-action="remove-pin" data-i="${i}" style="left:${m.xPct}%;top:${m.yPct}%;"><span>${i+1}</span></div>` : "").join("");
+  return `
+  <div>
+    <div class="body-frame" data-action="mark-body" data-view="${view}">
+      ${bodySvg(leadDraft.genere)}
+      ${pins}
+    </div>
+    <div class="body-label">${view === "fronte" ? "Fronte" : "Retro"}</div>
+  </div>`;
+}
+
+function renderLeadStep4(){
+  const c = leadDraft.cliente;
+  return `
+  ${renderLeadErrors(4)}
+  <h3 class="section-title">Riepilogo</h3>
+  <p class="section-desc">Controlla e invia: ti ricontattiamo su WhatsApp.</p>
+  <div class="card" style="background:var(--paper);">
+    <div class="kv"><span>Nome</span><b>${esc(c.nome)} ${esc(c.cognome)}</b></div>
+    <div class="kv"><span>Telefono</span><b>${esc(c.telefono)}</b></div>
+    <div class="kv"><span>Stile</span><b>${leadDraft.stile.map(esc).join(", ")}${leadDraft.stileAltro ? " — " + esc(leadDraft.stileAltro) : ""}</b></div>
+    <div class="kv"><span>Dimensione</span><b>${esc(leadDraft.dimensione || "—")}</b></div>
+    <div class="kv"><span>Punti segnati</span><b>${leadDraft.markers.length}</b></div>
+  </div>
+  ${renderLeadNav(4)}`;
+}
+
+function renderLeadNav(step){
+  const isLast = step === 4;
+  return `
+  <div class="btn-row">
+    ${step > 1 ? `<button class="btn btn-ghost" data-action="lead-prev">← Indietro</button>` : ""}
+    <button class="btn btn-accent" data-action="${isLast ? "lead-submit" : "lead-next"}">${isLast ? "Invia richiesta" : "Avanti →"}</button>
+  </div>`;
+}
+
+/* ============================================================
+   RICHIESTE PREVENTIVO — vista studio (lista + dettaglio)
+   ============================================================ */
+function renderLeads(){
+  const leads = loadRichieste();
+  const nuove = leads.filter(l => l.status === "nuova").length;
+  return `
+  <div class="topbar">
+    <div><h1>Richieste preventivo</h1><p>${leads.length} richiest${leads.length===1?"a":"e"}${nuove ? ` · ${nuove} da contattare` : ""}</p></div>
+  </div>
+  <div class="main-inner">
+    ${!leads.length ? `
+      <div class="arch-empty">
+        <b>Nessuna richiesta ancora</b>
+        Condividi il link pubblico di richiesta consulenza (in Impostazioni) sui social o in studio.
+      </div>` : leads.map(l => `
+      <div class="lead-row" data-action="open-lead" data-id="${l.id}">
+        <div class="lead-main">
+          <b>${esc(l.cliente.cognome)} ${esc(l.cliente.nome)}</b>
+          <span>${l.stile.map(esc).join(", ") || "Stile non indicato"} · ${fmtDateTime(l.createdAt)}</span>
+        </div>
+        <span class="lead-status ${LEAD_STATUS[l.status].cls}">${LEAD_STATUS[l.status].label}</span>
+        ${l.cliente.telefono ? `<a class="wa-btn" href="${waLink(l.cliente.telefono, waMessageFor(l))}" target="_blank" rel="noopener" onclick="event.stopPropagation()">WhatsApp</a>` : ""}
+      </div>`).join("")}
+  </div>`;
+}
+
+function renderLeadDetail(){
+  const l = leadDraft;
+  const c = l.cliente;
+  return `
+  <div class="topbar">
+    <div><h1>${esc(c.cognome)} ${esc(c.nome)}</h1><p class="mono">Richiesta del ${fmtDateTime(l.createdAt)}</p></div>
+    <button class="btn btn-ghost btn-sm" data-action="nav" data-view="leads">← Richieste</button>
+  </div>
+  <div class="main-inner">
+    <div class="card">
+      <div class="kv"><span>Telefono</span><b>${esc(c.telefono) || "—"}</b></div>
+      <div class="kv"><span>Email</span><b>${esc(c.email) || "—"}</b></div>
+      <div class="kv"><span>Data di nascita</span><b>${fmtDate(c.nascita)}</b></div>
+      <div class="kv"><span>Stile</span><b>${l.stile.map(esc).join(", ")}${l.stileAltro ? " — " + esc(l.stileAltro) : ""}</b></div>
+      <div class="kv"><span>Dimensione</span><b>${esc(l.dimensione || "—")}</b></div>
+      <div class="kv"><span>Descrizione</span><b>${esc(l.descrizione) || "—"}</b></div>
+    </div>
+    <div class="card">
+      <h3 class="section-title">Zone indicate</h3>
+      <div class="body-pair">${renderBodyFrame("fronte")}${renderBodyFrame("retro")}</div>
+    </div>
+    <div class="card">
+      <div class="field">
+        <label>Stato</label>
+        <div class="chip-grid">
+          ${Object.keys(LEAD_STATUS).map(k => `<button class="chip ${l.status===k?'on':''}" data-action="set-lead-status" data-v="${k}">${LEAD_STATUS[k].label}</button>`).join("")}
+        </div>
+      </div>
+      <div class="field"><label>Data consulenza fissata</label><input type="date" data-field-lead="dataConsulenza" value="${esc(l.dataConsulenza)}"></div>
+      <div class="field"><label>Note interne</label><textarea data-field-lead="noteStudio" placeholder="Note su questo cliente…">${esc(l.noteStudio)}</textarea></div>
+      <div class="btn-row">
+        ${c.telefono ? `<a class="wa-btn" href="${waLink(c.telefono, waMessageFor(l))}" target="_blank" rel="noopener">Scrivi su WhatsApp</a>` : ""}
+        <button class="btn btn-primary" data-action="lead-to-consenso">Crea consenso per questo cliente</button>
+      </div>
+      <div class="btn-row"><button class="btn btn-ghost btn-sm" data-action="save-lead">Salva</button></div>
+    </div>
+  </div>`;
+}
+
+/* ============================================================
+   EVENT DELEGATION
+   ============================================================ */
+function resumeStep(s){
+  if (!s.anagrafica.nome.trim()) return 1;
+  if (Object.keys(s.sanitario).length < HEALTH_QUESTIONS.length) return 2;
+  const zonaOk = s.zonaMode === "sagoma" ? s.markers.length : (s.zone.length || s.zonaLibera.trim());
+  if (!zonaOk || !s.zoneNei) return 3;
+  if (!s.informativaLetta) return 4;
+  if (!s.privacyConsenso || !s.disegnoConfermato) return 5;
+  if (!s.firmaClienteData) return 6;
+  if (!s.seduta.dataApplicazione) return 7;
+  return 8;
+}
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-action]");
+  if (!btn) return;
+  const action = btn.dataset.action;
+
+  if (action === "nav"){ state.view = btn.dataset.view; state.step = 1; state.showErrors = null; state.railOpen = false; state.studioSaved = false; render(); }
+  else if (action === "new-session"){ draft = blankSession(); state.view = "form"; state.step = 1; state.showErrors = null; state.pdfWarning = false; state.railOpen = false; render(); }
+  else if (action === "open-session"){ draft = getSession(btn.dataset.id); state.view = "form"; state.step = resumeStep(draft); state.showErrors = null; state.pdfWarning = false; state.railOpen = false; render(); }
+  else if (action === "toggle-rail"){ state.railOpen = !state.railOpen; render(); }
+  else if (action === "goto-step"){ upsertSession(draft); state.step = Number(btn.dataset.step); state.showErrors = null; render(); }
+  else if (action === "next-step"){
+    const errs = validateStep(state.step);
+    if (errs.length){ state.showErrors = state.step; renderStepOnly(); return; }
+    upsertSession(draft); state.step += 1; state.showErrors = null; render();
+  }
+  else if (action === "prev-step"){ state.step -= 1; state.showErrors = null; render(); }
+  else if (action === "toggle-minorenne"){ draft.minorenne = !draft.minorenne; renderStepOnly(); }
+  else if (action === "set-tipo"){ draft.tipoApplicazione = btn.dataset.v; renderStepOnly(); }
+  else if (action === "toggle-informativa"){ draft.informativaLetta = !draft.informativaLetta; renderStepOnly(); }
+  else if (action === "toggle-privacy"){ draft.privacyConsenso = !draft.privacyConsenso; renderStepOnly(); }
+  else if (action === "toggle-disegno"){ draft.disegnoConfermato = !draft.disegnoConfermato; renderStepOnly(); }
+  else if (action === "toggle-schedatecnica"){ draft.seduta.schedaTecnicaAllegata = !draft.seduta.schedaTecnicaAllegata; renderStepOnly(); }
+  else if (action === "set-sanitario"){ draft.sanitario[btn.dataset.q] = btn.dataset.v; renderStepOnly(); }
+  else if (action === "set-zonamode"){ draft.zonaMode = btn.dataset.v; renderStepOnly(); }
+  else if (action === "set-genere-consenso"){ draft.genere = btn.dataset.g; draft.markers = []; renderStepOnly(); }
+  else if (action === "set-grandezza-consenso"){ draft.grandezza = btn.dataset.d; renderStepOnly(); }
+  else if (action === "mark-body-consenso"){
+    const rect = btn.getBoundingClientRect();
+    const xPct = Math.max(2, Math.min(98, ((e.clientX - rect.left) / rect.width) * 100));
+    const yPct = Math.max(2, Math.min(98, ((e.clientY - rect.top) / rect.height) * 100));
+    draft.markers.push({ view: btn.dataset.view, xPct, yPct });
+    renderStepOnly();
+  }
+  else if (action === "remove-pin-consenso"){ draft.markers.splice(Number(btn.dataset.i), 1); renderStepOnly(); }
+  else if (action === "toggle-zone"){
+    const z = btn.dataset.z;
+    draft.zone = draft.zone.includes(z) ? draft.zone.filter(x => x !== z) : [...draft.zone, z];
+    renderStepOnly();
+  }
+  else if (action === "set-zonenei"){ draft.zoneNei = btn.dataset.v; renderStepOnly(); }
+  else if (action === "clear-sig"){
+    const t = btn.dataset.target; draft[t] = null;
+    if (t === "firmaClienteData") draft.firmaClienteAt = null; else draft.controfirmaAt = null;
+    renderStepOnly();
+  }
+  else if (action === "submit-client"){
+    const errs = validateStep(CLIENT_LAST_STEP);
+    if (errs.length){ state.showErrors = CLIENT_LAST_STEP; renderStepOnly(); return; }
+    draft.status = "attesa"; draft.filledByClientRemotely = true;
+    upsertSession(draft); render();
+  }
+  else if (action === "finalize-studio"){
+    const errs = validateStep(8);
+    if (errs.length){ state.showErrors = 8; renderStepOnly(); return; }
+    draft.seduta.compilata = true;
+    draft.status = "archiviato"; upsertSession(draft);
+    try { buildPdf(draft); }
+    catch(err){ console.warn("Generazione PDF non riuscita (offline?):", err); state.pdfWarning = true; }
+    state.view = "archive"; render();
+  }
+  else if (action === "save-draft"){ upsertSession(draft); state.savedFlash = true; renderStepOnly(); }
+  else if (action === "download-pdf"){
+    try { buildPdf(draft); }
+    catch(err){ alert("Impossibile generare il PDF: serve una connessione internet per caricare la libreria la prima volta."); }
+  }
+  else if (action === "new-remote-link"){
+    const s = blankSession(); upsertSession(s);
+    state.lastRemoteId = s.id; render();
+  }
+  else if (action === "save-studio"){
+    saveStudioOverrides({ ...loadStudioOverrides(), ...(state.studioBuffer || {}) });
+    applyStudioConfig();
+    state.studioBuffer = null; state.studioSaved = true;
+    render();
+  }
+  else if (action === "reset-studio"){
+    localStorage.removeItem(STUDIO_STORE_KEY);
+    applyStudioConfig();
+    state.studioBuffer = null; state.studioSaved = false;
+    render();
+  }
+  else if (action === "open-lead"){ leadDraft = getRichiesta(btn.dataset.id); state.view = "lead-detail"; state.railOpen = false; render(); }
+  else if (action === "set-lead-status"){ leadDraft.status = btn.dataset.v; upsertRichiesta(leadDraft); render(); }
+  else if (action === "save-lead"){ upsertRichiesta(leadDraft); render(); }
+  else if (action === "lead-to-consenso"){
+    const s = blankSession();
+    s.anagrafica.nome = leadDraft.cliente.nome;
+    s.anagrafica.cognome = leadDraft.cliente.cognome;
+    s.anagrafica.nascita = leadDraft.cliente.nascita;
+    s.anagrafica.telefono = leadDraft.cliente.telefono;
+    s.anagrafica.email = leadDraft.cliente.email;
+    // porta con sé la zona segnata sul preventivo: usa direttamente la sagoma
+    if (leadDraft.markers && leadDraft.markers.length){
+      s.zonaMode = "sagoma";
+      s.genere = leadDraft.genere;
+      s.markers = leadDraft.markers.map(m => ({...m}));
+    }
+    if (leadDraft.dimensione) s.grandezza = leadDraft.dimensione;
+    upsertSession(s);
+    leadDraft.status = "chiusa"; upsertRichiesta(leadDraft);
+    draft = s; state.view = "form"; state.step = 1; state.showErrors = null;
+    render();
+  }
+  // --- richiesta preventivo (client-facing lead intake) ---
+  else if (action === "toggle-stile"){
+    const st = btn.dataset.s;
+    leadDraft.stile = leadDraft.stile.includes(st) ? leadDraft.stile.filter(x => x !== st) : [...leadDraft.stile, st];
+    renderLeadStepOnly();
+  }
+  else if (action === "set-dimensione"){ leadDraft.dimensione = btn.dataset.d; renderLeadStepOnly(); }
+  else if (action === "set-genere"){ leadDraft.genere = btn.dataset.g; leadDraft.markers = []; renderLeadStepOnly(); }
+  else if (action === "mark-body"){
+    const rect = btn.getBoundingClientRect();
+    const xPct = Math.max(2, Math.min(98, ((e.clientX - rect.left) / rect.width) * 100));
+    const yPct = Math.max(2, Math.min(98, ((e.clientY - rect.top) / rect.height) * 100));
+    leadDraft.markers.push({ view: btn.dataset.view, xPct, yPct });
+    renderLeadStepOnly();
+  }
+  else if (action === "remove-pin"){ leadDraft.markers.splice(Number(btn.dataset.i), 1); renderLeadStepOnly(); }
+  else if (action === "lead-next"){
+    const errs = validateLeadStep(state.leadStep);
+    if (errs.length){ state.leadShowErrors = state.leadStep; renderLeadStepOnly(); return; }
+    state.leadStep += 1; state.leadShowErrors = null; render();
+  }
+  else if (action === "lead-prev"){ state.leadStep -= 1; state.leadShowErrors = null; render(); }
+  else if (action === "lead-submit"){
+    const errs = validateLeadStep(3);
+    if (errs.length){ state.leadStep = 3; state.leadShowErrors = 3; render(); return; }
+    upsertRichiesta(leadDraft);
+    notifyNewRichiesta(leadDraft);
+    state.leadDone = true; render();
+  }
+});
+
+document.addEventListener("input", (e) => {
+  const field = e.target.dataset.field;
+  if (field && draft){ setField(field, e.target.value); return; }
+  const leadField = e.target.dataset.fieldLead;
+  if (leadField && leadDraft){ setLeadField(leadField, e.target.value); return; }
+  const studioField = e.target.dataset.fieldStudio;
+  if (studioField){ state.studioBuffer = { ...(state.studioBuffer||{}), [studioField]: e.target.value }; return; }
+  if (e.target.dataset.action === "search-archive"){
+    state.archiveQuery = e.target.value;
+    const host = qs("#archive-results");
+    if (host) host.innerHTML = renderArchiveResults();
+  }
+});
+document.addEventListener("change", (e) => {
+  const field = e.target.dataset.field;
+  if (field && draft) setField(field, e.target.value);
+  const leadField = e.target.dataset.fieldLead;
+  if (leadField && leadDraft) setLeadField(leadField, e.target.value);
+  const studioField = e.target.dataset.fieldStudio;
+  if (studioField){ state.studioBuffer = { ...(state.studioBuffer||{}), [studioField]: e.target.value }; }
+});
+
+/* ============================================================
+   BOOTSTRAP
+   ============================================================ */
+async function initClientMode(){
+  const sid = params.get("session");
+  let s = sid ? getSession(sid) : null;
+  if (!s && sid && SUPABASE_CONFIG.url){
+    s = await fetchRemoteSession(sid);
+  }
+  draft = s || blankSession();
+  state.step = 1;
+  render();
+}
+function initRichiestaMode(){
+  leadDraft = blankRichiesta();
+  state.leadStep = 1;
+  render();
+}
+
+applyStudioConfig();
+if (state.mode === "client") initClientMode();
+else if (state.mode === "richiesta") initRichiestaMode();
+else render();
+
+if ("serviceWorker" in navigator){
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {/* ok offline, non blocca l'app */});
+  });
+}
+
+function renderSettings(){
+  const cfg = { ...STUDIO_DEFAULTS, ...loadStudioOverrides() };
+  return `
+  <div class="topbar"><div><h1>Impostazioni studio</h1><p>Identità, artisti e link di compilazione remota</p></div></div>
+  <div class="main-inner">
+    <div class="card">
+      <h3 class="section-title">Setup studio</h3>
+      <p class="section-desc">Personalizza l'app con l'identità del tuo studio. Le modifiche restano su questo dispositivo e si applicano subito.</p>
+      <div class="grid-2">
+        <div class="field"><label>Nome studio</label><input type="text" data-field-studio="studioName" value="${esc(cfg.studioName)}"></div>
+        <div class="field"><label>Città</label><input type="text" data-field-studio="studioCity" value="${esc(cfg.studioCity)}"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Sigla / logo testuale</label><input type="text" data-field-studio="studioMark" value="${esc(cfg.studioMark)}" maxlength="6" placeholder="Es. P173"><div class="hint">Massimo 6 caratteri, appare nel tondo in alto.</div></div>
+        <div class="field"><label>Artisti (separati da virgola)</label><input type="text" data-field-studio="artistsText" value="${esc(cfg.artistsText)}" placeholder="Nome1, Nome2"></div>
+      </div>
+      <div class="field"><label>URL pubblico dell'app</label><input type="text" data-field-studio="publicUrl" value="${esc(cfg.publicUrl)}" placeholder="https://tuo-studio.vercel.app"><div class="hint">Serve per generare i link/QR di richiesta e compilazione.</div></div>
+
+      <div class="subhead">Colori</div>
+      <div class="grid-2">
+        <div class="field"><label>Colore scuro (testo/menu)</label><input type="color" data-field-studio="colorInk" value="${esc(cfg.colorInk)}" style="height:44px;padding:4px;"></div>
+        <div class="field"><label>Colore principale (accenti)</label><input type="color" data-field-studio="colorStencil" value="${esc(cfg.colorStencil)}" style="height:44px;padding:4px;"></div>
+      </div>
+      <div class="field"><label>Colore secondario (progress)</label><input type="color" data-field-studio="colorFlesh" value="${esc(cfg.colorFlesh)}" style="height:44px;padding:4px;max-width:200px;"></div>
+
+      <div class="btn-row">
+        <button class="btn btn-accent" data-action="save-studio">Salva e applica</button>
+        <button class="btn btn-ghost" data-action="reset-studio">Ripristina default</button>
+      </div>
+      ${state.studioSaved ? `<div class="callout ok" style="margin-top:12px;">Impostazioni salvate e applicate.</div>` : ""}
+    </div>
+    <div class="card">
+      <h3 class="section-title">Stato</h3>
+      <div class="kv"><span>Versione informativa attiva</span><b class="mono">${esc(STUDIO_CONFIG.informativaVersion)}</b></div>
+      <div class="kv"><span>Conservazione consensi</span><b>Almeno ${STUDIO_CONFIG.retentionYears} anni</b></div>
+      <div class="kv"><span>Sync remota</span><b>${SUPABASE_CONFIG.url ? "Supabase collegato" : "Solo locale (offline-first)"}</b></div>
+    </div>
+    <div class="card">
+      <h3 class="section-title">Link di compilazione per il cliente</h3>
+      <p class="section-desc">Genera un consenso vuoto e condividi il link/QR: il cliente lo compila da casa, tu lo trovi in "Archivio" pronto per la controfirma in studio.</p>
+      <button class="btn btn-primary" data-action="new-remote-link">Genera link cliente</button>
+      ${state.lastRemoteId ? `
+        <div class="card" style="margin-top:14px;background:var(--paper);">
+          <div class="qr-box"><div id="qr-host" data-sid="${state.lastRemoteId}"></div></div>
+          <p class="field hint mono" style="margin-top:10px;word-break:break-all;">${esc(buildClientLink(state.lastRemoteId))}</p>
+        </div>` : ""}
+    </div>
+    <div class="card">
+      <h3 class="section-title">Link pubblico "Richiedi preventivo"</h3>
+      <p class="section-desc">Un link unico e sempre valido (bio Instagram, WhatsApp, cartello in studio): chi lo apre lascia stile, descrizione, zona e contatti. Tu lo trovi in "Richieste preventivo" e lo ricontatti su WhatsApp.</p>
+      <p class="field hint mono" style="word-break:break-all;background:var(--paper);padding:10px;border-radius:var(--radius);">${esc(buildLeadLink())}</p>
+      <div class="kv"><span>Notifica push (ntfy.sh)</span><b>${NOTIFY_CONFIG.ntfyTopic ? "Attiva" : "Non configurata"}</b></div>
+      ${!NOTIFY_CONFIG.ntfyTopic ? `<div class="callout info" style="margin-top:10px;">Senza notifica dovrai controllare tu la sezione "Richieste" di tanto in tanto. Per riceverle push sul telefono, vedi le istruzioni su <span class="mono">NOTIFY_CONFIG</span> nel codice — due minuti, nessun account.</div>` : ""}
+    </div>
+    <div class="card">
+      <h3 class="section-title">Nota legale</h3>
+      <div class="callout warn">I testi di questo modulo sono trascritti dal modulo cartaceo dello studio, non da un modello standard. Il ddl melanoma introdurrà anche un decreto ministeriale con requisiti propri, non ancora pubblicato: quando uscirà, confronta i due testi con un professionista e aggiorna <span class="mono">informativaVersion</span> se serve unificarli.</div>
+    </div>
+  </div>`;
+}
+
+/* ============================================================
+   MULTI-STEP FORM — due fasi:
+   • FASE CLIENTE (step 1-6): anagrafica → firma. Compilabile
+     anche da remoto dal cliente.
+   • FASE STUDIO (step 7-8): dati seduta + controfirma, compilati
+     in studio il giorno dell'appuntamento davanti al cliente.
+   ============================================================ */
+const STEP_LABELS = ["Anagrafica","Sanitario","Zona","Rischi e consenso","Privacy e disegno","Firma cliente","Dati seduta","Controfirma"];
+
+function renderStudioForm(){
+  return `
+  <div class="topbar">
+    <div>
+      <h1>${draft.anagrafica.nome || draft.anagrafica.cognome ? `${esc(draft.anagrafica.cognome)} ${esc(draft.anagrafica.nome)}` : "Nuovo consenso"}</h1>
+      <p class="mono">#${draft.id.slice(-6)} · ${STATUS[draft.status].label}${draft.filledByClientRemotely ? " · compilato dal cliente" : ""}</p>
+    </div>
+    <button class="btn btn-ghost btn-sm" data-action="nav" data-view="archive">← Archivio</button>
+  </div>
+  <div class="main-inner">
+    <div class="steps">
+      ${STEP_LABELS.map((label,i) => {
+        const n = i+1;
+        const cls = n === state.step ? "on" : (n < state.step ? "done" : "");
+        const phaseTick = n === CLIENT_LAST_STEP + 1 ? ' style="margin-left:10px;"' : "";
+        return `<button class="step-pill ${cls}"${phaseTick} data-action="goto-step" data-step="${n}">${n}. ${label}${n === CLIENT_LAST_STEP+1 ? " 🖊" : ""}</button>`;
+      }).join("")}
+    </div>
+    <p class="field hint" style="margin:-8px 0 16px;">Passi 1-6: parte del cliente (anche da remoto). Passi 7-8 🖊: da compilare in studio il giorno dell'appuntamento.</p>
+    <div class="card" id="step-content">${renderStepBody(state.step, "studio")}</div>
+  </div>`;
+}
+
+function renderClientShell(){
+  if (!draft) draft = getSession(params.get("session")) || blankSession();
+  const total = CLIENT_LAST_STEP; // il cliente compila fino alla propria firma
+  if (draft.status === "attesa" || draft.status === "firmato" || draft.status === "archiviato"){
+    return renderClientDone();
+  }
+  return `
+  <div class="client-shell">
+    <div class="client-head">
+      <div class="rail-brand">
+        <div class="rail-mark">${esc(STUDIO_CONFIG.studioMark)}</div>
+        <div>
+          <div class="rail-brand-name" style="color:var(--paper);">${esc(STUDIO_CONFIG.studioName)}</div>
+          <div class="rail-brand-sub">Consenso informato · passo ${state.step} di ${total}</div>
+        </div>
+      </div>
+      <div class="progress-track">
+        ${Array.from({length: total}).map((_,i) => `<div class="progress-dash"><i style="width:${i < state.step ? 100 : (i === state.step-1 ? 100 : 0)}%"></i></div>`).join("")}
+      </div>
+    </div>
+    <div class="client-body">
+      <div class="card" id="step-content">${renderStepBody(state.step, "client")}</div>
+    </div>
+  </div>`;
+}
+function renderClientDone(){
+  return `
+  <div class="client-shell">
+    <div class="client-body" style="padding-top:60px;text-align:center;">
+      <div class="rail-mark" style="width:56px;height:56px;font-size:22px;margin:0 auto 18px;">${esc(STUDIO_CONFIG.studioMark)}</div>
+      <h2>Fatto — grazie${draft.anagrafica.nome ? ", " + esc(draft.anagrafica.nome) : ""}</h2>
+      <p class="section-desc">Il modulo è arrivato allo studio. Il tatuatore lo controfirmerà con te al momento dell'appuntamento — non devi fare altro.</p>
+      <span class="stamp ${STATUS[draft.status].cls}">${STATUS[draft.status].label}</span>
+    </div>
+  </div>`;
+}
+
+function renderStepBody(step, ctx){
+  if (step === 1) return renderStepAnagrafica(ctx);
+  if (step === 2) return renderStepSanitario(ctx);
+  if (step === 3) return renderStepZona(ctx);
+  if (step === 4) return renderStepInformativa(ctx);
+  if (step === 5) return renderStepPrivacyDisegno(ctx);
+  if (step === 6) return renderStepFirma(ctx);
+  if (step === 7) return renderStepSeduta(ctx);
+  if (step === 8) return renderStepControfirma(ctx);
+  return "";
+}
+
+function renderErrors(step){
+  const errs = state.showErrors === step ? validateStep(step) : [];
+  if (!errs.length) return "";
+  return `<div class="callout warn" style="margin-bottom:18px;">${errs.map(esc).join("<br>")}</div>`;
+}
+
+function renderStepAnagrafica(ctx){
+  const a = draft.anagrafica;
+  return `
+  ${renderErrors(1)}
+  <h3 class="section-title">Dati anagrafici</h3>
+  <p class="section-desc">Servono per identificare chi firma e per l'eventuale controllo delle autorità.</p>
+  <div class="grid-2">
+    <div class="field"><label>Nome</label><input type="text" data-field="anagrafica.nome" value="${esc(a.nome)}"></div>
+    <div class="field"><label>Cognome</label><input type="text" data-field="anagrafica.cognome" value="${esc(a.cognome)}"></div>
+  </div>
+  <div class="grid-2">
+    <div class="field"><label>Data di nascita</label><input type="date" data-field="anagrafica.nascita" value="${esc(a.nascita)}"></div>
+    <div class="field"><label>Codice fiscale</label><input type="text" data-field="anagrafica.cf" value="${esc(a.cf)}" style="text-transform:uppercase;"></div>
+  </div>
+  <div class="grid-2">
+    <div class="field"><label>Comune di residenza</label><input type="text" data-field="anagrafica.comuneResidenza" value="${esc(a.comuneResidenza)}"></div>
+    <div class="field"><label>Provincia</label><input type="text" data-field="anagrafica.provinciaResidenza" value="${esc(a.provinciaResidenza)}" maxlength="2" style="text-transform:uppercase;"></div>
+  </div>
+  <div class="grid-2">
+    <div class="field"><label>Telefono</label><input type="tel" data-field="anagrafica.telefono" value="${esc(a.telefono)}"></div>
+    <div class="field"><label>Email</label><input type="email" data-field="anagrafica.email" value="${esc(a.email)}"></div>
+  </div>
+
+  <div class="subhead">Tipo di applicazione</div>
+  <div class="field">
+    <div style="display:flex;gap:8px;">
+      <button class="chip ${draft.tipoApplicazione==='tatuaggio'?'on':''}" data-action="set-tipo" data-v="tatuaggio">Tatuaggio</button>
+      <button class="chip ${draft.tipoApplicazione==='piercing'?'on':''}" data-action="set-tipo" data-v="piercing">Piercing</button>
+    </div>
+  </div>
+
+  <div class="check-row">
+    <input type="checkbox" id="minorenne" data-action="toggle-minorenne" ${draft.minorenne?"checked":""}>
+    <label for="minorenne" class="ct">Il/la cliente è minorenne<small>Richiede dati e firma di un genitore o tutore (Autorizzazione del minore)</small></label>
+  </div>
+
+  ${draft.minorenne ? `
+  <div class="callout info" style="margin:14px 0;">Consenso rafforzato: compila i dati del minore e di almeno un genitore/tutore, che firmerà al posto suo.</div>
+
+  <div class="subhead">Dati del minore</div>
+  <div class="grid-2">
+    <div class="field"><label>Luogo di nascita</label><input type="text" data-field="anagrafica.luogoNascita" value="${esc(a.luogoNascita)}"></div>
+    <div class="field"><label>Prov.</label><input type="text" data-field="anagrafica.provNascita" value="${esc(a.provNascita)}" maxlength="2" style="text-transform:uppercase;"></div>
+  </div>
+  <div class="grid-2">
+    <div class="field"><label>Via</label><input type="text" data-field="anagrafica.via" value="${esc(a.via)}"></div>
+    <div class="field"><label>N. civico</label><input type="text" data-field="anagrafica.numeroCivico" value="${esc(a.numeroCivico)}"></div>
+  </div>
+
+  <div class="subhead">Genitore / Tutore 1 (es. padre)</div>
+  ${renderTutoreFields("tutore1", draft.tutore1)}
+
+  <div class="subhead">Genitore / Tutore 2 (es. madre) — facoltativo</div>
+  ${renderTutoreFields("tutore2", draft.tutore2)}
+
+  <div class="subhead">Documento d'identità del firmatario</div>
+  <div class="grid-2">
+    <div class="field"><label>Intestatario documento</label>
+      <select data-field="documento.intestatario">
+        <option value="padre" ${draft.documento.intestatario==='padre'?'selected':''}>Tutore 1 (padre)</option>
+        <option value="madre" ${draft.documento.intestatario==='madre'?'selected':''}>Tutore 2 (madre)</option>
+        <option value="altro" ${draft.documento.intestatario==='altro'?'selected':''}>Altro tutore</option>
+      </select>
+    </div>
+    <div class="field"><label>Tipo documento</label><input type="text" data-field="documento.tipo" value="${esc(draft.documento.tipo)}" placeholder="Carta d'identità, patente…"></div>
+  </div>
+  <div class="grid-2">
+    <div class="field"><label>Numero</label><input type="text" data-field="documento.numero" value="${esc(draft.documento.numero)}"></div>
+    <div class="field"><label>Data rilascio</label><input type="date" data-field="documento.dataRilascio" value="${esc(draft.documento.dataRilascio)}"></div>
+  </div>
+  <div class="grid-2">
+    <div class="field"><label>Autorità che l'ha rilasciato</label><input type="text" data-field="documento.autorita" value="${esc(draft.documento.autorita)}"></div>
+    <div class="field"><label>Data di scadenza</label><input type="date" data-field="documento.dataScadenza" value="${esc(draft.documento.dataScadenza)}"></div>
+  </div>
+  ` : ""}
+  ${renderFormNav(1, ctx)}`;
+}
+function renderTutoreFields(prefix, t){
+  return `
+  <div class="field"><label>Nome e cognome</label><input type="text" data-field="${prefix}.nome" value="${esc(t.nome)}"></div>
+  <div class="grid-2">
+    <div class="field"><label>Data di nascita</label><input type="date" data-field="${prefix}.dataNascita" value="${esc(t.dataNascita)}"></div>
+    <div class="field"><label>Luogo di nascita</label><input type="text" data-field="${prefix}.luogoNascita" value="${esc(t.luogoNascita)}"></div>
+  </div>
+  <div class="grid-2">
+    <div class="field"><label>Comune di residenza</label><input type="text" data-field="${prefix}.comuneResidenza" value="${esc(t.comuneResidenza)}"></div>
+    <div class="field"><label>Prov.</label><input type="text" data-field="${prefix}.provResidenza" value="${esc(t.provResidenza)}" maxlength="2" style="text-transform:uppercase;"></div>
+  </div>
+  <div class="grid-2">
+    <div class="field"><label>Via</label><input type="text" data-field="${prefix}.via" value="${esc(t.via)}"></div>
+    <div class="field"><label>N. civico</label><input type="text" data-field="${prefix}.numeroCivico" value="${esc(t.numeroCivico)}"></div>
+  </div>`;
+}
+
+function renderStepSanitario(ctx){
+  const siCount = HEALTH_QUESTIONS.filter(q => draft.sanitario[q.id] === 'si').length;
+  return `
+  ${renderErrors(2)}
+  <h3 class="section-title">Questionario sanitario</h3>
+  <p class="section-desc">Nelle condizioni sotto riportate non è possibile eseguire alcun tatuaggio. Rispondi con sincerità.</p>
+  ${HEALTH_QUESTIONS.map(q => {
+    const val = draft.sanitario[q.id];
+    return `<div class="check-row" style="align-items:center;">
+      <div class="ct" style="flex:1;">${esc(q.label)}</div>
+      <div style="display:flex;gap:6px;">
+        <button class="chip ${val==='si'?'on':''}" data-action="set-sanitario" data-q="${q.id}" data-v="si" style="min-width:52px;">Sì</button>
+        <button class="chip ${val==='no'?'on':''}" data-action="set-sanitario" data-q="${q.id}" data-v="no" style="min-width:52px;">No</button>
+      </div>
+    </div>`;
+  }).join("")}
+  ${siCount > 0 ? `<div class="callout warn" style="margin-top:16px;">${siCount} risposta/e affermativa/e: secondo il modulo dello studio, in queste condizioni non è possibile eseguire il tatuaggio. Valutare con il cliente prima di proseguire.</div>` : ""}
+  <div class="field" style="margin-top:16px;">
+    <label>Note aggiuntive (facoltativo)</label>
+    <textarea data-field="sanitarioNote" placeholder="Dettagli su eventuali risposte affermative…">${esc(draft.sanitarioNote)}</textarea>
+  </div>
+  ${renderFormNav(2, ctx)}`;
+}
+
+function renderStepZona(ctx){
+  const mode = draft.zonaMode || "semplice";
+  return `
+  ${renderErrors(3)}
+  <h3 class="section-title">Zona del ${draft.tipoApplicazione === 'piercing' ? 'piercing' : 'tatuaggio'}</h3>
+  <p class="section-desc">Indica dove andrà e quanto sarà grande.</p>
+
+  <div class="gender-toggle" style="margin-bottom:12px;">
+    <button class="chip ${mode==='semplice'?'on':''}" data-action="set-zonamode" data-v="semplice">Indica la zona</button>
+    <button class="chip ${mode==='sagoma'?'on':''}" data-action="set-zonamode" data-v="sagoma">Sagoma corpo</button>
+  </div>
+
+  ${mode === "sagoma" ? `
+    <div class="gender-toggle">
+      <button class="chip ${draft.genere==='maschile'?'on':''}" data-action="set-genere-consenso" data-g="maschile">Corpo maschile</button>
+      <button class="chip ${draft.genere==='femminile'?'on':''}" data-action="set-genere-consenso" data-g="femminile">Corpo femminile</button>
+    </div>
+    <p class="field hint" style="margin:8px 0 0;">Tocca il punto sulla sagoma. Tocca un punto già segnato per rimuoverlo.</p>
+    <div class="body-pair">
+      ${renderConsensoBodyFrame("fronte")}
+      ${renderConsensoBodyFrame("retro")}
+    </div>
+    <div class="field"><label>Dettaglio zona (facoltativo)</label>
+      <input type="text" data-field="zonaLibera" value="${esc(draft.zonaLibera)}" placeholder="Es. avambraccio interno destro">
+    </div>
+  ` : `
+    <div class="chip-grid">
+      ${BODY_ZONES.map(z => `<button class="chip ${draft.zone.includes(z)?'on':''}" data-action="toggle-zone" data-z="${esc(z)}">${esc(z)}</button>`).join("")}
+    </div>
+    <div class="field" style="margin-top:14px;">
+      <label>Dettaglio zona (facoltativo)</label>
+      <input type="text" data-field="zonaLibera" value="${esc(draft.zonaLibera)}" placeholder="Es. braccio destro, avambraccio interno…">
+    </div>
+  `}
+
+  <div class="field">
+    <label>Grandezza indicativa</label>
+    <div class="chip-grid">
+      ${DIMENSIONI.map(d => `<button class="chip ${draft.grandezza===d?'on':''}" data-action="set-grandezza-consenso" data-d="${esc(d)}">${esc(d)}</button>`).join("")}
+    </div>
+  </div>
+
+  <div class="field" style="margin-top:18px;">
+    <label>L'area presenta uno o più nei nella zona da tatuare?</label>
+    <div style="display:flex;gap:8px;">
+      <button class="chip ${draft.zoneNei==='si'?'on':''}" data-action="set-zonenei" data-v="si">Sì</button>
+      <button class="chip ${draft.zoneNei==='no'?'on':''}" data-action="set-zonenei" data-v="no">No</button>
+    </div>
+  </div>
+  ${draft.zoneNei === 'si' ? `
+    <div class="callout warn" style="margin-top:14px;">Attenzione: i nei non andrebbero mai tatuati sopra. Va mantenuta una distanza di almeno 1&nbsp;cm. Valutare con il cliente se spostare il disegno o consigliare un controllo dermatologico prima di procedere.</div>
+    <div class="field" style="margin-top:12px;"><label>Note su posizione/gestione dei nei</label>
+      <textarea data-field="zoneNeiNote" placeholder="Es. neo a 3cm dal bordo disegno, spostato il tracciato…">${esc(draft.zoneNeiNote)}</textarea>
+    </div>` : ""}
+  ${renderFormNav(3, ctx)}`;
+}
+function renderConsensoBodyFrame(view){
+  const pins = draft.markers.map((m,i) => m.view === view ? `<div class="body-pin" data-action="remove-pin-consenso" data-i="${i}" style="left:${m.xPct}%;top:${m.yPct}%;"><span>${i+1}</span></div>` : "").join("");
+  return `
+  <div>
+    <div class="body-frame" data-action="mark-body-consenso" data-view="${view}">
+      ${bodySvg(draft.genere)}
+      ${pins}
+    </div>
+    <div class="body-label">${view === "fronte" ? "Fronte" : "Retro"}</div>
+  </div>`;
+}
+
+function renderStepInformativa(ctx){
+  return `
+  ${renderErrors(4)}
+  <h3 class="section-title">Rischi e consenso</h3>
+  <p class="section-desc mono" style="font-size:12px;">${esc(draft.informativaVersion)} · aggiornata ${fmtDate(STUDIO_CONFIG.informativaUpdated)}</p>
+
+  <div class="subhead">Effetti collaterali frequenti</div>
+  <div class="callout info" style="font-size:13px;line-height:1.7;">
+    Dopo il tatuaggio è possibile avere (non sempre):
+    <ul style="margin:8px 0 0;padding-left:18px;">${EFFETTI_FREQUENTI.map(e => `<li>${esc(e)}</li>`).join("")}</ul>
+  </div>
+
+  <div class="subhead">Effetti collaterali rari</div>
+  <div class="callout warn" style="font-size:13px;line-height:1.7;">
+    <ul style="margin:0;padding-left:18px;">${EFFETTI_RARI.map(e => `<li>${esc(e)}</li>`).join("")}</ul>
+  </div>
+
+  <div class="subhead">Dichiarazione</div>
+  <div class="callout info" style="white-space:pre-line;font-size:13px;line-height:1.7;">${esc(STUDIO_CONFIG.dichiarazioneConsenso)}</div>
+  <div class="check-row" style="margin-top:16px;">
+    <input type="checkbox" id="letta" data-action="toggle-informativa" ${draft.informativaLetta?"checked":""}>
+    <label for="letta" class="ct">Ho letto e compreso il Modulo di Consenso Informato e confermo quanto sopra dichiarato.</label>
+  </div>
+  ${renderFormNav(4, ctx)}`;
+}
+
+function renderStepPrivacyDisegno(ctx){
+  return `
+  ${renderErrors(5)}
+  <h3 class="section-title">Privacy e conferma del disegno</h3>
+
+  <div class="subhead">Trattamento dati personali</div>
+  <div class="callout info" style="font-size:13px;line-height:1.7;">${esc(STUDIO_CONFIG.privacyText)}</div>
+  <div class="check-row" style="margin-top:12px;">
+    <input type="checkbox" id="privacy" data-action="toggle-privacy" ${draft.privacyConsenso?"checked":""}>
+    <label for="privacy" class="ct">Presto il consenso al trattamento dei dati personali.</label>
+  </div>
+
+  <div class="subhead">Conferma del disegno</div>
+  <div class="callout info" style="font-size:13px;line-height:1.7;">${esc(STUDIO_CONFIG.disegnoText)}</div>
+  <div class="check-row" style="margin-top:12px;">
+    <input type="checkbox" id="disegno" data-action="toggle-disegno" ${draft.disegnoConfermato?"checked":""}>
+    <label for="disegno" class="ct">Ho visionato e approvato il disegno del tatuaggio.</label>
+  </div>
+
+  ${renderFormNav(5, ctx)}`;
+}
+
+function renderStepFirma(ctx){
+  return `
+  ${renderErrors(6)}
+  <h3 class="section-title">Firma ${draft.minorenne ? "del genitore/tutore" : "del cliente"}</h3>
+  <p class="section-desc">Firma nel riquadro qui sotto con il dito o il mouse.</p>
+  <div class="sigpad-wrap">
+    ${!draft.firmaClienteData ? '<div class="sigpad-placeholder">Firma qui</div>' : ""}
+    <canvas id="sig-canvas"></canvas>
+  </div>
+  <div class="btn-row" style="margin-top:10px;">
+    <button class="btn btn-ghost btn-sm" data-action="clear-sig" data-target="firmaClienteData">Cancella firma</button>
+  </div>
+  ${renderFormNav(6, ctx)}`;
+}
+
+function renderStepSeduta(ctx){
+  const s = draft.seduta;
+  return `
+  ${renderErrors(7)}
+  <h3 class="section-title">Dati seduta <span class="stamp stamp-attesa" style="vertical-align:middle;">solo studio</span></h3>
+  <p class="section-desc">Da compilare in studio il giorno dell'appuntamento, davanti al cliente. Sono i dati tecnici che esistono solo a tatuaggio eseguito.</p>
+  <div class="grid-2">
+    <div class="field"><label>Data effettiva dell'applicazione</label><input type="date" data-field="seduta.dataApplicazione" value="${esc(s.dataApplicazione)}"></div>
+    <div class="field"><label>Zona effettivamente trattata</label><input type="text" data-field="seduta.sedeEffettiva" value="${esc(s.sedeEffettiva)}" placeholder="Es. avambraccio destro"></div>
+  </div>
+  <div class="field"><label>Materiali inseriti / usati</label><input type="text" data-field="seduta.materiali" value="${esc(s.materiali)}" placeholder="Es. pigmento nero carbon, cartuccia sterile monouso…"></div>
+  <div class="grid-2">
+    <div class="field"><label>Ago / configurazione</label><input type="text" data-field="seduta.ago" value="${esc(s.ago)}" placeholder="Es. 5RL, 7RS…"></div>
+    <div class="field"><label>Lotto pigmento</label><input type="text" data-field="seduta.lottoPigmento" value="${esc(s.lottoPigmento)}" placeholder="Numero lotto / scadenza"></div>
+  </div>
+  <div class="check-row">
+    <input type="checkbox" id="schedatecnica" data-action="toggle-schedatecnica" ${s.schedaTecnicaAllegata?"checked":""}>
+    <label for="schedatecnica" class="ct">Scheda tecnica delle sostanze usate allegata al fascicolo cliente</label>
+  </div>
+  <div class="field"><label>Eventuali reazioni avverse riscontrate</label><textarea data-field="seduta.reazioniAvverse" placeholder="Da compilare anche a un controllo successivo…">${esc(s.reazioniAvverse)}</textarea></div>
+  ${renderFormNav(7, ctx)}`;
+}
+
+function renderStepControfirma(ctx){
+  const zonaSummary = draft.zonaMode === "sagoma"
+    ? `${draft.markers.length} punto/i sulla sagoma${draft.zonaLibera ? " — " + esc(draft.zonaLibera) : ""}`
+    : `${draft.zone.map(esc).join(", ") || "—"}${draft.zonaLibera ? " (" + esc(draft.zonaLibera) + ")" : ""}`;
+  return `
+  ${renderErrors(8)}
+  <h3 class="section-title">Controfirma del tatuatore</h3>
+  <p class="section-desc">Rivedi il riepilogo, poi firma per archiviare il documento.</p>
+  <div class="card" style="background:var(--paper);margin-bottom:16px;">
+    <div class="kv"><span>Cliente</span><b>${esc(draft.anagrafica.cognome)} ${esc(draft.anagrafica.nome)}</b></div>
+    <div class="kv"><span>Nato/a il</span><b>${fmtDate(draft.anagrafica.nascita)}</b></div>
+    <div class="kv"><span>Tipo</span><b>${draft.tipoApplicazione === 'piercing' ? 'Piercing' : 'Tatuaggio'}</b></div>
+    <div class="kv"><span>Data seduta</span><b>${draft.seduta.dataApplicazione ? fmtDate(draft.seduta.dataApplicazione) : "— (da compilare)"}</b></div>
+    <div class="kv"><span>Zona</span><b>${zonaSummary}</b></div>
+    <div class="kv"><span>Grandezza</span><b>${esc(draft.grandezza || "—")}</b></div>
+    <div class="kv"><span>Nei nell'area</span><b>${draft.zoneNei === 'si' ? "Sì — vedi nota" : "No"}</b></div>
+    <div class="kv"><span>Materiali</span><b>${esc(draft.seduta.materiali || "—")}</b></div>
+    <div class="kv"><span>Consenso e privacy</span><b>${draft.informativaLetta && draft.privacyConsenso && draft.disegnoConfermato ? "Confermati" : "Incompleti"}</b></div>
+    <div class="kv"><span>Firma cliente</span><b>${draft.firmaClienteAt ? fmtDateTime(draft.firmaClienteAt) : "Mancante"}</b></div>
+  </div>
+  <div class="field">
+    <label>Artista</label>
+    <select data-field="artista">
+      ${STUDIO_CONFIG.artists.map(a => `<option value="${esc(a)}" ${draft.artista===a?"selected":""}>${esc(a)}</option>`).join("")}
+    </select>
+  </div>
+  <div class="field"><label>Note tecniche (facoltativo)</label><textarea data-field="noteStudio" placeholder="Note interne…">${esc(draft.noteStudio)}</textarea></div>
+  <div class="sigpad-wrap">
+    ${!draft.controfirmaData ? '<div class="sigpad-placeholder">Controfirma qui</div>' : ""}
+    <canvas id="sig-canvas"></canvas>
+  </div>
+  <div class="btn-row" style="margin-top:10px;">
+    <button class="btn btn-ghost btn-sm" data-action="clear-sig" data-target="controfirmaData">Cancella firma</button>
+    ${draft.status === "archiviato" ? `<button class="btn btn-ghost btn-sm" data-action="save-draft">Salva modifiche</button>` : ""}
+  </div>
+  ${renderFormNav(8, ctx)}`;
+}
+
+function renderFormNav(step, ctx){
+  const isClient = ctx === "client";
+  const lastClientStep = CLIENT_LAST_STEP; // 6
+  const lastStudioStep = 8;
+  const isLast = isClient ? step === lastClientStep : step === lastStudioStep;
+  let nextLabel = "Avanti →";
+  let nextAction = "next-step";
+  if (isLast && isClient) { nextLabel = "Invia allo studio"; nextAction = "submit-client"; }
+  if (isLast && !isClient) {
+    if (draft.status === "archiviato") { nextLabel = "⬇ Scarica di nuovo il PDF"; nextAction = "download-pdf"; }
+    else { nextLabel = "Archivia consenso"; nextAction = "finalize-studio"; }
+  }
+  return `
+  <div class="btn-row">
+    ${step > 1 ? `<button class="btn btn-ghost" data-action="prev-step">← Indietro</button>` : ""}
+    <button class="btn ${isLast ? "btn-accent" : "btn-primary"}" data-action="${nextAction}">${nextLabel}</button>
+  </div>`;
+}
+</script>
+</body>
+</html>
