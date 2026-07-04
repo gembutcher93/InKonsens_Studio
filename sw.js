@@ -4,8 +4,8 @@
    che il service worker non tocca). Le librerie esterne (jsPDF, QRCode,
    Google Fonts) hanno bisogno di rete la prima volta che servono. */
 
-const CACHE_NAME = "inkconsent-v3";
-const SHELL = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
+const CACHE_NAME = "inkconsent-v5";
+const SHELL = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./body-man_front.png", "./body-man_back.png", "./body-girl_front.png", "./body-girl_back.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

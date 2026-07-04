@@ -37,14 +37,27 @@ In più un campo **grandezza indicativa** in entrambe le modalità.
 
 ## Le altre funzioni
 
-- **Archivio** consensi ricercabile per nome, con stato (bozza / in attesa
-  firma / archiviato).
-- **Richieste preventivo**: link pubblico dove il cliente racconta cosa vuole,
-  segna le zone sulla sagoma e lascia i contatti. Ti arriva (con notifica push
-  opzionale via ntfy.sh), lo contatti su WhatsApp con un click, e con un altro
-  click lo converti in un consenso già intestato.
-- **PDF** client-side con jsPDF, firme incluse, sezioni separate cliente/seduta.
-- **Dati** in `localStorage` offline-first; sync Supabase opzionale.
+- **Accesso protetto (PIN)**: blocco a codice con schermata di sblocco e logo
+  animato. Se il dispositivo va perso, senza codice non si apre l'archivio.
+  Codice attivabile/modificabile in "Impostazioni → Accesso e credenziali".
+- **Backup e ripristino**: esporta tutto (impostazioni, consensi, richieste,
+  codice) in un file unico, e re-importalo. Scegli se **cifrarlo** (AES-GCM con
+  password: illeggibile senza, ma password persa = dati persi) o lasciarlo in
+  chiaro. Un avviso al momento dell'export spiega le conseguenze di ciascuna via.
+  Fai backup regolari: è anche la rete di sicurezza se dimentichi il PIN.
+- **Personalizzazione (stile MenuFlex)**: nome, città, sigla, artisti, URL,
+  tre colori e quattro temi di font, tutti modificabili dall'app e applicati dal
+  vivo.
+- **Archivio** consensi ricercabile per nome, con stato.
+- **Richieste preventivo**: link pubblico, sagoma corpo, contatti, notifica
+  push opzionale, WhatsApp con un click, conversione in consenso.
+- **PDF** client-side, firme incluse, sezioni separate cliente/seduta.
+- **Sagoma anatomica** fronte/retro (M/F): la zona si segna su vere immagini
+  del corpo (`body-man_front.png`, `body-man_back.png`, `body-girl_front.png`,
+  `body-girl_back.png`), con due modi a scelta — **📍 Punto** (pin numerati) o
+  **✏️ Disegna** (traccia libera col dito) — più "Cancella". I segni finiscono
+  anche nel PDF. Per cambiare le sagome, sostituisci i 4 PNG mantenendo i nomi
+  (interno bianco + sfondo trasparente così restano leggibili su ogni tema).
 
 ## I moduli sono i tuoi, trascritti dai PDF cartacei
 

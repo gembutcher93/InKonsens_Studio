@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Caveat:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
@@ -219,10 +219,10 @@ textarea{resize:vertical;min-height:70px;}
 
 /* ---------- body diagram (richiesta preventivo) ---------- */
 .body-pair{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:14px 0;}
-.body-frame{position:relative;background:#fff;border:1px solid var(--line-soft);border-radius:var(--radius);width:140px;}
-.body-frame svg{display:block;width:100%;height:auto;cursor:crosshair;}
-.body-frame svg .bod{fill:none;stroke:var(--ink-faint);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
-.body-frame svg .bod-fill{fill:var(--paper);stroke:var(--ink-faint);stroke-width:2;}
+.body-frame{position:relative;background:#fff;border:1px solid var(--line-soft);border-radius:var(--radius);width:150px;overflow:hidden;touch-action:none;}
+.body-frame img.body-bg{display:block;width:100%;height:auto;pointer-events:none;user-select:none;-webkit-user-drag:none;}
+.body-frame canvas.body-draw{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair;touch-action:none;}
+.body-frame.mode-pin{cursor:crosshair;}
 .body-label{text-align:center;font-family:var(--font-mono);font-size:10.5px;color:var(--ink-faint);padding:5px 0;border-top:1px solid var(--line-soft);text-transform:uppercase;letter-spacing:.04em;}
 .body-pin{
   position:absolute;width:20px;height:20px;margin:-20px 0 0 -10px;
@@ -255,6 +255,28 @@ textarea{resize:vertical;min-height:70px;}
 .lead-status.contattato{color:var(--stencil);}
 .lead-status.fissato{color:var(--ok);}
 .lead-status.chiusa{color:var(--ink-faint);}
+
+/* ---------- lock screen ---------- */
+.lock-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--ink);padding:24px;}
+.lock-card{width:100%;max-width:320px;text-align:center;color:var(--paper);}
+.lock-logo{width:96px;height:96px;margin:0 auto 20px;border-radius:22px;overflow:hidden;background:var(--paper-raised);box-shadow:0 10px 30px rgba(0,0,0,.4);animation:logoIn .6s ease, breathe 3.5s ease-in-out infinite 0.6s;}
+.lock-logo img{width:100%;height:100%;object-fit:cover;}
+.lock-logo.shake{animation:shake .4s ease;}
+@keyframes logoIn{from{opacity:0;transform:translateY(14px) scale(.9);}to{opacity:1;transform:none;}}
+@keyframes breathe{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
+@keyframes shake{0%,100%{transform:translateX(0);}20%,60%{transform:translateX(-9px);}40%,80%{transform:translateX(9px);}}
+.lock-title{color:var(--paper);font-size:20px;margin:0 0 4px;}
+.lock-sub{color:#B9AFA4;font-size:13.5px;margin:0 0 22px;}
+.lock-err{color:var(--flesh);font-size:12.5px;margin:10px 0 0;font-family:var(--font-mono);}
+.pin-dots{display:flex;gap:14px;justify-content:center;margin-bottom:6px;}
+.pin-dot{width:14px;height:14px;border-radius:50%;border:1.5px solid #6b635a;transition:all .15s;}
+.pin-dot.filled{background:var(--flesh);border-color:var(--flesh);}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:24px;}
+.pin-key{all:unset;cursor:pointer;height:62px;border-radius:50%;background:rgba(255,255,255,.07);color:var(--paper);font-size:24px;font-family:var(--font-display);display:flex;align-items:center;justify-content:center;transition:background .12s;}
+.pin-key:hover{background:rgba(255,255,255,.14);}
+.pin-key:active{background:rgba(255,255,255,.22);}
+.pin-back{font-size:20px;}
+.lock-hint{color:#8A8178;font-size:11.5px;margin-top:22px;}
 
 @media (max-width:860px){
   .rail{position:fixed;left:0;top:0;bottom:0;transform:translateX(-100%);transition:transform .25s ease;z-index:41;}
@@ -302,6 +324,7 @@ const STUDIO_DEFAULTS = {
   colorInk: "#1B1A19",
   colorStencil: "#5B3B63",
   colorFlesh: "#C98F6C",
+  fontTheme: "classico", // classico | moderno | essenziale | manoscritto
 };
 const STUDIO_STORE_KEY = "inkconsent_studio_v1";
 function loadStudioOverrides(){
@@ -326,8 +349,16 @@ ESONERO l'esecutore del tatuaggio/piercing e lo studio da qualsiasi responsabili
   disegnoText: `Dichiaro di essere stato informato sui rischi legati all'esecuzione e sulle precauzioni da tenere dopo l'effettuazione del tatuaggio o del piercing; di aver visionato il disegno del tatuaggio prima dell'esecuzione e di averne approvato il contenuto; confermo inoltre di essere consapevole che il tatuaggio verrà eseguito artigianalmente secondo il disegno approvato e di accettarne l'esecuzione.`,
 };
 
+/* Coppie di font selezionabili dallo studio (tutte già caricate in <head>). */
+const FONT_THEMES = {
+  classico:    { label: "Classico",    display: "'Fraunces', Georgia, serif",       body: "'IBM Plex Sans', sans-serif" },
+  moderno:     { label: "Moderno",     display: "'Space Grotesk', sans-serif",       body: "'Inter', sans-serif" },
+  essenziale:  { label: "Essenziale",  display: "'Inter', sans-serif",               body: "'Inter', sans-serif" },
+  manoscritto: { label: "Manoscritto", display: "'Caveat', cursive",                 body: "'IBM Plex Sans', sans-serif" },
+};
+
 /* Fonde defaults + override salvati dallo studio nei campi vivi di STUDIO_CONFIG,
-   e applica i colori come CSS variables. Chiamata all'avvio e dopo ogni salvataggio. */
+   e applica colori e font come CSS variables. Chiamata all'avvio e dopo ogni salvataggio. */
 function applyStudioConfig(){
   const o = { ...STUDIO_DEFAULTS, ...loadStudioOverrides() };
   STUDIO_CONFIG.studioName = o.studioName;
@@ -340,6 +371,9 @@ function applyStudioConfig(){
   r.setProperty("--ink", o.colorInk);
   r.setProperty("--stencil", o.colorStencil);
   r.setProperty("--flesh", o.colorFlesh);
+  const ft = FONT_THEMES[o.fontTheme] || FONT_THEMES.classico;
+  r.setProperty("--font-display", ft.display);
+  r.setProperty("--font-body", ft.body);
   return o;
 }
 
@@ -434,7 +468,9 @@ function blankSession(){
     zone: [],             // usato in modalità semplice
     zonaLibera: "",       // dettaglio libero della zona
     genere: "maschile",   // per la sagoma
-    markers: [],          // { view: 'fronte'|'retro', xPct, yPct } per la sagoma
+    markers: [],          // { view: 'fronte'|'retro', xPct, yPct } per la sagoma (modo pin)
+    strokes: [],          // { view, points:[{xPct,yPct}] } per la sagoma (modo disegno)
+    zonaSegnaMode: "pin", // "pin" | "disegno"
     grandezza: "",        // dimensione indicativa del tatuaggio
     zoneNei: null,        // "si" | "no"
     zoneNeiNote: "",
@@ -469,7 +505,8 @@ function loadSessions(){
   catch(e){ return []; }
 }
 function saveSessions(list){
-  localStorage.setItem(STORE_KEY, JSON.stringify(list));
+  const clean = list.map(s => { const c = {...s}; delete c._diagImgs; return c; });
+  localStorage.setItem(STORE_KEY, JSON.stringify(clean));
 }
 function upsertSession(session){
   const list = loadSessions();
@@ -590,6 +627,100 @@ function upsertRichiesta(r){
 }
 function getRichiesta(id){ return loadRichieste().find(r => r.id === id) || null; }
 
+/* ============================================================
+   AUTH — blocco accesso con codice, per proteggere i dati se il
+   dispositivo viene perso. Il codice è salvato come hash SHA-256
+   (non in chiaro). Questo blocca l'accesso all'interfaccia; per
+   rendere i DATI illeggibili serve il backup cifrato (sotto).
+   ============================================================ */
+const AUTH_KEY = "inkconsent_auth_v1"; // { hash, studioId }
+async function sha256(text){
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
+}
+function loadAuth(){ try { return JSON.parse(localStorage.getItem(AUTH_KEY)); } catch(e){ return null; } }
+async function setAuth(studioId, password){
+  localStorage.setItem(AUTH_KEY, JSON.stringify({ studioId, hash: await sha256(password) }));
+}
+function clearAuth(){ localStorage.removeItem(AUTH_KEY); }
+async function checkPassword(password){
+  const a = loadAuth();
+  if (!a) return true; // nessun blocco impostato
+  return a.hash === await sha256(password);
+}
+
+/* ============================================================
+   BACKUP / RIPRISTINO — esporta impostazioni + consensi + richieste
+   in un unico file .json. Cifratura opzionale (AES-GCM, chiave da
+   PBKDF2). Cifrato = illeggibile senza password anche se il file
+   finisce in mani altrui, ma password persa = dati irrecuperabili.
+   ============================================================ */
+function collectBackup(){
+  return {
+    _app: "InkConsent",
+    _version: 1,
+    _exportedAt: new Date().toISOString(),
+    studio: loadStudioOverrides(),
+    auth: loadAuth(),
+    sessions: loadSessions(),
+    richieste: loadRichieste(),
+  };
+}
+async function deriveKey(password, salt){
+  const baseKey = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt, iterations: 150000, hash: "SHA-256" },
+    baseKey, { name: "AES-GCM", length: 256 }, false, ["encrypt","decrypt"]
+  );
+}
+function b64(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function unb64(str){ return Uint8Array.from(atob(str), c => c.charCodeAt(0)); }
+
+async function exportBackup(password){
+  const payload = JSON.stringify(collectBackup());
+  let out;
+  if (password){
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await deriveKey(password, salt);
+    const ct = await crypto.subtle.encrypt({ name:"AES-GCM", iv }, key, new TextEncoder().encode(payload));
+    out = JSON.stringify({ _app:"InkConsent", _encrypted:true, salt:b64(salt), iv:b64(iv), data:b64(ct) }, null, 2);
+  } else {
+    out = payload;
+  }
+  const blob = new Blob([out], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const stamp = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `inkconsent-backup-${stamp}${password ? "-cifrato" : ""}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function importBackup(fileText, password){
+  let obj = JSON.parse(fileText);
+  if (obj._encrypted){
+    if (!password) throw new Error("PASSWORD_REQUIRED");
+    const key = await deriveKey(password, unb64(obj.salt));
+    let plain;
+    try {
+      plain = await crypto.subtle.decrypt({ name:"AES-GCM", iv: unb64(obj.iv) }, key, unb64(obj.data));
+    } catch(e){ throw new Error("WRONG_PASSWORD"); }
+    obj = JSON.parse(new TextDecoder().decode(plain));
+  }
+  if (obj._app !== "InkConsent") throw new Error("NOT_A_BACKUP");
+  // ripristina tutto
+  if (obj.studio) saveStudioOverrides(obj.studio);
+  if (obj.auth) localStorage.setItem(AUTH_KEY, JSON.stringify(obj.auth));
+  if (obj.sessions) saveSessions(obj.sessions);
+  if (obj.richieste) saveRichieste(obj.richieste);
+  return {
+    sessions: (obj.sessions||[]).length,
+    richieste: (obj.richieste||[]).length,
+  };
+}
+
 /* ---------- WhatsApp click-to-chat ----------
    Formato ufficiale wa.me: numero senza simboli, prefisso Italia
    assunto se il cliente non l'ha scritto lui stesso.            */
@@ -602,35 +733,14 @@ function waMessageFor(r){
   return `Ciao ${r.cliente.nome}! Grazie per la richiesta su ${STUDIO_CONFIG.studioName}. Quando saresti disponibile per una consulenza gratuita in studio e definire insieme il preventivo?`;
 }
 
-/* ---------- body diagram (fronte/retro, maschile/femminile) ----------
-   Silhouette semplici e neutre, in stile scheda-flash da studio —
-   servono a marcare zone, non a essere anatomicamente dettagliate. */
-function bodySvg(gender){
-  const f = gender === "femminile";
-  const shoulderW = f ? 30 : 38, waistW = f ? 20 : 30, hipW = f ? 34 : 26;
-  const cx = 70;
-  const shTop = 108, waistY = 190, hipY = 218, kneeY = 330, footY = 450;
-  const torso = `M${cx-shoulderW},${shTop} Q${cx},${shTop-10} ${cx+shoulderW},${shTop}
-    Q${cx+shoulderW+6},${(shTop+waistY)/2} ${cx+waistW},${waistY}
-    Q${cx+hipW},${(waistY+hipY)/2+6} ${cx+hipW},${hipY}
-    Q${cx+hipW-4},${hipY+14} ${cx+waistW-2},${hipY+18}
-    L${cx-waistW+2},${hipY+18} Q${cx-hipW+4},${hipY+14} ${cx-hipW},${hipY}
-    Q${cx-hipW},${(waistY+hipY)/2+6} ${cx-waistW},${waistY}
-    Q${cx-shoulderW-6},${(shTop+waistY)/2} ${cx-shoulderW},${shTop} Z`;
-  const armL = `M${cx-shoulderW+2},${shTop+6} Q${cx-shoulderW-22},${shTop+40} ${cx-shoulderW-26},${shTop+95} Q${cx-shoulderW-28},${shTop+140} ${cx-shoulderW-16},${shTop+168}`;
-  const armR = `M${cx+shoulderW-2},${shTop+6} Q${cx+shoulderW+22},${shTop+40} ${cx+shoulderW+26},${shTop+95} Q${cx+shoulderW+28},${shTop+140} ${cx+shoulderW+16},${shTop+168}`;
-  const legL = `M${cx-waistW+6},${hipY+16} Q${cx-hipW+10},${kneeY-20} ${cx-hipW+14},${kneeY} Q${cx-hipW+10},${kneeY+70} ${cx-hipW+16},${footY}`;
-  const legR = `M${cx+waistW-6},${hipY+16} Q${cx+hipW-10},${kneeY-20} ${cx+hipW-14},${kneeY} Q${cx+hipW-10},${kneeY+70} ${cx+hipW-16},${footY}`;
-  return `
-  <svg viewBox="0 0 140 480" xmlns="http://www.w3.org/2000/svg">
-    <ellipse class="bod-fill" cx="${cx}" cy="52" rx="22" ry="26"/>
-    <path class="bod" d="M${cx-10},${76} L${cx-10},${92} Q${cx},${98} ${cx+10},${92} L${cx+10},${76}" fill="none"/>
-    <path class="bod-fill" d="${torso}"/>
-    <path class="bod" d="${armL}" fill="none"/>
-    <path class="bod" d="${armR}" fill="none"/>
-    <path class="bod" d="${legL}" fill="none"/>
-    <path class="bod" d="${legR}" fill="none"/>
-  </svg>`;
+/* ---------- body diagram: usa le 4 immagini reali dello studio ----------
+   Le sagome (uomo/donna x fronte/retro) sono immagini PNG con sfondo
+   trasparente e interno bianco: restano leggibili su qualsiasi tema.
+   File esterni body-*.png accanto a index.html. */
+function bodyImg(gender, view){
+  const g = gender === "femminile" ? "girl" : "man";
+  const v = view === "retro" ? "back" : "front";
+  return `body-${g}_${v}.png`;
 }
 
 /* ============================================================
@@ -642,6 +752,9 @@ const state = {
   view: "archive",       // archive | form | settings | leads | lead-form
   step: 1,
   railOpen: false,
+  locked: false,         // impostato all'avvio se c'è un codice di accesso
+  pinEntry: "",
+  pinError: false,
 };
 let draft = null; // sessione attualmente in editing (studio o cliente)
 
@@ -678,7 +791,7 @@ function validateStep(step){
   }
   if (step === 3){
     if (draft.zonaMode === "sagoma"){
-      if (!draft.markers.length) errs.push("Segna almeno un punto sulla sagoma dove andrà il tatuaggio.");
+      if (!draft.markers.length && !(draft.strokes||[]).length) errs.push("Segna la zona sulla sagoma (con un punto o disegnando).");
     } else {
       if (!draft.zone.length && !draft.zonaLibera.trim()) errs.push("Indica la zona del corpo (seleziona o scrivi la zona).");
     }
@@ -710,14 +823,43 @@ function render(){
   const root = qs("#app-root");
   if (state.mode === "client") root.innerHTML = renderClientShell();
   else if (state.mode === "richiesta") root.innerHTML = renderLeadShell();
+  else if (state.locked) root.innerHTML = renderLockScreen();
   else root.innerHTML = renderStudioShell();
   afterRender();
+}
+function renderLockScreen(){
+  const a = loadAuth();
+  return `
+  <div class="lock-wrap">
+    <div class="lock-card">
+      <div class="lock-logo ${state.pinError ? "shake" : ""}">
+        <img src="icon-192.png" alt="" onerror="this.style.display='none'">
+      </div>
+      <h2 class="lock-title">${esc(STUDIO_CONFIG.studioName)}</h2>
+      <p class="lock-sub">Inserisci il codice di accesso</p>
+      <div class="pin-dots">
+        ${[0,1,2,3].map(i => `<span class="pin-dot ${state.pinEntry.length > i ? "filled" : ""}"></span>`).join("")}
+      </div>
+      ${state.pinError ? `<p class="lock-err">Codice errato, riprova</p>` : ""}
+      <div class="pin-pad">
+        ${[1,2,3,4,5,6,7,8,9].map(d => `<button class="pin-key" data-action="pin-digit" data-d="${d}">${d}</button>`).join("")}
+        <span></span>
+        <button class="pin-key" data-action="pin-digit" data-d="0">0</button>
+        <button class="pin-key pin-back" data-action="pin-back">⌫</button>
+      </div>
+      <p class="lock-hint">Codice dimenticato? Reimposta l'app da un backup.</p>
+    </div>
+  </div>`;
 }
 function renderStepOnly(){
   const host = qs("#step-content");
   if (!host) return render();
   host.innerHTML = renderStepBody(state.step, state.mode);
   afterRender();
+}
+function renderLockOnly(){
+  const root = qs("#app-root");
+  if (state.locked){ root.innerHTML = renderLockScreen(); }
 }
 function renderLeadStepOnly(){
   const host = qs("#lead-step-content");
@@ -734,6 +876,55 @@ function afterRender(){
     qrHost.innerHTML = "";
     new QRCode(qrHost, { text: buildClientLink(qs("#qr-host").dataset.sid), width: 132, height: 132, colorDark: "#1B1A19", colorLight: "#ffffff" });
   }
+  // lavagnetta: canvas di disegno libero (una per vista fronte/retro)
+  qsa(".body-draw").forEach(cv => initBodyDrawing(cv));
+}
+
+/* Disegno libero sulla sagoma: salva tracce come percentuali (indipendenti
+   dalla dimensione del canvas) così si ridisegnano identiche a qualsiasi scala. */
+function initBodyDrawing(cv){
+  const ctx = cv.dataset.drawCtx;              // 'lead' | 'consenso'
+  const view = cv.dataset.drawView;            // 'fronte' | 'retro'
+  const obj = ctx === "lead" ? leadDraft : draft;
+  const rect = cv.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = rect.width * dpr; cv.height = rect.height * dpr;
+  const g = cv.getContext("2d");
+  g.scale(dpr, dpr);
+  g.lineWidth = 3; g.lineCap = "round"; g.lineJoin = "round";
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--stencil").trim() || "#5B3B63";
+  g.strokeStyle = accent;
+
+  function redraw(){
+    g.clearRect(0,0,rect.width,rect.height);
+    (obj.strokes||[]).filter(s => s.view === view).forEach(s => {
+      g.beginPath();
+      s.points.forEach((p,i) => {
+        const x = p.xPct/100*rect.width, y = p.yPct/100*rect.height;
+        if (i===0) g.moveTo(x,y); else g.lineTo(x,y);
+      });
+      g.stroke();
+    });
+  }
+  redraw();
+
+  let drawing = false, cur = null;
+  const pos = (e) => {
+    const r = cv.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { xPct: ((t.clientX-r.left)/r.width)*100, yPct: ((t.clientY-r.top)/r.height)*100 };
+  };
+  const start = (e) => { e.preventDefault(); drawing = true; cur = { view, points:[pos(e)] }; };
+  const move = (e) => { if(!drawing) return; e.preventDefault(); cur.points.push(pos(e));
+    const r = cv.getBoundingClientRect();
+    g.beginPath();
+    cur.points.forEach((p,i)=>{ const x=p.xPct/100*rect.width, y=p.yPct/100*rect.height; if(i===0)g.moveTo(x,y);else g.lineTo(x,y);});
+    g.stroke();
+  };
+  const end = () => { if(!drawing) return; drawing=false; if(cur && cur.points.length>1){ obj.strokes = obj.strokes||[]; obj.strokes.push(cur);
+    if (ctx === "consenso") upsertSession(draft); } cur=null; };
+  cv.addEventListener("mousedown", start); cv.addEventListener("mousemove", move); window.addEventListener("mouseup", end);
+  cv.addEventListener("touchstart", start, {passive:false}); cv.addEventListener("touchmove", move, {passive:false}); cv.addEventListener("touchend", end);
 }
 function buildClientLink(sessionId){
   return `${STUDIO_CONFIG.publicUrl}/?client=1&session=${sessionId}`;
@@ -872,6 +1063,56 @@ function initSignaturePad(canvas, targetField){
 /* ============================================================
    PDF EXPORT — jsPDF, client-side, nessun backend richiesto
    ============================================================ */
+/* Compone la sagoma (immagine) con pin e disegni in un'unica PNG dataURL,
+   per includerla nel PDF. Async perché deve caricare l'immagine di sfondo. */
+function renderDiagramToImage(sess, view){
+  return new Promise((resolve) => {
+    const hasMarks = (sess.markers||[]).some(m=>m.view===view);
+    const hasDraw = (sess.strokes||[]).some(st=>st.view===view);
+    if (!hasMarks && !hasDraw){ resolve(null); return; }
+    const img = new Image();
+    img.onload = () => {
+      const W = 300, H = 500;
+      const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+      const g = cv.getContext("2d");
+      g.fillStyle = "#ffffff"; g.fillRect(0,0,W,H);
+      // fit image preserving aspect
+      const ar = img.width/img.height, cvar = W/H;
+      let dw=W, dh=H, dx=0, dy=0;
+      if (ar > cvar){ dh = W/ar; dy = (H-dh)/2; } else { dw = H*ar; dx = (W-dw)/2; }
+      g.drawImage(img, dx, dy, dw, dh);
+      // strokes
+      const accent = getComputedStyle(document.documentElement).getPropertyValue("--stencil").trim() || "#5B3B63";
+      g.strokeStyle = accent; g.lineWidth = 3; g.lineCap="round"; g.lineJoin="round";
+      (sess.strokes||[]).filter(st=>st.view===view).forEach(st => {
+        g.beginPath(); st.points.forEach((p,i)=>{ const x=p.xPct/100*W, y=p.yPct/100*H; if(i===0)g.moveTo(x,y);else g.lineTo(x,y);}); g.stroke();
+      });
+      // pins
+      (sess.markers||[]).filter(m=>m.view===view).forEach((m,i) => {
+        const x=m.xPct/100*W, y=m.yPct/100*H;
+        g.fillStyle = accent; g.beginPath(); g.arc(x,y,10,0,Math.PI*2); g.fill();
+        g.fillStyle="#fff"; g.font="bold 12px sans-serif"; g.textAlign="center"; g.textBaseline="middle";
+        g.fillText(String(i+1), x, y);
+      });
+      try { resolve(cv.toDataURL("image/png")); }
+      catch(e){ console.warn("Diagramma non esportabile (canvas tainted):", e); resolve(null); }
+    };
+    img.onerror = () => resolve(null);
+    img.crossOrigin = "anonymous";
+    img.src = bodyImg(sess.genere, view);
+  });
+}
+async function attachDiagrams(sess){
+  if (sess.zonaMode !== "sagoma") return;
+  const [fronte, retro] = await Promise.all([
+    renderDiagramToImage(sess, "fronte"),
+    renderDiagramToImage(sess, "retro"),
+  ]);
+  sess._diagImgs = {};
+  if (fronte) sess._diagImgs.fronte = fronte;
+  if (retro) sess._diagImgs.retro = retro;
+}
+
 function buildPdf(s){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "a4" });
@@ -916,7 +1157,20 @@ function buildPdf(s){
   heading("Zona e disegno (dichiarato dal cliente)");
   line(`Tipo: ${s.tipoApplicazione === "piercing" ? "Piercing" : "Tatuaggio"}`);
   if (s.zonaMode === "sagoma"){
-    line(`Zona (sagoma ${s.genere}): ${s.markers.length} punto/i segnati${s.zonaLibera ? " — " + s.zonaLibera : ""}`);
+    const nMarks = (s.markers||[]).length, nDraw = (s.strokes||[]).length;
+    line(`Zona (sagoma ${s.genere}): ${nMarks} punto/i, ${nDraw} disegno/i${s.zonaLibera ? " — " + s.zonaLibera : ""}`);
+    // inserisci le due sagome (fronte/retro) coi segni, se presenti in s._diagImgs
+    if (s._diagImgs){
+      ensure(200);
+      const imgW = 120, imgH = 200; let ix = M;
+      ["fronte","retro"].forEach(v => {
+        if (s._diagImgs[v]){
+          try { doc.addImage(s._diagImgs[v], "PNG", ix, y, imgW, imgH); } catch(e){}
+          ix += imgW + 20;
+        }
+      });
+      y += imgH + 8;
+    }
   } else {
     line(`Zona/e: ${s.zone.join(", ") || "—"}${s.zonaLibera ? " — " + s.zonaLibera : ""}`);
   }
@@ -955,6 +1209,7 @@ function buildPdf(s){
   doc.text(`InkConsent · ID sessione ${s.id} · Stato: ${STATUS[s.status].label} · da conservare almeno ${STUDIO_CONFIG.retentionYears} anni`, M, y);
 
   doc.save(`consenso-${s.anagrafica.cognome || "cliente"}-${s.id.slice(-6)}.pdf`);
+  delete s._diagImgs; // transiente: non salvare le immagini pesanti in localStorage
 }
 
 /* ============================================================
@@ -975,7 +1230,7 @@ function validateLeadStep(step){
     if (!leadDraft.descrizione.trim()) errs.push("Racconta in poche righe cosa hai in mente.");
   }
   if (step === 3){
-    if (!leadDraft.markers.length) errs.push("Segna almeno un punto sul corpo dove vorresti il tatuaggio.");
+    if (!leadDraft.markers.length && !(leadDraft.strokes||[]).length) errs.push("Segna la zona sulla sagoma (con un punto o disegnando).");
   }
   return errs;
 }
@@ -1070,13 +1325,19 @@ function renderLeadStep2(){
 }
 
 function renderLeadStep3(){
+  const sm = leadDraft.zonaSegnaMode || "pin";
   return `
   ${renderLeadErrors(3)}
   <h3 class="section-title">Dove vorresti farlo</h3>
-  <p class="section-desc">Tocca il punto sulla sagoma. Tocca un punto già segnato per rimuoverlo.</p>
+  <p class="section-desc">${sm==='pin' ? "Tocca il punto sulla sagoma. Tocca un punto già segnato per rimuoverlo." : "Disegna col dito attorno alla zona che ti interessa."}</p>
   <div class="gender-toggle">
     <button class="chip ${leadDraft.genere==='maschile'?'on':''}" data-action="set-genere" data-g="maschile">Corpo maschile</button>
     <button class="chip ${leadDraft.genere==='femminile'?'on':''}" data-action="set-genere" data-g="femminile">Corpo femminile</button>
+  </div>
+  <div class="gender-toggle" style="margin-top:8px;">
+    <button class="chip ${sm==='pin'?'on':''}" data-action="set-segnamode" data-m="pin">📍 Punto</button>
+    <button class="chip ${sm==='disegno'?'on':''}" data-action="set-segnamode" data-m="disegno">✏️ Disegna</button>
+    <button class="chip" data-action="clear-sagoma">Cancella</button>
   </div>
   <div class="body-pair">
     ${renderBodyFrame("fronte")}
@@ -1085,12 +1346,13 @@ function renderLeadStep3(){
   ${renderLeadNav(3)}`;
 }
 function renderBodyFrame(view){
+  const mode = leadDraft.zonaSegnaMode || "pin";
   const pins = leadDraft.markers.map((m,i) => m.view === view ? `<div class="body-pin" data-action="remove-pin" data-i="${i}" style="left:${m.xPct}%;top:${m.yPct}%;"><span>${i+1}</span></div>` : "").join("");
   return `
   <div>
-    <div class="body-frame" data-action="mark-body" data-view="${view}">
-      ${bodySvg(leadDraft.genere)}
-      ${pins}
+    <div class="body-frame ${mode==='pin'?'mode-pin':''}" ${mode==='pin'?`data-action="mark-body" data-view="${view}"`:''}>
+      <img class="body-bg" src="${bodyImg(leadDraft.genere, view)}" alt="" draggable="false">
+      ${mode==='disegno' ? `<canvas class="body-draw" data-draw-view="${view}" data-draw-ctx="lead"></canvas>` : pins}
     </div>
     <div class="body-label">${view === "fronte" ? "Fronte" : "Retro"}</div>
   </div>`;
@@ -1207,7 +1469,22 @@ document.addEventListener("click", (e) => {
   if (!btn) return;
   const action = btn.dataset.action;
 
-  if (action === "nav"){ state.view = btn.dataset.view; state.step = 1; state.showErrors = null; state.railOpen = false; state.studioSaved = false; render(); }
+  if (action === "pin-digit"){
+    if (state.pinEntry.length >= 4) return;
+    state.pinEntry += btn.dataset.d;
+    state.pinError = false;
+    if (state.pinEntry.length === 4){
+      checkPassword(state.pinEntry).then(ok => {
+        if (ok){ state.locked = false; state.pinEntry = ""; render(); }
+        else { state.pinError = true; state.pinEntry = ""; render(); }
+      });
+    }
+    renderLockOnly();
+    return;
+  }
+  else if (action === "pin-back"){ state.pinEntry = state.pinEntry.slice(0,-1); state.pinError = false; renderLockOnly(); return; }
+
+  if (action === "nav"){ state.view = btn.dataset.view; state.step = 1; state.showErrors = null; state.railOpen = false; state.studioSaved = false; state.authSaved = false; state.authError = null; state.backupMsg = null; render(); }
   else if (action === "new-session"){ draft = blankSession(); state.view = "form"; state.step = 1; state.showErrors = null; state.pdfWarning = false; state.railOpen = false; render(); }
   else if (action === "open-session"){ draft = getSession(btn.dataset.id); state.view = "form"; state.step = resumeStep(draft); state.showErrors = null; state.pdfWarning = false; state.railOpen = false; render(); }
   else if (action === "toggle-rail"){ state.railOpen = !state.railOpen; render(); }
@@ -1226,7 +1503,9 @@ document.addEventListener("click", (e) => {
   else if (action === "toggle-schedatecnica"){ draft.seduta.schedaTecnicaAllegata = !draft.seduta.schedaTecnicaAllegata; renderStepOnly(); }
   else if (action === "set-sanitario"){ draft.sanitario[btn.dataset.q] = btn.dataset.v; renderStepOnly(); }
   else if (action === "set-zonamode"){ draft.zonaMode = btn.dataset.v; renderStepOnly(); }
-  else if (action === "set-genere-consenso"){ draft.genere = btn.dataset.g; draft.markers = []; renderStepOnly(); }
+  else if (action === "set-genere-consenso"){ draft.genere = btn.dataset.g; draft.markers = []; draft.strokes = []; renderStepOnly(); }
+  else if (action === "set-segnamode-consenso"){ draft.zonaSegnaMode = btn.dataset.m; renderStepOnly(); }
+  else if (action === "clear-sagoma-consenso"){ draft.markers = []; draft.strokes = []; renderStepOnly(); }
   else if (action === "set-grandezza-consenso"){ draft.grandezza = btn.dataset.d; renderStepOnly(); }
   else if (action === "mark-body-consenso"){
     const rect = btn.getBoundingClientRect();
@@ -1258,14 +1537,12 @@ document.addEventListener("click", (e) => {
     if (errs.length){ state.showErrors = 8; renderStepOnly(); return; }
     draft.seduta.compilata = true;
     draft.status = "archiviato"; upsertSession(draft);
-    try { buildPdf(draft); }
-    catch(err){ console.warn("Generazione PDF non riuscita (offline?):", err); state.pdfWarning = true; }
+    attachDiagrams(draft).then(() => { try { buildPdf(draft); } catch(err){ console.warn("PDF non riuscito:", err); state.pdfWarning = true; render(); } });
     state.view = "archive"; render();
   }
   else if (action === "save-draft"){ upsertSession(draft); state.savedFlash = true; renderStepOnly(); }
   else if (action === "download-pdf"){
-    try { buildPdf(draft); }
-    catch(err){ alert("Impossibile generare il PDF: serve una connessione internet per caricare la libreria la prima volta."); }
+    attachDiagrams(draft).then(() => { try { buildPdf(draft); } catch(err){ alert("Impossibile generare il PDF: serve connessione per la libreria la prima volta."); } });
   }
   else if (action === "new-remote-link"){
     const s = blankSession(); upsertSession(s);
@@ -1276,6 +1553,47 @@ document.addEventListener("click", (e) => {
     applyStudioConfig();
     state.studioBuffer = null; state.studioSaved = true;
     render();
+  }
+  else if (action === "save-auth"){
+    const buf = state.authBuffer || {};
+    const studioId = (buf.studioId || "").trim() || (loadAuth()||{}).studioId || STUDIO_CONFIG.studioName;
+    const pw = (buf.password || "").trim();
+    if (!loadAuth() && !pw){ state.authError = "Inserisci un codice di 4 cifre per attivare il blocco."; state.authSaved = false; render(); return; }
+    if (pw && !/^\d{4}$/.test(pw)){ state.authError = "Il codice deve essere di 4 cifre."; state.authSaved = false; render(); return; }
+    const finalize = () => { state.authBuffer = null; state.authError = null; state.authSaved = true; render(); };
+    if (pw){ setAuth(studioId, pw).then(finalize); }
+    else { // solo cambio ID, codice invariato
+      const a = loadAuth(); a.studioId = studioId; localStorage.setItem(AUTH_KEY, JSON.stringify(a)); finalize();
+    }
+  }
+  else if (action === "disable-auth"){
+    if (confirm("Disattivare il blocco con codice? Chiunque abbia il dispositivo potrà aprire l'archivio dei clienti.")){
+      clearAuth(); state.authBuffer = null; state.authSaved = false; state.authError = null; render();
+    }
+  }
+  else if (action === "toggle-cifra-backup"){ state.cifraBackup = !state.cifraBackup; render(); }
+  else if (action === "set-fonttheme"){
+    state.studioBuffer = { ...(state.studioBuffer||{}), fontTheme: btn.dataset.v };
+    const ft = FONT_THEMES[btn.dataset.v] || FONT_THEMES.classico;
+    document.documentElement.style.setProperty("--font-display", ft.display);
+    document.documentElement.style.setProperty("--font-body", ft.body);
+    render();
+  }
+  else if (action === "do-export"){
+    const pw = state.cifraBackup ? ((state.backupBuffer||{}).password || "").trim() : "";
+    if (state.cifraBackup && !pw){ state.backupMsg = "Inserisci una password per il backup cifrato."; state.backupMsgType = "warn"; render(); return; }
+    const msg = state.cifraBackup
+      ? "BACKUP CIFRATO\n\nIl file sarà illeggibile senza la password che hai scelto. Custodiscila: se la perdi, questo backup NON è recuperabile in alcun modo. Procedere?"
+      : "BACKUP IN CHIARO\n\nIl file conterrà i dati dei clienti leggibili da chiunque lo apra. Conservalo in un luogo sicuro (non su servizi condivisi). Procedere?";
+    if (!confirm(msg)) return;
+    exportBackup(pw).then(() => {
+      state.backupMsg = state.cifraBackup ? "Backup cifrato esportato." : "Backup esportato (non cifrato).";
+      state.backupMsgType = "ok"; state.backupBuffer = null; render();
+    }).catch(err => { state.backupMsg = "Errore durante l'export: " + err.message; state.backupMsgType = "warn"; render(); });
+  }
+  else if (action === "do-import-pick"){
+    const inp = qs("#import-file");
+    if (inp) inp.click();
   }
   else if (action === "reset-studio"){
     localStorage.removeItem(STUDIO_STORE_KEY);
@@ -1294,10 +1612,12 @@ document.addEventListener("click", (e) => {
     s.anagrafica.telefono = leadDraft.cliente.telefono;
     s.anagrafica.email = leadDraft.cliente.email;
     // porta con sé la zona segnata sul preventivo: usa direttamente la sagoma
-    if (leadDraft.markers && leadDraft.markers.length){
+    if ((leadDraft.markers && leadDraft.markers.length) || (leadDraft.strokes && leadDraft.strokes.length)){
       s.zonaMode = "sagoma";
       s.genere = leadDraft.genere;
-      s.markers = leadDraft.markers.map(m => ({...m}));
+      s.zonaSegnaMode = leadDraft.zonaSegnaMode || "pin";
+      s.markers = (leadDraft.markers||[]).map(m => ({...m}));
+      s.strokes = (leadDraft.strokes||[]).map(st => ({ view: st.view, points: st.points.map(p=>({...p})) }));
     }
     if (leadDraft.dimensione) s.grandezza = leadDraft.dimensione;
     upsertSession(s);
@@ -1312,7 +1632,9 @@ document.addEventListener("click", (e) => {
     renderLeadStepOnly();
   }
   else if (action === "set-dimensione"){ leadDraft.dimensione = btn.dataset.d; renderLeadStepOnly(); }
-  else if (action === "set-genere"){ leadDraft.genere = btn.dataset.g; leadDraft.markers = []; renderLeadStepOnly(); }
+  else if (action === "set-genere"){ leadDraft.genere = btn.dataset.g; leadDraft.markers = []; leadDraft.strokes = []; renderLeadStepOnly(); }
+  else if (action === "set-segnamode"){ leadDraft.zonaSegnaMode = btn.dataset.m; renderLeadStepOnly(); }
+  else if (action === "clear-sagoma"){ leadDraft.markers = []; leadDraft.strokes = []; renderLeadStepOnly(); }
   else if (action === "mark-body"){
     const rect = btn.getBoundingClientRect();
     const xPct = Math.max(2, Math.min(98, ((e.clientX - rect.left) / rect.width) * 100));
@@ -1343,6 +1665,10 @@ document.addEventListener("input", (e) => {
   if (leadField && leadDraft){ setLeadField(leadField, e.target.value); return; }
   const studioField = e.target.dataset.fieldStudio;
   if (studioField){ state.studioBuffer = { ...(state.studioBuffer||{}), [studioField]: e.target.value }; return; }
+  const authField = e.target.dataset.fieldAuth;
+  if (authField){ state.authBuffer = { ...(state.authBuffer||{}), [authField]: e.target.value }; return; }
+  const backupField = e.target.dataset.fieldBackup;
+  if (backupField){ state.backupBuffer = { ...(state.backupBuffer||{}), [backupField]: e.target.value }; return; }
   if (e.target.dataset.action === "search-archive"){
     state.archiveQuery = e.target.value;
     const host = qs("#archive-results");
@@ -1356,6 +1682,47 @@ document.addEventListener("change", (e) => {
   if (leadField && leadDraft) setLeadField(leadField, e.target.value);
   const studioField = e.target.dataset.fieldStudio;
   if (studioField){ state.studioBuffer = { ...(state.studioBuffer||{}), [studioField]: e.target.value }; }
+  const authField = e.target.dataset.fieldAuth;
+  if (authField){ state.authBuffer = { ...(state.authBuffer||{}), [authField]: e.target.value }; }
+  const backupField = e.target.dataset.fieldBackup;
+  if (backupField){ state.backupBuffer = { ...(state.backupBuffer||{}), [backupField]: e.target.value }; }
+
+  if (e.target.id === "import-file" && e.target.files && e.target.files[0]){
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = async () => {
+      let pw = "";
+      // primo tentativo: se cifrato chiederà la password
+      try {
+        const res = await importBackup(reader.result, "");
+        state.backupMsg = `Ripristinati ${res.sessions} consensi e ${res.richieste} richieste.`;
+        state.backupMsgType = "ok";
+        applyStudioConfig();
+        if (loadAuth()) state.locked = false; // già dentro, non ri-bloccare ora
+        render();
+      } catch(err){
+        if (err.message === "PASSWORD_REQUIRED" || err.message === "WRONG_PASSWORD"){
+          pw = prompt("Questo backup è cifrato. Inserisci la password:");
+          if (pw == null) return;
+          try {
+            const res = await importBackup(reader.result, pw);
+            state.backupMsg = `Ripristinati ${res.sessions} consensi e ${res.richieste} richieste.`;
+            state.backupMsgType = "ok";
+            applyStudioConfig();
+            render();
+          } catch(err2){
+            state.backupMsg = err2.message === "WRONG_PASSWORD" ? "Password errata: ripristino annullato." : "File non valido.";
+            state.backupMsgType = "warn"; render();
+          }
+        } else {
+          state.backupMsg = err.message === "NOT_A_BACKUP" ? "Questo file non è un backup InkConsent." : "File non valido.";
+          state.backupMsgType = "warn"; render();
+        }
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
 });
 
 /* ============================================================
@@ -1378,6 +1745,7 @@ function initRichiestaMode(){
 }
 
 applyStudioConfig();
+if (state.mode === "studio" && loadAuth()) state.locked = true;
 if (state.mode === "client") initClientMode();
 else if (state.mode === "richiesta") initRichiestaMode();
 else render();
@@ -1389,7 +1757,7 @@ if ("serviceWorker" in navigator){
 }
 
 function renderSettings(){
-  const cfg = { ...STUDIO_DEFAULTS, ...loadStudioOverrides() };
+  const cfg = { ...STUDIO_DEFAULTS, ...loadStudioOverrides(), ...(state.studioBuffer||{}) };
   return `
   <div class="topbar"><div><h1>Impostazioni studio</h1><p>Identità, artisti e link di compilazione remota</p></div></div>
   <div class="main-inner">
@@ -1412,6 +1780,13 @@ function renderSettings(){
         <div class="field"><label>Colore principale (accenti)</label><input type="color" data-field-studio="colorStencil" value="${esc(cfg.colorStencil)}" style="height:44px;padding:4px;"></div>
       </div>
       <div class="field"><label>Colore secondario (progress)</label><input type="color" data-field-studio="colorFlesh" value="${esc(cfg.colorFlesh)}" style="height:44px;padding:4px;max-width:200px;"></div>
+
+      <div class="subhead">Font</div>
+      <div class="field">
+        <div class="chip-grid">
+          ${Object.keys(FONT_THEMES).map(k => `<button class="chip ${(cfg.fontTheme||'classico')===k?'on':''}" data-action="set-fonttheme" data-v="${k}">${FONT_THEMES[k].label}</button>`).join("")}
+        </div>
+      </div>
 
       <div class="btn-row">
         <button class="btn btn-accent" data-action="save-studio">Salva e applica</button>
@@ -1442,6 +1817,38 @@ function renderSettings(){
       <div class="kv"><span>Notifica push (ntfy.sh)</span><b>${NOTIFY_CONFIG.ntfyTopic ? "Attiva" : "Non configurata"}</b></div>
       ${!NOTIFY_CONFIG.ntfyTopic ? `<div class="callout info" style="margin-top:10px;">Senza notifica dovrai controllare tu la sezione "Richieste" di tanto in tanto. Per riceverle push sul telefono, vedi le istruzioni su <span class="mono">NOTIFY_CONFIG</span> nel codice — due minuti, nessun account.</div>` : ""}
     </div>
+    <div class="card">
+      <h3 class="section-title">Accesso e credenziali</h3>
+      <p class="section-desc">Proteggi l'app con un codice: se perdi il dispositivo, nessuno può aprire l'archivio dei clienti.</p>
+      <div class="kv"><span>Blocco con codice</span><b>${loadAuth() ? "Attivo" : "Non attivo"}</b></div>
+      <div class="grid-2" style="margin-top:12px;">
+        <div class="field"><label>ID studio (identificativo)</label><input type="text" data-field-auth="studioId" value="${esc((loadAuth()||{}).studioId || cfg.studioName)}" placeholder="es. podere173"></div>
+        <div class="field"><label>Codice di accesso (4 cifre)</label><input type="tel" maxlength="4" data-field-auth="password" value="" placeholder="${loadAuth() ? "•••• (invariato)" : "es. 1983"}"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-accent" data-action="save-auth">${loadAuth() ? "Aggiorna codice" : "Attiva blocco"}</button>
+        ${loadAuth() ? `<button class="btn btn-ghost" data-action="disable-auth">Disattiva blocco</button>` : ""}
+      </div>
+      ${state.authSaved ? `<div class="callout ok" style="margin-top:12px;">Credenziali aggiornate.</div>` : ""}
+      ${state.authError ? `<div class="callout warn" style="margin-top:12px;">${esc(state.authError)}</div>` : ""}
+    </div>
+
+    <div class="card">
+      <h3 class="section-title">Backup e ripristino</h3>
+      <p class="section-desc">Esporta tutto — impostazioni, consensi e richieste — in un unico file. Fallo con regolarità: è la tua rete di sicurezza se cambi o perdi il dispositivo.</p>
+      <div class="check-row">
+        <input type="checkbox" id="cifra-backup" data-action="toggle-cifra-backup" ${state.cifraBackup?"checked":""}>
+        <label for="cifra-backup" class="ct">Cifra il backup con una password<small>Consigliato: il file sarà illeggibile senza password</small></label>
+      </div>
+      ${state.cifraBackup ? `<div class="field"><label>Password del backup</label><input type="password" data-field-backup="password" placeholder="Scegli una password robusta"></div>` : ""}
+      <div class="btn-row">
+        <button class="btn btn-primary" data-action="do-export">⬇ Esporta backup</button>
+        <button class="btn btn-ghost" data-action="do-import-pick">⬆ Ripristina da file</button>
+      </div>
+      <input type="file" id="import-file" accept="application/json,.json" style="display:none;">
+      ${state.backupMsg ? `<div class="callout ${state.backupMsgType||'info'}" style="margin-top:12px;">${state.backupMsg}</div>` : ""}
+    </div>
+
     <div class="card">
       <h3 class="section-title">Nota legale</h3>
       <div class="callout warn">I testi di questo modulo sono trascritti dal modulo cartaceo dello studio, non da un modello standard. Il ddl melanoma introdurrà anche un decreto ministeriale con requisiti propri, non ancora pubblicato: quando uscirà, confronta i due testi con un professionista e aggiorna <span class="mono">informativaVersion</span> se serve unificarli.</div>
@@ -1671,7 +2078,12 @@ function renderStepZona(ctx){
       <button class="chip ${draft.genere==='maschile'?'on':''}" data-action="set-genere-consenso" data-g="maschile">Corpo maschile</button>
       <button class="chip ${draft.genere==='femminile'?'on':''}" data-action="set-genere-consenso" data-g="femminile">Corpo femminile</button>
     </div>
-    <p class="field hint" style="margin:8px 0 0;">Tocca il punto sulla sagoma. Tocca un punto già segnato per rimuoverlo.</p>
+    <div class="gender-toggle" style="margin-top:8px;">
+      <button class="chip ${(draft.zonaSegnaMode||'pin')==='pin'?'on':''}" data-action="set-segnamode-consenso" data-m="pin">📍 Punto</button>
+      <button class="chip ${(draft.zonaSegnaMode||'pin')==='disegno'?'on':''}" data-action="set-segnamode-consenso" data-m="disegno">✏️ Disegna</button>
+      <button class="chip" data-action="clear-sagoma-consenso">Cancella</button>
+    </div>
+    <p class="field hint" style="margin:8px 0 0;">${(draft.zonaSegnaMode||'pin')==='pin' ? "Tocca il punto sulla sagoma; toccalo di nuovo per rimuoverlo." : "Disegna col dito attorno alla zona."}</p>
     <div class="body-pair">
       ${renderConsensoBodyFrame("fronte")}
       ${renderConsensoBodyFrame("retro")}
@@ -1711,12 +2123,13 @@ function renderStepZona(ctx){
   ${renderFormNav(3, ctx)}`;
 }
 function renderConsensoBodyFrame(view){
+  const mode = draft.zonaSegnaMode || "pin";
   const pins = draft.markers.map((m,i) => m.view === view ? `<div class="body-pin" data-action="remove-pin-consenso" data-i="${i}" style="left:${m.xPct}%;top:${m.yPct}%;"><span>${i+1}</span></div>` : "").join("");
   return `
   <div>
-    <div class="body-frame" data-action="mark-body-consenso" data-view="${view}">
-      ${bodySvg(draft.genere)}
-      ${pins}
+    <div class="body-frame ${mode==='pin'?'mode-pin':''}" ${mode==='pin'?`data-action="mark-body-consenso" data-view="${view}"`:''}>
+      <img class="body-bg" src="${bodyImg(draft.genere, view)}" alt="" draggable="false">
+      ${mode==='disegno' ? `<canvas class="body-draw" data-draw-view="${view}" data-draw-ctx="consenso"></canvas>` : pins}
     </div>
     <div class="body-label">${view === "fronte" ? "Fronte" : "Retro"}</div>
   </div>`;
