@@ -1752,7 +1752,7 @@ else render();
 
 if ("serviceWorker" in navigator){
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(() => {/* ok offline, non blocca l'app */});
+    navigator.serviceWorker.register("/sw.js").catch(() => {/* ok offline, non blocca l'app */});
   });
 }
 
