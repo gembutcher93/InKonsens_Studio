@@ -52,6 +52,12 @@ In più un campo **grandezza indicativa** in entrambe le modalità.
 - **Richieste preventivo**: link pubblico, sagoma corpo, contatti, notifica
   push opzionale, WhatsApp con un click, conversione in consenso.
 - **PDF** client-side, firme incluse, sezioni separate cliente/seduta.
+- **Magazzino inchiostri e aghi**: archivio gestito come i consensi (aggiungi,
+  modifica, elimina). Ogni inchiostro ha marca, colore, lotto e scadenza; ogni
+  ago ha marca, tipo (3RL, 7RS…), lotto e scadenza. Nello step "Dati seduta" del
+  consenso selezioni uno o più inchiostri e uno o più aghi dall'archivio, così
+  il lotto è sempre tracciato senza riscriverlo. Badge "in scadenza"/"scaduto".
+  Tutto finisce nel PDF e nel backup.
 - **Sagoma anatomica** fronte/retro (M/F): la zona si segna su vere immagini
   del corpo (`body-man_front.png`, `body-man_back.png`, `body-girl_front.png`,
   `body-girl_back.png`), con due modi a scelta — **📍 Punto** (pin numerati) o

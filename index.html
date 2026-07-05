@@ -264,6 +264,17 @@ textarea{resize:vertical;min-height:70px;}
 .reg-minor{font-family:var(--font-mono);font-size:9.5px;background:var(--flesh);color:#fff;padding:1px 5px;border-radius:10px;vertical-align:middle;}
 .reg-note{margin-top:16px;font-size:12px;color:var(--ink-faint);line-height:1.5;}
 .registro-head{margin-bottom:16px;font-size:13px;line-height:1.5;}
+
+/* ---------- magazzino ---------- */
+.inv-form{background:var(--paper);border:1px solid var(--line-soft);border-radius:var(--radius);padding:16px;margin:14px 0;}
+.inv-list{margin-top:14px;display:flex;flex-direction:column;gap:8px;}
+.inv-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line-soft);border-radius:var(--radius);background:#fff;}
+.inv-main{font-size:14px;}
+.inv-sub{display:block;font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);margin-top:3px;}
+.inv-actions{display:flex;gap:6px;flex:none;}
+.inv-select-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line-soft);border-radius:var(--radius);margin-bottom:6px;}
+.inv-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:20px;background:var(--stencil);color:#fff;font-size:12px;margin:3px 4px 0 0;}
+.inv-chip button{all:unset;cursor:pointer;font-weight:700;opacity:.8;}
 .only-print{display:none;}
 @media print{
   .rail, .mobile-topbar, .no-print, .topbar button{display:none !important;}
@@ -519,9 +530,11 @@ function blankSession(){
       compilata: false,
       dataApplicazione: "",   // data reale, NON precompilata
       sedeEffettiva: "",      // zona effettivamente tatuata
-      materiali: "",
-      ago: "",
-      lottoPigmento: "",
+      materiali: "",          // note libere aggiuntive (legacy/opzionale)
+      inchiostri: [],         // [{ id, nome, colore, lotto, scadenza }] selezionati dall'archivio
+      aghi: [],               // [{ id, marca, tipo, lotto, scadenza }] selezionati dall'archivio
+      lottoPigmento: "",      // legacy, non più usato dai nuovi consensi
+      ago: "",                // legacy
       schedaTecnicaAllegata: false,
       reazioniAvverse: "",
     },
@@ -679,6 +692,44 @@ function upsertRichiesta(r){
 function getRichiesta(id){ return loadRichieste().find(r => r.id === id) || null; }
 
 /* ============================================================
+   MAGAZZINO — archivio inchiostri e aghi. Gestiti come i consensi
+   (aggiungi / modifica / elimina). Nel consenso si selezionano
+   invece di riscriverli, così il lotto è sempre tracciato senza
+   errori di battitura.
+   ============================================================ */
+const INKS_KEY = "inkconsent_inks_v1";
+const NEEDLES_KEY = "inkconsent_needles_v1";
+function loadInks(){ try { return JSON.parse(localStorage.getItem(INKS_KEY)) || []; } catch(e){ return []; } }
+function saveInks(list){ localStorage.setItem(INKS_KEY, JSON.stringify(list)); }
+function loadNeedles(){ try { return JSON.parse(localStorage.getItem(NEEDLES_KEY)) || []; } catch(e){ return []; } }
+function saveNeedles(list){ localStorage.setItem(NEEDLES_KEY, JSON.stringify(list)); }
+function upsertInk(item){
+  const list = loadInks();
+  const i = list.findIndex(x => x.id === item.id);
+  if (i >= 0) list[i] = item; else list.unshift(item);
+  saveInks(list); return item;
+}
+function deleteInk(id){ saveInks(loadInks().filter(x => x.id !== id)); }
+function upsertNeedle(item){
+  const list = loadNeedles();
+  const i = list.findIndex(x => x.id === item.id);
+  if (i >= 0) list[i] = item; else list.unshift(item);
+  saveNeedles(list); return item;
+}
+function deleteNeedle(id){ saveNeedles(loadNeedles().filter(x => x.id !== id)); }
+function newId(){ return "x" + Math.random().toString(36).slice(2, 9); }
+/* scadenza: true se manca meno di 30 giorni o è già passata */
+function isExpiringSoon(dateStr){
+  if (!dateStr) return false;
+  const d = new Date(dateStr), now = new Date();
+  return (d - now) / 86400000 < 30;
+}
+function isExpired(dateStr){
+  if (!dateStr) return false;
+  return new Date(dateStr) < new Date();
+}
+
+/* ============================================================
    AUTH — blocco accesso con codice, per proteggere i dati se il
    dispositivo viene perso. Il codice è salvato come hash SHA-256
    (non in chiaro). Questo blocca l'accesso all'interfaccia; per
@@ -730,6 +781,8 @@ function collectBackup(){
     auth: loadAuth(),
     sessions: loadSessions(),
     richieste: loadRichieste(),
+    inks: loadInks(),
+    needles: loadNeedles(),
   };
 }
 async function deriveKey(password, salt){
@@ -781,6 +834,8 @@ async function importBackup(fileText, password){
   if (obj.auth) localStorage.setItem(AUTH_KEY, JSON.stringify(obj.auth));
   if (obj.sessions) saveSessions(obj.sessions);
   if (obj.richieste) saveRichieste(obj.richieste);
+  if (obj.inks) saveInks(obj.inks);
+  if (obj.needles) saveNeedles(obj.needles);
   return {
     sessions: (obj.sessions||[]).length,
     richieste: (obj.richieste||[]).length,
@@ -1090,6 +1145,7 @@ function renderStudioShell(){
       <div class="rail-nav">
         <button class="rail-btn ${state.view==='archive'?'active':''}" data-action="nav" data-view="archive">📋 Archivio consensi</button>
         <button class="rail-btn ${state.view==='registro'?'active':''}" data-action="nav" data-view="registro">📖 Registro</button>
+        <button class="rail-btn ${state.view==='magazzino'?'active':''}" data-action="nav" data-view="magazzino">🧴 Magazzino</button>
         <button class="rail-btn ${state.view==='form'?'active':''}" data-action="new-session">✎ Nuovo consenso</button>
         <button class="rail-btn ${state.view==='leads'||state.view==='lead-detail'?'active':''}" data-action="nav" data-view="leads">💬 Richieste preventivo${nuoveLeads ? `<span class="nav-badge">${nuoveLeads}</span>` : ""}</button>
         <button class="rail-btn ${state.view==='settings'?'active':''}" data-action="nav" data-view="settings">⚙ Impostazioni studio</button>
@@ -1110,6 +1166,7 @@ function renderStudioView(){
   if (state.view === "leads") return renderLeads();
   if (state.view === "lead-detail" && leadDraft) return renderLeadDetail();
   if (state.view === "registro") return renderRegistro();
+  if (state.view === "magazzino") return renderMagazzino();
   return renderArchive();
 }
 
@@ -1166,6 +1223,94 @@ function renderRegistro(){
       <p class="reg-note">Conservazione minima ${STUDIO_CONFIG.retentionYears} anni. Ogni consenso è archiviato con firma del cliente e controfirma dell'operatore; il documento completo è esportabile in PDF dall'archivio.</p>
       `}
     </div>
+  </div>`;
+}
+
+function renderMagazzino(){
+  const inks = loadInks();
+  const needles = loadNeedles();
+  const eb = state.editBuffer || {};
+  const scadBadge = (d) => {
+    if (isExpired(d)) return `<span class="reg-minor" style="background:var(--warn);">scaduto</span>`;
+    if (isExpiringSoon(d)) return `<span class="reg-minor" style="background:var(--flesh);">in scadenza</span>`;
+    return "";
+  };
+  return `
+  <div class="topbar">
+    <div><h1>Magazzino</h1><p>Inchiostri e aghi · seleziona i lotti nel consenso senza riscriverli</p></div>
+  </div>
+  <div class="main-inner">
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 class="section-title" style="margin:0;">Inchiostri <span class="mono" style="color:var(--ink-faint);font-size:13px;">(${inks.length})</span></h3>
+        <button class="btn btn-accent btn-sm" data-action="ink-new">+ Aggiungi inchiostro</button>
+      </div>
+      ${state.showInkForm ? `
+        <div class="inv-form">
+          <div class="grid-2">
+            <div class="field"><label>Marca / nome</label><input type="text" data-inv-field="nome" value="${esc(eb.nome||'')}" placeholder="Es. Eternal Ink — Nero"></div>
+            <div class="field"><label>Colore</label><input type="text" data-inv-field="colore" value="${esc(eb.colore||'')}" placeholder="Es. Nero, Rosso…"></div>
+          </div>
+          <div class="grid-2">
+            <div class="field"><label>Numero di lotto</label><input type="text" data-inv-field="lotto" value="${esc(eb.lotto||'')}" placeholder="Es. LT-2024-0912"></div>
+            <div class="field"><label>Scadenza</label><input type="date" data-inv-field="scadenza" value="${esc(eb.scadenza||'')}"></div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary btn-sm" data-action="ink-save">${eb.id ? "Salva modifiche" : "Aggiungi"}</button>
+            <button class="btn btn-ghost btn-sm" data-action="inv-cancel">Annulla</button>
+          </div>
+        </div>` : ""}
+      ${inks.length ? `
+        <div class="inv-list">
+          ${inks.map(it => `
+            <div class="inv-row">
+              <div class="inv-main"><b>${esc(it.nome||"—")}</b>${it.colore ? ` · ${esc(it.colore)}` : ""} ${scadBadge(it.scadenza)}
+                <span class="inv-sub">Lotto ${esc(it.lotto||"—")}${it.scadenza ? " · scad. " + fmtDate(it.scadenza) : ""}</span>
+              </div>
+              <div class="inv-actions">
+                <button class="btn btn-ghost btn-sm" data-action="ink-edit" data-id="${it.id}">Modifica</button>
+                <button class="btn btn-ghost btn-sm" data-action="ink-delete" data-id="${it.id}">Elimina</button>
+              </div>
+            </div>`).join("")}
+        </div>` : (!state.showInkForm ? `<p class="section-desc">Nessun inchiostro in archivio. Aggiungine uno per poterlo selezionare nel consenso.</p>` : "")}
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 class="section-title" style="margin:0;">Aghi <span class="mono" style="color:var(--ink-faint);font-size:13px;">(${needles.length})</span></h3>
+        <button class="btn btn-accent btn-sm" data-action="needle-new">+ Aggiungi ago</button>
+      </div>
+      ${state.showNeedleForm ? `
+        <div class="inv-form">
+          <div class="grid-2">
+            <div class="field"><label>Marca</label><input type="text" data-inv-field="marca" value="${esc(eb.marca||'')}" placeholder="Es. Cheyenne"></div>
+            <div class="field"><label>Tipo / configurazione</label><input type="text" data-inv-field="tipo" value="${esc(eb.tipo||'')}" placeholder="Es. 3RL, 7RS, 9M1…"></div>
+          </div>
+          <div class="grid-2">
+            <div class="field"><label>Numero di lotto</label><input type="text" data-inv-field="lotto" value="${esc(eb.lotto||'')}" placeholder="Es. AG-2024-4471"></div>
+            <div class="field"><label>Scadenza</label><input type="date" data-inv-field="scadenza" value="${esc(eb.scadenza||'')}"></div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary btn-sm" data-action="needle-save">${eb.id ? "Salva modifiche" : "Aggiungi"}</button>
+            <button class="btn btn-ghost btn-sm" data-action="inv-cancel">Annulla</button>
+          </div>
+        </div>` : ""}
+      ${needles.length ? `
+        <div class="inv-list">
+          ${needles.map(it => `
+            <div class="inv-row">
+              <div class="inv-main"><b>${esc(it.tipo||"—")}</b>${it.marca ? ` · ${esc(it.marca)}` : ""} ${scadBadge(it.scadenza)}
+                <span class="inv-sub">Lotto ${esc(it.lotto||"—")}${it.scadenza ? " · scad. " + fmtDate(it.scadenza) : ""}</span>
+              </div>
+              <div class="inv-actions">
+                <button class="btn btn-ghost btn-sm" data-action="needle-edit" data-id="${it.id}">Modifica</button>
+                <button class="btn btn-ghost btn-sm" data-action="needle-delete" data-id="${it.id}">Elimina</button>
+              </div>
+            </div>`).join("")}
+        </div>` : (!state.showNeedleForm ? `<p class="section-desc">Nessun ago in archivio. Aggiungine uno per poterlo selezionare nel consenso.</p>` : "")}
+    </div>
+
   </div>`;
 }
 
@@ -1370,8 +1515,19 @@ function buildPdf(s){
   heading("Dati seduta (compilati in studio)");
   line(`Data effettiva applicazione: ${sd.dataApplicazione ? fmtDate(sd.dataApplicazione) : "—"}`);
   line(`Zona effettivamente trattata: ${sd.sedeEffettiva || "—"}`);
-  line(`Materiali usati: ${sd.materiali || "—"}`);
-  line(`Ago/configurazione: ${sd.ago || "—"} · Lotto pigmento: ${sd.lottoPigmento || "—"}`);
+  if ((sd.inchiostri||[]).length){
+    line("Inchiostri usati:");
+    sd.inchiostri.forEach(it => line(`  • ${it.nome || "—"}${it.colore ? " ("+it.colore+")" : ""} · lotto ${it.lotto || "—"}${it.scadenza ? " · scad. "+fmtDate(it.scadenza) : ""}`, 9.5, 13));
+  } else {
+    line(`Inchiostri usati: —`);
+  }
+  if ((sd.aghi||[]).length){
+    line("Aghi usati:");
+    sd.aghi.forEach(it => line(`  • ${it.tipo || "—"}${it.marca ? " ("+it.marca+")" : ""} · lotto ${it.lotto || "—"}${it.scadenza ? " · scad. "+fmtDate(it.scadenza) : ""}`, 9.5, 13));
+  } else {
+    line(`Aghi usati: —`);
+  }
+  if (sd.materiali) line(`Note materiali: ${sd.materiali}`);
   line(`Scheda tecnica allegata: ${sd.schedaTecnicaAllegata ? "Sì" : "No"}`);
   if (sd.reazioniAvverse) line(`Reazioni avverse riscontrate: ${sd.reazioniAvverse}`);
   y += 6;
@@ -1763,6 +1919,31 @@ document.addEventListener("click", (e) => {
     attachDiagrams(draft).then(() => { try { buildPdf(draft); } catch(err){ alert("Impossibile generare il PDF: serve connessione per la libreria la prima volta."); } });
   }
   else if (action === "print-registro"){ window.print(); }
+  else if (action === "ink-new"){ state.showInkForm = true; state.showNeedleForm = false; state.editBuffer = {}; render(); }
+  else if (action === "ink-edit"){ state.editBuffer = { ...(loadInks().find(x=>x.id===btn.dataset.id)||{}) }; state.showInkForm = true; state.showNeedleForm = false; render(); }
+  else if (action === "ink-save"){
+    const b = state.editBuffer || {};
+    if (!(b.nome||"").trim()){ alert("Inserisci almeno marca/nome dell'inchiostro."); return; }
+    upsertInk({ id: b.id || newId(), nome: b.nome||"", colore: b.colore||"", lotto: b.lotto||"", scadenza: b.scadenza||"" });
+    state.showInkForm = false; state.editBuffer = {}; render();
+  }
+  else if (action === "ink-delete"){
+    if (confirm("Eliminare questo inchiostro dall'archivio?")){ deleteInk(btn.dataset.id); render(); }
+  }
+  else if (action === "needle-new"){ state.showNeedleForm = true; state.showInkForm = false; state.editBuffer = {}; render(); }
+  else if (action === "needle-edit"){ state.editBuffer = { ...(loadNeedles().find(x=>x.id===btn.dataset.id)||{}) }; state.showNeedleForm = true; state.showInkForm = false; render(); }
+  else if (action === "needle-save"){
+    const b = state.editBuffer || {};
+    if (!(b.tipo||"").trim()){ alert("Inserisci almeno il tipo dell'ago (es. 3RL)."); return; }
+    upsertNeedle({ id: b.id || newId(), marca: b.marca||"", tipo: b.tipo||"", lotto: b.lotto||"", scadenza: b.scadenza||"" });
+    state.showNeedleForm = false; state.editBuffer = {}; render();
+  }
+  else if (action === "needle-delete"){
+    if (confirm("Eliminare questo ago dall'archivio?")){ deleteNeedle(btn.dataset.id); render(); }
+  }
+  else if (action === "inv-cancel"){ state.showInkForm = false; state.showNeedleForm = false; state.editBuffer = {}; render(); }
+  else if (action === "seduta-remove-ink"){ draft.seduta.inchiostri = (draft.seduta.inchiostri||[]).filter(x => x.id !== btn.dataset.id); upsertSession(draft); renderStepOnly(); }
+  else if (action === "seduta-remove-needle"){ draft.seduta.aghi = (draft.seduta.aghi||[]).filter(x => x.id !== btn.dataset.id); upsertSession(draft); renderStepOnly(); }
   else if (action === "new-remote-link"){
     const s = blankSession(); upsertSession(s);
     state.lastRemoteId = s.id; render();
@@ -1903,6 +2084,8 @@ document.addEventListener("input", (e) => {
   if (leadField && leadDraft){ setLeadField(leadField, e.target.value); return; }
   const studioField = e.target.dataset.fieldStudio;
   if (studioField){ state.studioBuffer = { ...(state.studioBuffer||{}), [studioField]: e.target.value }; return; }
+  const invField = e.target.dataset.invField;
+  if (invField){ state.editBuffer = { ...(state.editBuffer||{}), [invField]: e.target.value }; return; }
   const authField = e.target.dataset.fieldAuth;
   if (authField){ state.authBuffer = { ...(state.authBuffer||{}), [authField]: e.target.value }; return; }
   const backupField = e.target.dataset.fieldBackup;
@@ -1924,7 +2107,21 @@ document.addEventListener("change", (e) => {
   if (authField){ state.authBuffer = { ...(state.authBuffer||{}), [authField]: e.target.value }; }
   const backupField = e.target.dataset.fieldBackup;
   if (backupField){ state.backupBuffer = { ...(state.backupBuffer||{}), [backupField]: e.target.value }; }
+  const invField = e.target.dataset.invField;
+  if (invField){ state.editBuffer = { ...(state.editBuffer||{}), [invField]: e.target.value }; }
 
+  // selezione inchiostro/ago dall'archivio nello step seduta
+  const selAction = e.target.dataset.action;
+  if (selAction === "seduta-add-ink" && e.target.value && draft){
+    const ink = loadInks().find(x => x.id === e.target.value);
+    if (ink){ draft.seduta.inchiostri = [ ...(draft.seduta.inchiostri||[]), { id: ink.id, nome: ink.nome, colore: ink.colore, lotto: ink.lotto, scadenza: ink.scadenza } ]; upsertSession(draft); renderStepOnly(); }
+    return;
+  }
+  if (selAction === "seduta-add-needle" && e.target.value && draft){
+    const nd = loadNeedles().find(x => x.id === e.target.value);
+    if (nd){ draft.seduta.aghi = [ ...(draft.seduta.aghi||[]), { id: nd.id, marca: nd.marca, tipo: nd.tipo, lotto: nd.lotto, scadenza: nd.scadenza } ]; upsertSession(draft); renderStepOnly(); }
+    return;
+  }
   if (e.target.id === "logo-file" && e.target.files && e.target.files[0]){
     const file = e.target.files[0];
     const reader = new FileReader();
@@ -2519,6 +2716,10 @@ function renderStepFirma(ctx){
 
 function renderStepSeduta(ctx){
   const s = draft.seduta;
+  const inks = loadInks();
+  const needles = loadNeedles();
+  const selInk = new Set((s.inchiostri||[]).map(x => x.id));
+  const selNeedle = new Set((s.aghi||[]).map(x => x.id));
   return `
   ${renderErrors(7)}
   <h3 class="section-title">Dati seduta <span class="stamp stamp-attesa" style="vertical-align:middle;">solo studio</span></h3>
@@ -2527,11 +2728,28 @@ function renderStepSeduta(ctx){
     <div class="field"><label>Data effettiva dell'applicazione</label><input type="date" data-field="seduta.dataApplicazione" value="${esc(s.dataApplicazione)}"></div>
     <div class="field"><label>Zona effettivamente trattata</label><input type="text" data-field="seduta.sedeEffettiva" value="${esc(s.sedeEffettiva)}" placeholder="Es. avambraccio destro"></div>
   </div>
-  <div class="field"><label>Materiali inseriti / usati</label><input type="text" data-field="seduta.materiali" value="${esc(s.materiali)}" placeholder="Es. pigmento nero carbon, cartuccia sterile monouso…"></div>
-  <div class="grid-2">
-    <div class="field"><label>Ago / configurazione</label><input type="text" data-field="seduta.ago" value="${esc(s.ago)}" placeholder="Es. 5RL, 7RS…"></div>
-    <div class="field"><label>Lotto pigmento</label><input type="text" data-field="seduta.lottoPigmento" value="${esc(s.lottoPigmento)}" placeholder="Numero lotto / scadenza"></div>
-  </div>
+
+  <div class="subhead">Inchiostri usati</div>
+  ${(s.inchiostri||[]).length ? `<div>${s.inchiostri.map(it => `<span class="inv-chip">${esc(it.nome)}${it.colore?` · ${esc(it.colore)}`:""} · lotto ${esc(it.lotto||"—")} <button data-action="seduta-remove-ink" data-id="${it.id}">✕</button></span>`).join("")}</div>` : ""}
+  ${inks.length ? `
+    <div class="field" style="margin-top:8px;">
+      <select data-action="seduta-add-ink">
+        <option value="">+ Aggiungi inchiostro dall'archivio…</option>
+        ${inks.filter(it => !selInk.has(it.id)).map(it => `<option value="${it.id}">${esc(it.nome)}${it.colore?` · ${esc(it.colore)}`:""} · lotto ${esc(it.lotto||"—")}${it.scadenza?` · scad. ${fmtDate(it.scadenza)}`:""}</option>`).join("")}
+      </select>
+    </div>` : `<p class="section-desc">Nessun inchiostro in archivio. <a href="#" data-action="nav" data-view="magazzino">Aggiungine nel Magazzino</a> per selezionarli qui.</p>`}
+
+  <div class="subhead">Aghi usati</div>
+  ${(s.aghi||[]).length ? `<div>${s.aghi.map(it => `<span class="inv-chip">${esc(it.tipo)}${it.marca?` · ${esc(it.marca)}`:""} · lotto ${esc(it.lotto||"—")} <button data-action="seduta-remove-needle" data-id="${it.id}">✕</button></span>`).join("")}</div>` : ""}
+  ${needles.length ? `
+    <div class="field" style="margin-top:8px;">
+      <select data-action="seduta-add-needle">
+        <option value="">+ Aggiungi ago dall'archivio…</option>
+        ${needles.filter(it => !selNeedle.has(it.id)).map(it => `<option value="${it.id}">${esc(it.tipo)}${it.marca?` · ${esc(it.marca)}`:""} · lotto ${esc(it.lotto||"—")}${it.scadenza?` · scad. ${fmtDate(it.scadenza)}`:""}</option>`).join("")}
+      </select>
+    </div>` : `<p class="section-desc">Nessun ago in archivio. <a href="#" data-action="nav" data-view="magazzino">Aggiungine nel Magazzino</a> per selezionarli qui.</p>`}
+
+  <div class="field" style="margin-top:14px;"><label>Note aggiuntive sui materiali (facoltativo)</label><input type="text" data-field="seduta.materiali" value="${esc(s.materiali)}" placeholder="Es. cartuccia sterile monouso, altro…"></div>
   <div class="check-row">
     <input type="checkbox" id="schedatecnica" data-action="toggle-schedatecnica" ${s.schedaTecnicaAllegata?"checked":""}>
     <label for="schedatecnica" class="ct">Scheda tecnica delle sostanze usate allegata al fascicolo cliente</label>
@@ -2556,7 +2774,7 @@ function renderStepControfirma(ctx){
     <div class="kv"><span>Zona</span><b>${zonaSummary}</b></div>
     <div class="kv"><span>Grandezza</span><b>${esc(draft.grandezza || "—")}</b></div>
     <div class="kv"><span>Nei nell'area</span><b>${draft.zoneNei === 'si' ? "Sì — vedi nota" : "No"}</b></div>
-    <div class="kv"><span>Materiali</span><b>${esc(draft.seduta.materiali || "—")}</b></div>
+    <div class="kv"><span>Inchiostri / Aghi</span><b>${(draft.seduta.inchiostri||[]).length} inchiostro/i · ${(draft.seduta.aghi||[]).length} ago/aghi</b></div>
     <div class="kv"><span>Consenso e privacy</span><b>${draft.informativaLetta && draft.privacyConsenso && draft.disegnoConfermato ? "Confermati" : "Incompleti"}</b></div>
     <div class="kv"><span>Firma cliente</span><b>${draft.firmaClienteAt ? fmtDateTime(draft.firmaClienteAt) : "Mancante"}</b></div>
   </div>
