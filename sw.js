@@ -4,7 +4,7 @@
    service worker non tocca). Le librerie esterne (jsPDF, QRCode, Google
    Fonts) hanno bisogno di rete la prima volta che servono. */
 
-const CACHE_NAME = "inkconsent-v6";
+const CACHE_NAME = "inkconsent-v7";
 const SHELL = [
   "/", "/index.html", "/manifest.json",
   "/icon-192.png", "/icon-512.png",

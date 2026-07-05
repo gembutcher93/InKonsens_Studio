@@ -76,7 +76,7 @@ button{font-family:inherit;}
 .rail-mark{
   width:34px;height:34px;border-radius:50%;background:var(--stencil);
   color:var(--paper);display:flex;align-items:center;justify-content:center;
-  font-family:var(--font-display);font-weight:700;font-size:15px;flex:none;
+  font-family:var(--font-display);font-weight:700;font-size:15px;flex:none;overflow:hidden;
 }
 .rail-brand-name{font-family:var(--font-display);font-size:15px;line-height:1.2;font-weight:600;}
 .rail-brand-sub{font-size:11px;color:#B9AFA4;font-family:var(--font-mono);letter-spacing:.03em;}
@@ -256,11 +256,32 @@ textarea{resize:vertical;min-height:70px;}
 .lead-status.fissato{color:var(--ok);}
 .lead-status.chiusa{color:var(--ink-faint);}
 
+/* ---------- registro ---------- */
+.reg-table{width:100%;border-collapse:collapse;font-size:13px;}
+.reg-table th{text-align:left;font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint);padding:8px 10px;border-bottom:2px solid var(--line);}
+.reg-table td{padding:9px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top;}
+.reg-table tr:last-child td{border-bottom:none;}
+.reg-minor{font-family:var(--font-mono);font-size:9.5px;background:var(--flesh);color:#fff;padding:1px 5px;border-radius:10px;vertical-align:middle;}
+.reg-note{margin-top:16px;font-size:12px;color:var(--ink-faint);line-height:1.5;}
+.registro-head{margin-bottom:16px;font-size:13px;line-height:1.5;}
+.only-print{display:none;}
+@media print{
+  .rail, .mobile-topbar, .no-print, .topbar button{display:none !important;}
+  .main{padding:0 !important;}
+  .card{border:none !important;box-shadow:none !important;padding:0 !important;}
+  .only-print{display:block;}
+  body{background:#fff !important;}
+  .reg-table th{color:#000;}
+}
+
 /* ---------- lock screen ---------- */
 .lock-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--ink);padding:24px;}
 .lock-card{width:100%;max-width:320px;text-align:center;color:var(--paper);}
 .lock-logo{width:96px;height:96px;margin:0 auto 20px;border-radius:22px;overflow:hidden;background:var(--paper-raised);box-shadow:0 10px 30px rgba(0,0,0,.4);animation:logoIn .6s ease, breathe 3.5s ease-in-out infinite 0.6s;}
 .lock-logo img{width:100%;height:100%;object-fit:cover;}
+.mark-img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;}
+.logo-preview{width:64px;height:64px;border-radius:14px;background:var(--ink);color:var(--paper);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;overflow:hidden;flex:none;}
+.logo-preview img{width:100%;height:100%;object-fit:cover;}
 .lock-logo.shake{animation:shake .4s ease;}
 @keyframes logoIn{from{opacity:0;transform:translateY(14px) scale(.9);}to{opacity:1;transform:none;}}
 @keyframes breathe{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
@@ -268,15 +289,21 @@ textarea{resize:vertical;min-height:70px;}
 .lock-title{color:var(--paper);font-size:20px;margin:0 0 4px;}
 .lock-sub{color:#B9AFA4;font-size:13.5px;margin:0 0 22px;}
 .lock-err{color:var(--flesh);font-size:12.5px;margin:10px 0 0;font-family:var(--font-mono);}
-.pin-dots{display:flex;gap:14px;justify-content:center;margin-bottom:6px;}
-.pin-dot{width:14px;height:14px;border-radius:50%;border:1.5px solid #6b635a;transition:all .15s;}
-.pin-dot.filled{background:var(--flesh);border-color:var(--flesh);}
-.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:24px;}
-.pin-key{all:unset;cursor:pointer;height:62px;border-radius:50%;background:rgba(255,255,255,.07);color:var(--paper);font-size:24px;font-family:var(--font-display);display:flex;align-items:center;justify-content:center;transition:background .12s;}
-.pin-key:hover{background:rgba(255,255,255,.14);}
-.pin-key:active{background:rgba(255,255,255,.22);}
-.pin-back{font-size:20px;}
+.login-fields{display:flex;flex-direction:column;gap:10px;margin:20px 0 6px;}
+.login-input{width:100%;padding:12px 14px;border-radius:var(--radius);border:1px solid #4a443d;background:rgba(255,255,255,.06);color:var(--paper);font-size:15px;font-family:var(--font-body);}
+.login-input::placeholder{color:#8A8178;}
+.login-input:focus{border-color:var(--flesh);background:rgba(255,255,255,.1);}
 .lock-hint{color:#8A8178;font-size:11.5px;margin-top:22px;}
+/* tour */
+.tour-card{position:relative;}
+.tour-skip{position:absolute;top:-6px;right:-6px;all:unset;cursor:pointer;color:#8A8178;font-size:12.5px;padding:6px 8px;}
+.tour-emoji{font-size:56px;margin-bottom:14px;animation:logoIn .5s ease;}
+.tour-body{color:#CFC7BC;font-size:14.5px;line-height:1.6;margin:0 0 22px;}
+.tour-dots{display:flex;gap:8px;justify-content:center;margin-bottom:20px;}
+.tour-dot{width:8px;height:8px;border-radius:50%;background:#4a443d;transition:all .2s;}
+.tour-dot.on{background:var(--flesh);width:22px;border-radius:4px;}
+.tour-check{display:flex;align-items:center;gap:8px;justify-content:center;color:#B9AFA4;font-size:13px;margin-bottom:18px;cursor:pointer;}
+.tour-check input{width:16px;height:16px;accent-color:var(--flesh);}
 
 @media (max-width:860px){
   .rail{position:fixed;left:0;top:0;bottom:0;transform:translateX(-100%);transition:transform .25s ease;z-index:41;}
@@ -325,6 +352,8 @@ const STUDIO_DEFAULTS = {
   colorStencil: "#5B3B63",
   colorFlesh: "#C98F6C",
   fontTheme: "classico", // classico | moderno | essenziale | manoscritto
+  logoDataUrl: "",       // logo caricato dallo studio (data URL), sovrascrive la sigla
+  aftercareText: "Ciao {nome}! Grazie per la fiducia. Ecco come prenderti cura del tuo tatuaggio nei prossimi giorni:\n\n• Tieni la pellicola per le ore indicate.\n• Lava delicatamente con acqua tiepida e sapone neutro.\n• Applica un velo sottile di crema specifica 2-3 volte al giorno.\n• Niente sole diretto, piscina, mare o sauna per 2-3 settimane.\n• Non grattare né staccare le crosticine.\n\nPer qualsiasi dubbio scrivimi. A presto!",
 };
 const STUDIO_STORE_KEY = "inkconsent_studio_v1";
 function loadStudioOverrides(){
@@ -365,6 +394,8 @@ function applyStudioConfig(){
   STUDIO_CONFIG.studioCity = o.studioCity;
   STUDIO_CONFIG.studioMark = o.studioMark;
   STUDIO_CONFIG.publicUrl = o.publicUrl;
+  STUDIO_CONFIG.aftercareText = o.aftercareText || "";
+  STUDIO_CONFIG.logoDataUrl = o.logoDataUrl || "";
   STUDIO_CONFIG.artists = o.artistsText.split(",").map(s => s.trim()).filter(Boolean);
   if (!STUDIO_CONFIG.artists.length) STUDIO_CONFIG.artists = ["Artista"];
   const r = document.documentElement.style;
@@ -478,8 +509,11 @@ function blankSession(){
     informativaLetta: false,
     privacyConsenso: false,
     disegnoConfermato: false,
-    firmaClienteData: null, // dataURL
+    firmaClienteData: null, // dataURL (firma cliente o primo genitore/tutore)
     firmaClienteAt: null,
+    firmaTutore2Data: null, // dataURL (secondo genitore/tutore, opzionale per minori)
+    firmaTutore2At: null,
+    richiedeSecondaFirma: false, // lo studio può attivare la seconda firma
     // --- DATI SEDUTA (parte studio, post-seduta, davanti al cliente) ---
     seduta: {
       compilata: false,
@@ -522,6 +556,23 @@ function deleteSession(id){
 }
 function getSession(id){
   return loadSessions().find(s => s.id === id) || null;
+}
+
+/* Numero progressivo del registro, formato AAAA-NNNN, per anno solare.
+   Assegnato UNA volta all'archiviazione e mai più cambiato. */
+function assignProgressivo(session){
+  if (session.progressivo) return session.progressivo; // già assegnato
+  const year = new Date().getFullYear();
+  const list = loadSessions();
+  let max = 0;
+  list.forEach(s => {
+    if (s.progressivo && s.progressivo.startsWith(year + "-")){
+      const n = parseInt(s.progressivo.split("-")[1], 10);
+      if (!isNaN(n) && n > max) max = n;
+    }
+  });
+  session.progressivo = `${year}-${String(max + 1).padStart(4, "0")}`;
+  return session.progressivo;
 }
 
 /* ---------- Supabase bridge (no-op until configured) ----------
@@ -633,20 +684,35 @@ function getRichiesta(id){ return loadRichieste().find(r => r.id === id) || null
    (non in chiaro). Questo blocca l'accesso all'interfaccia; per
    rendere i DATI illeggibili serve il backup cifrato (sotto).
    ============================================================ */
-const AUTH_KEY = "inkconsent_auth_v1"; // { hash, studioId }
+const AUTH_KEY = "inkconsent_auth_v1"; // { studioId, salt, hash }
 async function sha256(text){
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
 }
+function randomSalt(){
+  return Array.from(crypto.getRandomValues(new Uint8Array(12))).map(b => b.toString(16).padStart(2,"0")).join("");
+}
 function loadAuth(){ try { return JSON.parse(localStorage.getItem(AUTH_KEY)); } catch(e){ return null; } }
 async function setAuth(studioId, password){
-  localStorage.setItem(AUTH_KEY, JSON.stringify({ studioId, hash: await sha256(password) }));
+  const salt = randomSalt();
+  const hash = await sha256(salt + ":" + password);
+  localStorage.setItem(AUTH_KEY, JSON.stringify({ studioId, salt, hash }));
 }
 function clearAuth(){ localStorage.removeItem(AUTH_KEY); }
+function authIsSet(){ const a = loadAuth(); return !!(a && a.hash); }
+async function checkCredentials(studioId, password){
+  const a = loadAuth();
+  if (!a || !a.hash) return true;               // nessun blocco impostato
+  const hash = await sha256((a.salt||"") + ":" + password);
+  // ID case-insensitive, password esatta
+  return hash === a.hash && (studioId||"").trim().toLowerCase() === (a.studioId||"").trim().toLowerCase();
+}
+// compat: vecchi backup senza salt
 async function checkPassword(password){
   const a = loadAuth();
-  if (!a) return true; // nessun blocco impostato
-  return a.hash === await sha256(password);
+  if (!a || !a.hash) return true;
+  if (a.salt) return await sha256(a.salt + ":" + password) === a.hash;
+  return await sha256(password) === a.hash; // hash legacy senza salt
 }
 
 /* ============================================================
@@ -732,6 +798,17 @@ function waLink(telefono, message){
 function waMessageFor(r){
   return `Ciao ${r.cliente.nome}! Grazie per la richiesta su ${STUDIO_CONFIG.studioName}. Quando saresti disponibile per una consulenza gratuita in studio e definire insieme il preventivo?`;
 }
+function aftercareMessage(session){
+  const nome = session.anagrafica ? session.anagrafica.nome : "";
+  const tpl = STUDIO_CONFIG.aftercareText || "";
+  return tpl.replace(/\{nome\}/g, nome || "").trim();
+}
+/* Restituisce il logo caricato (se presente) o la sigla testuale. */
+function markHtml(){
+  return STUDIO_CONFIG.logoDataUrl
+    ? `<img src="${STUDIO_CONFIG.logoDataUrl}" alt="${esc(STUDIO_CONFIG.studioName)}" class="mark-img">`
+    : esc(STUDIO_CONFIG.studioMark);
+}
 
 /* ---------- body diagram: usa le 4 immagini reali dello studio ----------
    Le sagome (uomo/donna x fronte/retro) sono immagini PNG con sfondo
@@ -749,12 +826,18 @@ function bodyImg(gender, view){
 const params = new URLSearchParams(location.search);
 const state = {
   mode: params.get("client") === "1" ? "client" : (params.get("richiesta") === "1" ? "richiesta" : "studio"),
-  view: "archive",       // archive | form | settings | leads | lead-form
+  view: "archive",       // archive | form | settings | leads | lead-form | registro
   step: 1,
   railOpen: false,
-  locked: false,         // impostato all'avvio se c'è un codice di accesso
-  pinEntry: "",
-  pinError: false,
+  locked: false,         // impostato all'avvio se c'è un accesso configurato
+  needsSetup: false,     // primo avvio: crea accesso studio
+  showTour: false,       // mostra il tour di benvenuto
+  tourStep: 0,
+  tourDontShow: false,
+  loginId: "",           // buffer campo login
+  loginPw: "",
+  loginError: false,
+  setupBuffer: {},       // buffer per la creazione accesso al primo avvio
 };
 let draft = null; // sessione attualmente in editing (studio o cliente)
 
@@ -823,31 +906,83 @@ function render(){
   const root = qs("#app-root");
   if (state.mode === "client") root.innerHTML = renderClientShell();
   else if (state.mode === "richiesta") root.innerHTML = renderLeadShell();
+  else if (state.showTour) root.innerHTML = renderTour();
+  else if (state.needsSetup) root.innerHTML = renderFirstRunSetup();
   else if (state.locked) root.innerHTML = renderLockScreen();
   else root.innerHTML = renderStudioShell();
   afterRender();
 }
-function renderLockScreen(){
-  const a = loadAuth();
+const TOUR_KEY = "inkconsent_tour_v1"; // { dontShow: true }
+function tourDismissed(){ try { return !!(JSON.parse(localStorage.getItem(TOUR_KEY))||{}).dontShow; } catch(e){ return false; } }
+const TOUR_SLIDES = [
+  { emoji: "🖊️", title: "Benvenuto in InkConsent", body: "Il consenso informato del tuo studio, digitale. Compila, firma e archivia in pochi minuti, anche offline." },
+  { emoji: "📋", title: "Prima il cliente, poi tu", body: "Il cliente compila i suoi dati e firma (anche da casa col link). Tu completi i dati tecnici della seduta e controfirmi in studio." },
+  { emoji: "💬", title: "Porta i clienti in studio", body: "Condividi il link pubblico: il cliente racconta il tatuaggio e segna la zona sul corpo. Tu lo ricontatti su WhatsApp con un tap e fissi la consulenza." },
+  { emoji: "🔒", title: "Tutto resta nel tuo dispositivo", body: "Niente cloud, niente dati sparsi. Proteggi l'accesso con una password e fai backup quando vuoi, anche cifrati." },
+];
+function renderTour(){
+  const i = state.tourStep;
+  const s = TOUR_SLIDES[i];
+  const last = i === TOUR_SLIDES.length - 1;
+  return `
+  <div class="lock-wrap">
+    <div class="lock-card tour-card">
+      <button class="tour-skip" data-action="tour-skip">Salta</button>
+      <div class="tour-emoji">${s.emoji}</div>
+      <h2 class="lock-title">${esc(s.title)}</h2>
+      <p class="tour-body">${esc(s.body)}</p>
+      <div class="tour-dots">
+        ${TOUR_SLIDES.map((_,k) => `<span class="tour-dot ${k===i?'on':''}"></span>`).join("")}
+      </div>
+      ${last ? `
+        <label class="tour-check"><input type="checkbox" ${state.tourDontShow?'checked':''} data-action="tour-toggle-dont"> Non mostrare più all'avvio</label>
+      ` : ""}
+      <div class="btn-row" style="justify-content:center;">
+        ${i>0 ? `<button class="btn btn-ghost" data-action="tour-prev">← Indietro</button>` : ""}
+        <button class="btn btn-accent" data-action="${last?'tour-finish':'tour-next'}">${last?'Inizia':'Avanti →'}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderFirstRunSetup(){
+  const b = state.setupBuffer || {};
   return `
   <div class="lock-wrap">
     <div class="lock-card">
-      <div class="lock-logo ${state.pinError ? "shake" : ""}">
-        <img src="icon-192.png" alt="" onerror="this.style.display='none'">
+      <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+      <h2 class="lock-title">Crea l'accesso allo studio</h2>
+      <p class="lock-sub">Scegli un ID e una password: serviranno a proteggere i dati dei clienti su questo dispositivo.</p>
+      ${state.loginError ? `<p class="lock-err">${esc(state.loginError)}</p>` : ""}
+      <div class="login-fields">
+        <input type="text" class="login-input" placeholder="ID studio (es. podere173)" value="${esc(b.studioId||'')}" data-login-field="studioId" autocomplete="off">
+        <input type="password" class="login-input" placeholder="Password" value="${esc(b.pw||'')}" data-login-field="pw">
+        <input type="password" class="login-input" placeholder="Ripeti password" value="${esc(b.pw2||'')}" data-login-field="pw2">
       </div>
+      <div class="btn-row" style="justify-content:center;">
+        <button class="btn btn-accent" data-action="setup-create">Crea e continua</button>
+      </div>
+      <p class="lock-hint">Annota le credenziali in un posto sicuro: se le perdi, recuperi i dati solo da un backup.</p>
+    </div>
+  </div>`;
+}
+
+function renderLockScreen(){
+  return `
+  <div class="lock-wrap">
+    <div class="lock-card ${state.loginError ? 'shake' : ''}">
+      <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
       <h2 class="lock-title">${esc(STUDIO_CONFIG.studioName)}</h2>
-      <p class="lock-sub">Inserisci il codice di accesso</p>
-      <div class="pin-dots">
-        ${[0,1,2,3].map(i => `<span class="pin-dot ${state.pinEntry.length > i ? "filled" : ""}"></span>`).join("")}
+      <p class="lock-sub">Accedi per gestire i consensi</p>
+      ${state.loginError ? `<p class="lock-err">${esc(state.loginError)}</p>` : ""}
+      <div class="login-fields">
+        <input type="text" class="login-input" placeholder="ID studio" value="${esc(state.loginId)}" data-login-field="loginId" autocomplete="off">
+        <input type="password" class="login-input" placeholder="Password" value="${esc(state.loginPw)}" data-login-field="loginPw">
       </div>
-      ${state.pinError ? `<p class="lock-err">Codice errato, riprova</p>` : ""}
-      <div class="pin-pad">
-        ${[1,2,3,4,5,6,7,8,9].map(d => `<button class="pin-key" data-action="pin-digit" data-d="${d}">${d}</button>`).join("")}
-        <span></span>
-        <button class="pin-key" data-action="pin-digit" data-d="0">0</button>
-        <button class="pin-key pin-back" data-action="pin-back">⌫</button>
+      <div class="btn-row" style="justify-content:center;">
+        <button class="btn btn-accent" data-action="login-submit">Accedi</button>
       </div>
-      <p class="lock-hint">Codice dimenticato? Reimposta l'app da un backup.</p>
+      <p class="lock-hint">Password dimenticata? Reimposta l'app da un backup.</p>
     </div>
   </div>`;
 }
@@ -871,6 +1006,8 @@ function afterRender(){
   // (re)bind widgets that need direct DOM access after an innerHTML swap
   const canvas = qs("#sig-canvas");
   if (canvas) initSignaturePad(canvas, state.step === 8 ? "controfirmaData" : "firmaClienteData");
+  const canvas2 = qs("#sig-canvas-2");
+  if (canvas2) initSignaturePad(canvas2, "firmaTutore2Data");
   const qrHost = qs("#qr-host");
   if (qrHost && window.QRCode) {
     qrHost.innerHTML = "";
@@ -943,7 +1080,7 @@ function renderStudioShell(){
     <div class="rail-backdrop ${state.railOpen ? "show" : ""}" data-action="toggle-rail"></div>
     <nav class="rail ${state.railOpen ? "open" : ""}" id="rail">
       <div class="rail-brand">
-        <div class="rail-mark">${esc(STUDIO_CONFIG.studioMark)}</div>
+        <div class="rail-mark">${markHtml()}</div>
         <div>
           <div class="rail-brand-name">${esc(STUDIO_CONFIG.studioName)}</div>
           <div class="rail-brand-sub">${esc(STUDIO_CONFIG.studioCity)}</div>
@@ -952,6 +1089,7 @@ function renderStudioShell(){
       </div>
       <div class="rail-nav">
         <button class="rail-btn ${state.view==='archive'?'active':''}" data-action="nav" data-view="archive">📋 Archivio consensi</button>
+        <button class="rail-btn ${state.view==='registro'?'active':''}" data-action="nav" data-view="registro">📖 Registro</button>
         <button class="rail-btn ${state.view==='form'?'active':''}" data-action="new-session">✎ Nuovo consenso</button>
         <button class="rail-btn ${state.view==='leads'||state.view==='lead-detail'?'active':''}" data-action="nav" data-view="leads">💬 Richieste preventivo${nuoveLeads ? `<span class="nav-badge">${nuoveLeads}</span>` : ""}</button>
         <button class="rail-btn ${state.view==='settings'?'active':''}" data-action="nav" data-view="settings">⚙ Impostazioni studio</button>
@@ -971,6 +1109,7 @@ function renderStudioView(){
   if (state.view === "form" && draft) return renderStudioForm();
   if (state.view === "leads") return renderLeads();
   if (state.view === "lead-detail" && leadDraft) return renderLeadDetail();
+  if (state.view === "registro") return renderRegistro();
   return renderArchive();
 }
 
@@ -990,6 +1129,46 @@ function renderArchive(){
     <div id="archive-results">${renderArchiveResults(sessions)}</div>
   </div>`;
 }
+function renderRegistro(){
+  const archived = loadSessions()
+    .filter(s => s.status === "archiviato" && s.progressivo)
+    .sort((a,b) => (b.progressivo||"").localeCompare(a.progressivo||""));
+  const rows = archived.map(s => {
+    const dataSeduta = s.seduta && s.seduta.dataApplicazione ? fmtDate(s.seduta.dataApplicazione) : "—";
+    const zona = s.zonaMode === "sagoma"
+      ? `sagoma (${(s.markers||[]).length}p/${(s.strokes||[]).length}d)`
+      : (s.zone||[]).join(", ") || (s.zonaLibera || "—");
+    return `<tr>
+      <td class="mono">${esc(s.progressivo)}</td>
+      <td>${esc(s.anagrafica.cognome)} ${esc(s.anagrafica.nome)}${s.minorenne ? ' <span class="reg-minor">min.</span>' : ""}</td>
+      <td>${dataSeduta}</td>
+      <td>${esc(s.tipoApplicazione === "piercing" ? "Piercing" : "Tatuaggio")}</td>
+      <td>${esc(zona)}</td>
+      <td>${esc(s.artista || "—")}</td>
+    </tr>`;
+  }).join("");
+  return `
+  <div class="topbar">
+    <div><h1>Registro consensi</h1><p>${archived.length} consensi archiviati · pronto per la stampa in caso di controllo</p></div>
+    <button class="btn btn-primary btn-sm no-print" data-action="print-registro">🖨 Stampa registro</button>
+  </div>
+  <div class="main-inner">
+    <div class="card" id="registro-print">
+      <div class="registro-head only-print">
+        <strong>${esc(STUDIO_CONFIG.studioName)}</strong> — ${esc(STUDIO_CONFIG.studioCity)}<br>
+        Registro dei consensi informati · estratto del ${fmtDate(new Date().toISOString().slice(0,10))}
+      </div>
+      ${archived.length === 0 ? `<p class="section-desc">Ancora nessun consenso archiviato. I consensi compaiono qui con il loro numero di registro una volta completati e controfirmati.</p>` : `
+      <table class="reg-table">
+        <thead><tr><th>N. registro</th><th>Cliente</th><th>Data seduta</th><th>Tipo</th><th>Zona</th><th>Artista</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <p class="reg-note">Conservazione minima ${STUDIO_CONFIG.retentionYears} anni. Ogni consenso è archiviato con firma del cliente e controfirma dell'operatore; il documento completo è esportabile in PDF dall'archivio.</p>
+      `}
+    </div>
+  </div>`;
+}
+
 function renderArchiveResults(sessions){
   sessions = sessions || loadSessions();
   const q = (state.archiveQuery || "").toLowerCase();
@@ -1001,11 +1180,12 @@ function renderArchiveResults(sessions){
     </div>`;
   return filtered.map(s => `
     <div class="arch-row" data-action="open-session" data-id="${s.id}">
-      <div class="arch-idx mono">#${s.id.slice(-6)}</div>
+      <div class="arch-idx mono">${s.progressivo ? esc(s.progressivo) : "#" + s.id.slice(-6)}</div>
       <div class="arch-name">
         <b>${esc(s.anagrafica.cognome)} ${esc(s.anagrafica.nome)}</b>
         <span>Aggiornato ${fmtDateTime(s.updatedAt)}${s.filledByClientRemotely ? " · compilato dal cliente" : ""}</span>
       </div>
+      ${s.status === "archiviato" && s.anagrafica.telefono ? `<a class="wa-btn no-print" href="${waLink(s.anagrafica.telefono, aftercareMessage(s))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Invia istruzioni aftercare su WhatsApp">Aftercare</a>` : ""}
       <span class="stamp ${STATUS[s.status].cls}">${STATUS[s.status].label}</span>
     </div>`).join("");
 }
@@ -1049,6 +1229,7 @@ function initSignaturePad(canvas, targetField){
     drawing = false;
     draft[targetField] = canvas.toDataURL("image/png");
     if (targetField === "firmaClienteData") draft.firmaClienteAt = new Date().toISOString();
+    if (targetField === "firmaTutore2Data") draft.firmaTutore2At = new Date().toISOString();
     if (targetField === "controfirmaData") draft.controfirmaAt = new Date().toISOString();
     upsertSession(draft);
   };
@@ -1129,6 +1310,7 @@ function buildPdf(s){
   doc.setFont("helvetica","bold"); line(STUDIO_CONFIG.studioName, 15, 20);
   doc.setFont("helvetica","normal");
   line(`${STUDIO_CONFIG.studioCity} · Modulo di consenso informato per ${s.tipoApplicazione === "piercing" ? "piercing" : "tatuaggio"}`, 10, 18, "#57514B");
+  if (s.progressivo) line(`Registro n. ${s.progressivo}`, 10, 16, "#57514B");
   doc.setDrawColor("#C7BEB2"); doc.line(M, y, 547, y); y += 20;
 
   heading("Dati cliente");
@@ -1204,6 +1386,15 @@ function buildPdf(s){
   doc.text(`${s.minorenne ? "Genitore/tutore" : "Cliente"} · firmato ${fmtDateTime(s.firmaClienteAt)}`, M, y);
   doc.text(`Tatuatore (${s.artista}) · controfirmato ${fmtDateTime(s.controfirmaAt)}`, M + 260, y);
   y += 24;
+  if (s.minorenne && s.firmaTutore2Data){
+    ensure(100);
+    const sig2Y = y;
+    doc.addImage(s.firmaTutore2Data, "PNG", M, sig2Y, 220, 70);
+    y = sig2Y + 78;
+    doc.setFontSize(9); doc.setTextColor("#57514B");
+    doc.text(`Secondo genitore/tutore · firmato ${fmtDateTime(s.firmaTutore2At)}`, M, y);
+    y += 24;
+  }
   doc.setDrawColor("#C7BEB2"); doc.line(M, y, 547, y); y += 16;
   doc.setFontSize(8); doc.setTextColor("#8B837A");
   doc.text(`InkConsent · ID sessione ${s.id} · Stato: ${STATUS[s.status].label} · da conservare almeno ${STUDIO_CONFIG.retentionYears} anni`, M, y);
@@ -1243,7 +1434,7 @@ function renderLeadShell(){
   <div class="client-shell">
     <div class="client-head">
       <div class="rail-brand">
-        <div class="rail-mark">${esc(STUDIO_CONFIG.studioMark)}</div>
+        <div class="rail-mark">${markHtml()}</div>
         <div>
           <div class="rail-brand-name" style="color:var(--paper);">${esc(STUDIO_CONFIG.studioName)}</div>
           <div class="rail-brand-sub">Richiesta consulenza · passo ${state.leadStep} di ${total}</div>
@@ -1262,7 +1453,7 @@ function renderLeadDone(){
   return `
   <div class="client-shell">
     <div class="client-body" style="padding-top:60px;text-align:center;">
-      <div class="rail-mark" style="width:56px;height:56px;font-size:22px;margin:0 auto 18px;">${esc(STUDIO_CONFIG.studioMark)}</div>
+      <div class="rail-mark" style="width:56px;height:56px;font-size:22px;margin:0 auto 18px;">${markHtml()}</div>
       <h2>Richiesta inviata${leadDraft.cliente.nome ? ", grazie " + esc(leadDraft.cliente.nome) : ""}!</h2>
       <p class="section-desc">Ti scriviamo su WhatsApp al numero che ci hai lasciato per fissare una consulenza gratuita in studio, dove ti diamo un preventivo su misura.</p>
     </div>
@@ -1469,20 +1660,41 @@ document.addEventListener("click", (e) => {
   if (!btn) return;
   const action = btn.dataset.action;
 
-  if (action === "pin-digit"){
-    if (state.pinEntry.length >= 4) return;
-    state.pinEntry += btn.dataset.d;
-    state.pinError = false;
-    if (state.pinEntry.length === 4){
-      checkPassword(state.pinEntry).then(ok => {
-        if (ok){ state.locked = false; state.pinEntry = ""; render(); }
-        else { state.pinError = true; state.pinEntry = ""; render(); }
-      });
-    }
-    renderLockOnly();
+  // --- tour di benvenuto ---
+  if (action === "tour-next"){ state.tourStep = Math.min(TOUR_SLIDES.length-1, state.tourStep+1); render(); return; }
+  else if (action === "tour-prev"){ state.tourStep = Math.max(0, state.tourStep-1); render(); return; }
+  else if (action === "tour-toggle-dont"){ state.tourDontShow = !state.tourDontShow; return; }
+  else if (action === "tour-skip" || action === "tour-finish"){
+    if (state.tourDontShow) localStorage.setItem(TOUR_KEY, JSON.stringify({ dontShow: true }));
+    state.showTour = false; state.tourStep = 0;
+    // dopo il tour: se non c'è accesso, vai al setup; altrimenti blocca/entra
+    if (!authIsSet()) state.needsSetup = true;
+    else state.locked = true;
+    render(); return;
+  }
+
+  // --- primo avvio: crea accesso ---
+  if (action === "setup-create"){
+    const b = state.setupBuffer || {};
+    const id = (b.studioId||"").trim(), pw = b.pw||"", pw2 = b.pw2||"";
+    if (id.length < 3){ state.loginError = "L'ID studio deve avere almeno 3 caratteri."; render(); return; }
+    if (pw.length < 4){ state.loginError = "La password deve avere almeno 4 caratteri."; render(); return; }
+    if (pw !== pw2){ state.loginError = "Le due password non coincidono."; render(); return; }
+    setAuth(id, pw).then(() => {
+      state.needsSetup = false; state.locked = false; state.loginError = null; state.setupBuffer = {};
+      render();
+    });
     return;
   }
-  else if (action === "pin-back"){ state.pinEntry = state.pinEntry.slice(0,-1); state.pinError = false; renderLockOnly(); return; }
+
+  // --- login ID + password ---
+  if (action === "login-submit"){
+    checkCredentials(state.loginId, state.loginPw).then(ok => {
+      if (ok){ state.locked = false; state.loginId = ""; state.loginPw = ""; state.loginError = null; render(); }
+      else { state.loginError = "ID o password errati."; state.loginPw = ""; render(); }
+    });
+    return;
+  }
 
   if (action === "nav"){ state.view = btn.dataset.view; state.step = 1; state.showErrors = null; state.railOpen = false; state.studioSaved = false; state.authSaved = false; state.authError = null; state.backupMsg = null; render(); }
   else if (action === "new-session"){ draft = blankSession(); state.view = "form"; state.step = 1; state.showErrors = null; state.pdfWarning = false; state.railOpen = false; render(); }
@@ -1523,9 +1735,13 @@ document.addEventListener("click", (e) => {
   else if (action === "set-zonenei"){ draft.zoneNei = btn.dataset.v; renderStepOnly(); }
   else if (action === "clear-sig"){
     const t = btn.dataset.target; draft[t] = null;
-    if (t === "firmaClienteData") draft.firmaClienteAt = null; else draft.controfirmaAt = null;
+    if (t === "firmaClienteData") draft.firmaClienteAt = null;
+    else if (t === "firmaTutore2Data") draft.firmaTutore2At = null;
+    else draft.controfirmaAt = null;
     renderStepOnly();
   }
+  else if (action === "add-second-sig"){ draft.richiedeSecondaFirma = true; renderStepOnly(); }
+  else if (action === "remove-second-sig"){ draft.richiedeSecondaFirma = false; draft.firmaTutore2Data = null; draft.firmaTutore2At = null; renderStepOnly(); }
   else if (action === "submit-client"){
     const errs = validateStep(CLIENT_LAST_STEP);
     if (errs.length){ state.showErrors = CLIENT_LAST_STEP; renderStepOnly(); return; }
@@ -1536,7 +1752,9 @@ document.addEventListener("click", (e) => {
     const errs = validateStep(8);
     if (errs.length){ state.showErrors = 8; renderStepOnly(); return; }
     draft.seduta.compilata = true;
-    draft.status = "archiviato"; upsertSession(draft);
+    draft.status = "archiviato";
+    assignProgressivo(draft); // numero di registro definitivo
+    upsertSession(draft);
     attachDiagrams(draft).then(() => { try { buildPdf(draft); } catch(err){ console.warn("PDF non riuscito:", err); state.pdfWarning = true; render(); } });
     state.view = "archive"; render();
   }
@@ -1544,6 +1762,7 @@ document.addEventListener("click", (e) => {
   else if (action === "download-pdf"){
     attachDiagrams(draft).then(() => { try { buildPdf(draft); } catch(err){ alert("Impossibile generare il PDF: serve connessione per la libreria la prima volta."); } });
   }
+  else if (action === "print-registro"){ window.print(); }
   else if (action === "new-remote-link"){
     const s = blankSession(); upsertSession(s);
     state.lastRemoteId = s.id; render();
@@ -1554,20 +1773,26 @@ document.addEventListener("click", (e) => {
     state.studioBuffer = null; state.studioSaved = true;
     render();
   }
+  else if (action === "review-tour"){
+    localStorage.removeItem(TOUR_KEY);
+    state.showTour = true; state.tourStep = 0; state.tourDontShow = false;
+    render();
+  }
   else if (action === "save-auth"){
     const buf = state.authBuffer || {};
-    const studioId = (buf.studioId || "").trim() || (loadAuth()||{}).studioId || STUDIO_CONFIG.studioName;
-    const pw = (buf.password || "").trim();
-    if (!loadAuth() && !pw){ state.authError = "Inserisci un codice di 4 cifre per attivare il blocco."; state.authSaved = false; render(); return; }
-    if (pw && !/^\d{4}$/.test(pw)){ state.authError = "Il codice deve essere di 4 cifre."; state.authSaved = false; render(); return; }
+    const studioId = (buf.studioId || "").trim() || (loadAuth()||{}).studioId || "";
+    const pw = (buf.password || "");
+    if (!studioId || studioId.length < 3){ state.authError = "L'ID studio deve avere almeno 3 caratteri."; state.authSaved = false; render(); return; }
+    if (!loadAuth() && !pw){ state.authError = "Inserisci una password per attivare il blocco."; state.authSaved = false; render(); return; }
+    if (pw && pw.length < 4){ state.authError = "La password deve avere almeno 4 caratteri."; state.authSaved = false; render(); return; }
     const finalize = () => { state.authBuffer = null; state.authError = null; state.authSaved = true; render(); };
     if (pw){ setAuth(studioId, pw).then(finalize); }
-    else { // solo cambio ID, codice invariato
+    else { // solo cambio ID, password invariata
       const a = loadAuth(); a.studioId = studioId; localStorage.setItem(AUTH_KEY, JSON.stringify(a)); finalize();
     }
   }
   else if (action === "disable-auth"){
-    if (confirm("Disattivare il blocco con codice? Chiunque abbia il dispositivo potrà aprire l'archivio dei clienti.")){
+    if (confirm("Disattivare il blocco di accesso? Chiunque abbia il dispositivo potrà aprire l'archivio dei clienti.")){
       clearAuth(); state.authBuffer = null; state.authSaved = false; state.authError = null; render();
     }
   }
@@ -1577,6 +1802,11 @@ document.addEventListener("click", (e) => {
     const ft = FONT_THEMES[btn.dataset.v] || FONT_THEMES.classico;
     document.documentElement.style.setProperty("--font-display", ft.display);
     document.documentElement.style.setProperty("--font-body", ft.body);
+    render();
+  }
+  else if (action === "pick-logo"){ const inp = qs("#logo-file"); if (inp) inp.click(); }
+  else if (action === "remove-logo"){
+    state.studioBuffer = { ...(state.studioBuffer||{}), logoDataUrl: "" };
     render();
   }
   else if (action === "do-export"){
@@ -1659,6 +1889,14 @@ document.addEventListener("click", (e) => {
 });
 
 document.addEventListener("input", (e) => {
+  const loginField = e.target.dataset.loginField;
+  if (loginField){
+    if (loginField === "studioId" || loginField === "pw" || loginField === "pw2"){
+      state.setupBuffer = { ...(state.setupBuffer||{}), [loginField]: e.target.value };
+    } else if (loginField === "loginId"){ state.loginId = e.target.value; }
+    else if (loginField === "loginPw"){ state.loginPw = e.target.value; }
+    return;
+  }
   const field = e.target.dataset.field;
   if (field && draft){ setField(field, e.target.value); return; }
   const leadField = e.target.dataset.fieldLead;
@@ -1687,6 +1925,29 @@ document.addEventListener("change", (e) => {
   const backupField = e.target.dataset.fieldBackup;
   if (backupField){ state.backupBuffer = { ...(state.backupBuffer||{}), [backupField]: e.target.value }; }
 
+  if (e.target.id === "logo-file" && e.target.files && e.target.files[0]){
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        // riduci a max 256px lato lungo per non appesantire localStorage
+        const max = 256;
+        let w = img.width, h = img.height;
+        if (w > h && w > max){ h = h*max/w; w = max; }
+        else if (h >= w && h > max){ w = w*max/h; h = max; }
+        const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+        cv.getContext("2d").drawImage(img, 0, 0, w, h);
+        const dataUrl = cv.toDataURL("image/png");
+        state.studioBuffer = { ...(state.studioBuffer||{}), logoDataUrl: dataUrl };
+        render();
+      };
+      img.onerror = () => alert("Immagine non valida.");
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+    return;
+  }
   if (e.target.id === "import-file" && e.target.files && e.target.files[0]){
     const file = e.target.files[0];
     const reader = new FileReader();
@@ -1745,7 +2006,18 @@ function initRichiestaMode(){
 }
 
 applyStudioConfig();
-if (state.mode === "studio" && loadAuth()) state.locked = true;
+if (state.mode === "studio"){
+  const hasAuth = authIsSet();
+  if (hasAuth){
+    // sicurezza prima di tutto: se c'è un accesso, l'app parte bloccata.
+    state.locked = true;
+  } else if (!tourDismissed()){
+    // primo utilizzo: tour, poi creazione accesso
+    state.showTour = true;
+  } else {
+    state.needsSetup = true;
+  }
+}
 if (state.mode === "client") initClientMode();
 else if (state.mode === "richiesta") initRichiestaMode();
 else render();
@@ -1774,6 +2046,19 @@ function renderSettings(){
       </div>
       <div class="field"><label>URL pubblico dell'app</label><input type="text" data-field-studio="publicUrl" value="${esc(cfg.publicUrl)}" placeholder="https://tuo-studio.vercel.app"><div class="hint">Serve per generare i link/QR di richiesta e compilazione.</div></div>
 
+      <div class="subhead">Logo</div>
+      <div class="field">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div class="logo-preview">${cfg.logoDataUrl ? `<img src="${cfg.logoDataUrl}" alt="logo">` : `<span class="mono">${esc(cfg.studioMark)}</span>`}</div>
+          <div>
+            <button class="btn btn-ghost btn-sm" data-action="pick-logo">Carica logo…</button>
+            ${cfg.logoDataUrl ? `<button class="btn btn-ghost btn-sm" data-action="remove-logo">Rimuovi</button>` : ""}
+            <div class="hint">PNG o JPG quadrato. Sostituisce la sigla nel tondo in alto e nella schermata di accesso.</div>
+          </div>
+          <input type="file" id="logo-file" accept="image/png,image/jpeg" style="display:none;">
+        </div>
+      </div>
+
       <div class="subhead">Colori</div>
       <div class="grid-2">
         <div class="field"><label>Colore scuro (testo/menu)</label><input type="color" data-field-studio="colorInk" value="${esc(cfg.colorInk)}" style="height:44px;padding:4px;"></div>
@@ -1786,6 +2071,12 @@ function renderSettings(){
         <div class="chip-grid">
           ${Object.keys(FONT_THEMES).map(k => `<button class="chip ${(cfg.fontTheme||'classico')===k?'on':''}" data-action="set-fonttheme" data-v="${k}">${FONT_THEMES[k].label}</button>`).join("")}
         </div>
+      </div>
+
+      <div class="subhead">Messaggio aftercare (WhatsApp)</div>
+      <div class="field">
+        <textarea data-field-studio="aftercareText" rows="7" placeholder="Istruzioni per la cura…">${esc(cfg.aftercareText)}</textarea>
+        <div class="hint">Inviato al cliente dopo l'archiviazione con un tap. Usa <b>{nome}</b> per inserire il nome del cliente.</div>
       </div>
 
       <div class="btn-row">
@@ -1819,18 +2110,24 @@ function renderSettings(){
     </div>
     <div class="card">
       <h3 class="section-title">Accesso e credenziali</h3>
-      <p class="section-desc">Proteggi l'app con un codice: se perdi il dispositivo, nessuno può aprire l'archivio dei clienti.</p>
-      <div class="kv"><span>Blocco con codice</span><b>${loadAuth() ? "Attivo" : "Non attivo"}</b></div>
+      <p class="section-desc">Proteggi l'app con ID e password: se perdi il dispositivo, nessuno può aprire l'archivio dei clienti.</p>
+      <div class="kv"><span>Blocco di accesso</span><b>${loadAuth() ? "Attivo" : "Non attivo"}</b></div>
       <div class="grid-2" style="margin-top:12px;">
-        <div class="field"><label>ID studio (identificativo)</label><input type="text" data-field-auth="studioId" value="${esc((loadAuth()||{}).studioId || cfg.studioName)}" placeholder="es. podere173"></div>
-        <div class="field"><label>Codice di accesso (4 cifre)</label><input type="tel" maxlength="4" data-field-auth="password" value="" placeholder="${loadAuth() ? "•••• (invariato)" : "es. 1983"}"></div>
+        <div class="field"><label>ID studio (identificativo)</label><input type="text" data-field-auth="studioId" value="${esc((loadAuth()||{}).studioId || "")}" placeholder="es. podere173" autocomplete="off"></div>
+        <div class="field"><label>Password</label><input type="password" data-field-auth="password" value="" placeholder="${loadAuth() ? "•••• (invariata)" : "min. 4 caratteri"}"></div>
       </div>
       <div class="btn-row">
-        <button class="btn btn-accent" data-action="save-auth">${loadAuth() ? "Aggiorna codice" : "Attiva blocco"}</button>
+        <button class="btn btn-accent" data-action="save-auth">${loadAuth() ? "Aggiorna credenziali" : "Attiva blocco"}</button>
         ${loadAuth() ? `<button class="btn btn-ghost" data-action="disable-auth">Disattiva blocco</button>` : ""}
       </div>
       ${state.authSaved ? `<div class="callout ok" style="margin-top:12px;">Credenziali aggiornate.</div>` : ""}
       ${state.authError ? `<div class="callout warn" style="margin-top:12px;">${esc(state.authError)}</div>` : ""}
+    </div>
+
+    <div class="card">
+      <h3 class="section-title">Tour di benvenuto</h3>
+      <p class="section-desc">Rivedi la presentazione iniziale dell'app, utile per mostrarla a un collaboratore.</p>
+      <button class="btn btn-ghost" data-action="review-tour">Rivedi il tour</button>
     </div>
 
     <div class="card">
@@ -1898,7 +2195,7 @@ function renderClientShell(){
   <div class="client-shell">
     <div class="client-head">
       <div class="rail-brand">
-        <div class="rail-mark">${esc(STUDIO_CONFIG.studioMark)}</div>
+        <div class="rail-mark">${markHtml()}</div>
         <div>
           <div class="rail-brand-name" style="color:var(--paper);">${esc(STUDIO_CONFIG.studioName)}</div>
           <div class="rail-brand-sub">Consenso informato · passo ${state.step} di ${total}</div>
@@ -1917,7 +2214,7 @@ function renderClientDone(){
   return `
   <div class="client-shell">
     <div class="client-body" style="padding-top:60px;text-align:center;">
-      <div class="rail-mark" style="width:56px;height:56px;font-size:22px;margin:0 auto 18px;">${esc(STUDIO_CONFIG.studioMark)}</div>
+      <div class="rail-mark" style="width:56px;height:56px;font-size:22px;margin:0 auto 18px;">${markHtml()}</div>
       <h2>Fatto — grazie${draft.anagrafica.nome ? ", " + esc(draft.anagrafica.nome) : ""}</h2>
       <p class="section-desc">Il modulo è arrivato allo studio. Il tatuatore lo controfirmerà con te al momento dell'appuntamento — non devi fare altro.</p>
       <span class="stamp ${STATUS[draft.status].cls}">${STATUS[draft.status].label}</span>
@@ -2184,9 +2481,11 @@ function renderStepPrivacyDisegno(ctx){
 }
 
 function renderStepFirma(ctx){
+  const isMinor = draft.minorenne;
+  const wantsSecond = draft.richiedeSecondaFirma;
   return `
   ${renderErrors(6)}
-  <h3 class="section-title">Firma ${draft.minorenne ? "del genitore/tutore" : "del cliente"}</h3>
+  <h3 class="section-title">Firma ${isMinor ? "del genitore/tutore" : "del cliente"}</h3>
   <p class="section-desc">Firma nel riquadro qui sotto con il dito o il mouse.</p>
   <div class="sigpad-wrap">
     ${!draft.firmaClienteData ? '<div class="sigpad-placeholder">Firma qui</div>' : ""}
@@ -2195,6 +2494,26 @@ function renderStepFirma(ctx){
   <div class="btn-row" style="margin-top:10px;">
     <button class="btn btn-ghost btn-sm" data-action="clear-sig" data-target="firmaClienteData">Cancella firma</button>
   </div>
+  ${isMinor ? `
+    ${!wantsSecond ? `
+      <button class="btn btn-ghost btn-sm" style="margin-top:14px;" data-action="add-second-sig">+ Aggiungi firma del secondo genitore/tutore</button>
+    ` : `
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line-soft);">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h4 style="margin:0;font-family:var(--font-display);">Firma del secondo genitore/tutore</h4>
+          <button class="btn btn-ghost btn-sm" data-action="remove-second-sig">Rimuovi</button>
+        </div>
+        <p class="section-desc">Firma del secondo genitore/tutore (facoltativa).</p>
+        <div class="sigpad-wrap">
+          ${!draft.firmaTutore2Data ? '<div class="sigpad-placeholder">Firma qui</div>' : ""}
+          <canvas id="sig-canvas-2"></canvas>
+        </div>
+        <div class="btn-row" style="margin-top:10px;">
+          <button class="btn btn-ghost btn-sm" data-action="clear-sig" data-target="firmaTutore2Data">Cancella firma</button>
+        </div>
+      </div>
+    `}
+  ` : ""}
   ${renderFormNav(6, ctx)}`;
 }
 
@@ -2255,6 +2574,7 @@ function renderStepControfirma(ctx){
   <div class="btn-row" style="margin-top:10px;">
     <button class="btn btn-ghost btn-sm" data-action="clear-sig" data-target="controfirmaData">Cancella firma</button>
     ${draft.status === "archiviato" ? `<button class="btn btn-ghost btn-sm" data-action="save-draft">Salva modifiche</button>` : ""}
+    ${draft.status === "archiviato" && draft.anagrafica.telefono ? `<a class="btn btn-accent btn-sm" href="${waLink(draft.anagrafica.telefono, aftercareMessage(draft))}" target="_blank" rel="noopener">💬 Invia aftercare</a>` : ""}
   </div>
   ${renderFormNav(8, ctx)}`;
 }
