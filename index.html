@@ -312,6 +312,20 @@ textarea{resize:vertical;min-height:70px;}
 .disp-badge.stk-top{background:#6FA96C;} .disp-badge.stk-ok{background:#8FBF6E;}
 .disp-badge.stk-low{background:#E0A34E;} .disp-badge.stk-out{background:#D9574B;}
 @media (max-width:600px){ .disp-summary{grid-template-columns:1fr;} }
+
+/* ---------- premium gate ---------- */
+.premium-card{max-width:560px;margin:20px auto;background:var(--ink);color:var(--paper);border-radius:calc(var(--radius) * 1.5);padding:36px 30px;text-align:center;position:relative;overflow:hidden;}
+.premium-badge{position:absolute;top:18px;right:-34px;background:var(--flesh);color:#fff;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;padding:5px 40px;transform:rotate(45deg);}
+.premium-lock{font-size:44px;margin-bottom:12px;}
+.premium-title{color:var(--paper);font-size:22px;margin:0 0 12px;}
+.premium-desc{color:#C4BBB0;font-size:14px;line-height:1.6;margin:0 auto 22px;max-width:440px;}
+.premium-features{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 auto 24px;max-width:440px;text-align:left;}
+.pf{background:rgba(255,255,255,.06);border-radius:10px;padding:12px 14px;font-size:13px;display:flex;align-items:center;gap:8px;}
+.pf span{font-size:18px;}
+.premium-cta{background:rgba(201,143,108,.15);border:1px solid var(--flesh);border-radius:12px;padding:16px;margin-bottom:20px;}
+.premium-cta p{margin:0;font-size:14px;line-height:1.5;}
+.premium-unlock{border-top:1px solid rgba(255,255,255,.1);padding-top:18px;}
+@media (max-width:600px){ .premium-features{grid-template-columns:1fr;} }
 .only-print{display:none;}
 @media print{
   .rail, .mobile-topbar, .no-print, .topbar button{display:none !important;}
@@ -342,6 +356,11 @@ textarea{resize:vertical;min-height:70px;}
 .login-input::placeholder{color:#8A8178;}
 .login-input:focus{border-color:var(--flesh);background:rgba(255,255,255,.1);}
 .lock-hint{color:#8A8178;font-size:11.5px;margin-top:22px;}
+.lock-hint a{color:var(--flesh);text-decoration:underline;cursor:pointer;}
+.lock-ok{color:#7FB77E;font-size:12.5px;margin:10px 0 0;font-family:var(--font-mono);}
+.recovery-code{font-family:var(--font-mono);font-size:20px;letter-spacing:2px;color:var(--paper);background:rgba(255,255,255,.08);border:1px dashed #6b635a;border-radius:12px;padding:16px;margin:8px 0 14px;user-select:all;}
+.recovery-check{display:flex;align-items:center;gap:10px;justify-content:center;color:#B9AFA4;font-size:13px;margin-bottom:18px;cursor:pointer;}
+.recovery-check input{width:18px;height:18px;flex:none;}
 /* tour */
 .tour-card{position:relative;}
 .tour-skip{position:absolute;top:-6px;right:-6px;all:unset;cursor:pointer;color:#8A8178;font-size:12.5px;padding:6px 8px;}
@@ -756,6 +775,28 @@ function upsertNeedle(item){
 function deleteNeedle(id){ saveNeedles(loadNeedles().filter(x => x.id !== id)); }
 function newId(){ return "x" + Math.random().toString(36).slice(2, 9); }
 
+/* ============================================================
+   PREMIUM GATE — la sezione consensi è "in vetrina" (Premium).
+   La dispensa/magazzino resta libera. Durante i test lo studio
+   sblocca con una password-master (hash sotto). Lo sblocco è
+   locale: NON è una protezione anti-pirateria (l'app gira sul
+   dispositivo), ma una vetrina per la fase di lancio. Il blocco
+   "vero" arriverà con la verifica licenza lato Supabase.
+   ============================================================ */
+// Password master di sblocco test — SHA-256 di "P173-unlock" (cambiala se vuoi).
+// Per cambiarla: calcola lo sha256 della nuova password e incolla qui l'hash.
+const PREMIUM_MASTER_HASH = "71d256a21f66e37d9847b59e9b1c688c169ca0e98178a9376348eb864adec4cf";
+const PREMIUM_KEY = "inkconsent_premium_v1";
+const PREMIUM_VIEWS = ["form", "archive", "registro", "leads", "lead-detail"];
+function premiumUnlocked(){ try { return localStorage.getItem(PREMIUM_KEY) === "1"; } catch(e){ return false; } }
+function setPremiumUnlocked(v){ if (v) localStorage.setItem(PREMIUM_KEY, "1"); else localStorage.removeItem(PREMIUM_KEY); }
+async function checkMasterPassword(pw){
+  // accetta sia l'hash configurato sia una password di comodo per il primo test
+  const h = await sha256((pw||"").trim());
+  return h === PREMIUM_MASTER_HASH || (pw||"").trim() === "P173-unlock";
+}
+function isPremiumView(v){ return PREMIUM_VIEWS.includes(v); }
+
 /* ---- FORNITURE (dispensa): guanti, pellicole, disinfettanti, ecc. ----
    Ogni articolo tiene la quantità corrente + movimenti (carico/scarico).
    I carichi con prezzo alimentano il recap spese. Categorie con icona. */
@@ -837,10 +878,25 @@ function randomSalt(){
   return Array.from(crypto.getRandomValues(new Uint8Array(12))).map(b => b.toString(16).padStart(2,"0")).join("");
 }
 function loadAuth(){ try { return JSON.parse(localStorage.getItem(AUTH_KEY)); } catch(e){ return null; } }
-async function setAuth(studioId, password){
+/* Genera un codice di recupero leggibile tipo INK-7K2P-9QX4-M3F8 */
+function generateRecoveryCode(){
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // niente 0/O/1/I ambigui
+  const grp = () => Array.from({length:4}, () => chars[Math.floor(Math.random()*chars.length)]).join("");
+  return `INK-${grp()}-${grp()}-${grp()}`;
+}
+/* setAuth: se recoveryCode è fornito, ne salva l'hash accanto alle credenziali.
+   Se non fornito (cambio password da impostazioni), mantiene quello esistente. */
+async function setAuth(studioId, password, recoveryCode){
   const salt = randomSalt();
   const hash = await sha256(salt + ":" + password);
-  localStorage.setItem(AUTH_KEY, JSON.stringify({ studioId, salt, hash }));
+  const existing = loadAuth() || {};
+  let recoveryHash = existing.recoveryHash || null;
+  let recoverySalt = existing.recoverySalt || null;
+  if (recoveryCode){
+    recoverySalt = randomSalt();
+    recoveryHash = await sha256(recoverySalt + ":" + recoveryCode.trim().toUpperCase());
+  }
+  localStorage.setItem(AUTH_KEY, JSON.stringify({ studioId, salt, hash, recoverySalt, recoveryHash }));
 }
 function clearAuth(){ localStorage.removeItem(AUTH_KEY); }
 function authIsSet(){ const a = loadAuth(); return !!(a && a.hash); }
@@ -850,6 +906,20 @@ async function checkCredentials(studioId, password){
   const hash = await sha256((a.salt||"") + ":" + password);
   // ID case-insensitive, password esatta
   return hash === a.hash && (studioId||"").trim().toLowerCase() === (a.studioId||"").trim().toLowerCase();
+}
+/* Verifica il codice di recupero (per rientrare dopo password dimenticata) */
+async function checkRecoveryCode(code){
+  const a = loadAuth();
+  if (!a || !a.recoveryHash || !a.recoverySalt) return false;
+  const hash = await sha256(a.recoverySalt + ":" + (code||"").trim().toUpperCase());
+  return hash === a.recoveryHash;
+}
+/* Reimposta solo la password mantenendo ID e codice di recupero */
+async function resetPasswordKeepingRecovery(newPassword){
+  const a = loadAuth(); if (!a) return;
+  const salt = randomSalt();
+  const hash = await sha256(salt + ":" + newPassword);
+  localStorage.setItem(AUTH_KEY, JSON.stringify({ ...a, salt, hash }));
 }
 // compat: vecchi backup senza salt
 async function checkPassword(password){
@@ -1097,6 +1167,28 @@ function renderTour(){
 
 function renderFirstRunSetup(){
   const b = state.setupBuffer || {};
+  // Fase 2: mostra il codice di recupero generato, da conservare
+  if (state.setupPhase === "recovery"){
+    return `
+    <div class="lock-wrap">
+      <div class="lock-card">
+        <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+        <h2 class="lock-title">Codice di recupero</h2>
+        <p class="lock-sub">Se dimentichi la password, questo codice è l'unico modo per rientrare senza un backup. Scrivilo e conservalo in un posto sicuro.</p>
+        <div class="recovery-code">${esc(state.recoveryCode)}</div>
+        <button class="btn btn-ghost btn-sm" data-action="copy-recovery" style="margin-bottom:18px;">📋 Copia il codice</button>
+        <label class="recovery-check">
+          <input type="checkbox" data-action="toggle-recovery-saved" ${state.recoverySaved?"checked":""}>
+          <span>Ho annotato il codice in un posto sicuro</span>
+        </label>
+        ${state.loginError ? `<p class="lock-err">${esc(state.loginError)}</p>` : ""}
+        <div class="btn-row" style="justify-content:center;">
+          <button class="btn btn-accent" data-action="setup-finish">Entra nell'app</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  // Fase 1: credenziali
   return `
   <div class="lock-wrap">
     <div class="lock-card">
@@ -1112,12 +1204,50 @@ function renderFirstRunSetup(){
       <div class="btn-row" style="justify-content:center;">
         <button class="btn btn-accent" data-action="setup-create">Crea e continua</button>
       </div>
-      <p class="lock-hint">Annota le credenziali in un posto sicuro: se le perdi, recuperi i dati solo da un backup.</p>
+      <p class="lock-hint">Al passo successivo riceverai un codice di recupero, utile se dimentichi la password.</p>
     </div>
   </div>`;
 }
 
 function renderLockScreen(){
+  // Modalità recupero via codice
+  if (state.recoveryMode){
+    if (state.recoveryReset){
+      return `
+      <div class="lock-wrap">
+        <div class="lock-card ${state.loginError ? 'shake' : ''}">
+          <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+          <h2 class="lock-title">Nuova password</h2>
+          <p class="lock-sub">Codice verificato. Imposta una nuova password di accesso.</p>
+          ${state.loginError ? `<p class="lock-err">${esc(state.loginError)}</p>` : ""}
+          <div class="login-fields">
+            <input type="password" class="login-input" placeholder="Nuova password" value="${esc(state.recoveryNewPw||'')}" data-login-field="recoveryNewPw">
+            <input type="password" class="login-input" placeholder="Ripeti password" value="${esc(state.recoveryNewPw2||'')}" data-login-field="recoveryNewPw2">
+          </div>
+          <div class="btn-row" style="justify-content:center;">
+            <button class="btn btn-accent" data-action="recovery-reset-pw">Salva ed entra</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    return `
+    <div class="lock-wrap">
+      <div class="lock-card ${state.loginError ? 'shake' : ''}">
+        <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+        <h2 class="lock-title">Recupero accesso</h2>
+        <p class="lock-sub">Inserisci il codice di recupero che hai salvato al primo avvio.</p>
+        ${state.loginError ? `<p class="lock-err">${esc(state.loginError)}</p>` : ""}
+        <div class="login-fields">
+          <input type="text" class="login-input" placeholder="INK-XXXX-XXXX-XXXX" value="${esc(state.recoveryInput||'')}" data-login-field="recoveryInput" autocomplete="off" style="text-transform:uppercase;letter-spacing:1px;">
+        </div>
+        <div class="btn-row" style="justify-content:center;">
+          <button class="btn btn-accent" data-action="recovery-submit">Verifica codice</button>
+        </div>
+        <p class="lock-hint"><a href="#" data-action="cancel-recovery">← Torna all'accesso</a></p>
+      </div>
+    </div>`;
+  }
+  // Schermata di accesso normale
   return `
   <div class="lock-wrap">
     <div class="lock-card ${state.loginError ? 'shake' : ''}">
@@ -1125,6 +1255,7 @@ function renderLockScreen(){
       <h2 class="lock-title">${esc(STUDIO_CONFIG.studioName)}</h2>
       <p class="lock-sub">Accedi per gestire i consensi</p>
       ${state.loginError ? `<p class="lock-err">${esc(state.loginError)}</p>` : ""}
+      ${state.backupMsg ? `<p class="lock-ok">${esc(state.backupMsg)}</p>` : ""}
       <div class="login-fields">
         <input type="text" class="login-input" placeholder="ID studio" value="${esc(state.loginId)}" data-login-field="loginId" autocomplete="off">
         <input type="password" class="login-input" placeholder="Password" value="${esc(state.loginPw)}" data-login-field="loginPw">
@@ -1132,7 +1263,8 @@ function renderLockScreen(){
       <div class="btn-row" style="justify-content:center;">
         <button class="btn btn-accent" data-action="login-submit">Accedi</button>
       </div>
-      <p class="lock-hint">Password dimenticata? Reimposta l'app da un backup.</p>
+      <p class="lock-hint">Password dimenticata? <a href="#" data-action="show-recovery">Usa il codice di recupero</a> oppure <a href="#" data-action="login-restore-pick">ripristina da un backup</a>.</p>
+      <input type="file" id="login-restore-file" accept="application/json,.json" style="display:none;">
     </div>
   </div>`;
 }
@@ -1257,12 +1389,49 @@ function renderStudioShell(){
 }
 function renderStudioView(){
   if (state.view === "settings") return renderSettings();
+  if (state.view === "magazzino") return renderMagazzino();
+  // sezione consensi: in vetrina Premium finché non sbloccata
+  if (isPremiumView(state.view) && !premiumUnlocked()) return renderPremiumGate();
   if (state.view === "form" && draft) return renderStudioForm();
   if (state.view === "leads") return renderLeads();
   if (state.view === "lead-detail" && leadDraft) return renderLeadDetail();
   if (state.view === "registro") return renderRegistro();
-  if (state.view === "magazzino") return renderMagazzino();
   return renderArchive();
+}
+
+function renderPremiumGate(){
+  return `
+  <div class="topbar"><div><h1>Consensi informati</h1><p>Funzione Premium</p></div></div>
+  <div class="main-inner">
+    <div class="premium-card">
+      <div class="premium-badge">PREMIUM</div>
+      <div class="premium-lock">🔒</div>
+      <h2 class="premium-title">La gestione dei consensi informati è in arrivo</h2>
+      <p class="premium-desc">
+        Compilazione guidata, firma del cliente anche da remoto, controfirma in studio,
+        archivio ricercabile, registro per i controlli e PDF professionale pronto da archiviare.
+        Tutto conforme e a norma, offline e sul tuo dispositivo.
+      </p>
+      <div class="premium-features">
+        <div class="pf"><span>📝</span> Consenso in due fasi (cliente + studio)</div>
+        <div class="pf"><span>✍️</span> Firma digitale e controfirma</div>
+        <div class="pf"><span>📂</span> Archivio + registro a norma</div>
+        <div class="pf"><span>📄</span> Esportazione PDF professionale</div>
+      </div>
+      <div class="premium-cta">
+        <p><b>Vuoi attivarla per il tuo studio?</b><br>Contatta ${esc(STUDIO_CONFIG.studioName)} per il pacchetto completo.</p>
+      </div>
+      <div class="premium-unlock">
+        ${state.premiumError ? `<p class="lock-err" style="color:var(--warn);">${esc(state.premiumError)}</p>` : ""}
+        <button class="btn btn-ghost btn-sm" data-action="premium-show-unlock">Ho un codice di sblocco</button>
+        ${state.showPremiumUnlock ? `
+          <div style="display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap;">
+            <input type="password" class="login-input" style="max-width:220px;" placeholder="Password di sblocco" value="${esc(state.premiumPw||'')}" data-premium-field="pw">
+            <button class="btn btn-accent btn-sm" data-action="premium-unlock">Sblocca</button>
+          </div>` : ""}
+      </div>
+    </div>
+  </div>`;
 }
 
 function renderArchive(){
@@ -1656,120 +1825,217 @@ async function attachDiagrams(sess){
 function buildPdf(s){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "a4" });
-  const M = 48; const BOTTOM = 780; let y = 56;
-  const ensure = (needed) => { if (y + needed > BOTTOM) { doc.addPage(); y = 56; } };
-  const heading = (txt) => { ensure(26); doc.setFont("helvetica","bold"); doc.setFontSize(12); doc.setTextColor("#1B1A19"); doc.text(txt, M, y); y += 18; doc.setFont("helvetica","normal"); };
-  const line = (txt, size=10.5, gap=14, color="#1B1A19") => {
-    doc.setFontSize(size); doc.setTextColor(color);
-    const split = doc.splitTextToSize(txt, 500);
-    ensure(gap * split.length);
-    doc.text(split, M, y); y += gap * split.length;
+  const PW = 595.28;                    // larghezza A4 in pt
+  const M = 50;                          // margine
+  const CW = PW - M*2;                   // larghezza contenuto
+  const TOP = 54, BOTTOM = 760;
+  let y = TOP;
+  let pageNum = 1;
+
+  // palette (dai colori studio, con fallback)
+  const INK = "#1B1A19", SOFT = "#57514B", FAINT = "#8B837A";
+  const cssAccent = getComputedStyle(document.documentElement).getPropertyValue("--stencil").trim();
+  const ACCENT = /^#?[0-9a-fA-F]{6}$/.test(cssAccent.replace("#","")) ? (cssAccent.startsWith("#")?cssAccent:"#"+cssAccent) : "#5B3B63";
+  const hexToRgb = (h) => { const n = parseInt(h.replace("#",""),16); return [(n>>16)&255,(n>>8)&255,n&255]; };
+  const setFill = (h) => { const [r,g,b]=hexToRgb(h); doc.setFillColor(r,g,b); };
+  const setText = (h) => { const [r,g,b]=hexToRgb(h); doc.setTextColor(r,g,b); };
+  const setDraw = (h) => { const [r,g,b]=hexToRgb(h); doc.setDrawColor(r,g,b); };
+
+  const footer = () => {
+    setDraw("#DED7CC"); doc.setLineWidth(0.5); doc.line(M, BOTTOM+18, PW-M, BOTTOM+18);
+    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(FAINT);
+    doc.text(`${STUDIO_CONFIG.studioName} · Documento generato con InkConsent · da conservare almeno ${STUDIO_CONFIG.retentionYears} anni`, M, BOTTOM+32);
+    doc.text(`Pag. ${pageNum}`, PW-M, BOTTOM+32, { align: "right" });
+  };
+  const newPage = () => { footer(); doc.addPage(); pageNum++; y = TOP; };
+  const ensure = (needed) => { if (y + needed > BOTTOM) newPage(); };
+
+  // ---- intestazione con logo + riquadro registro ----
+  const headerH = 66;
+  // logo (se presente come dataURL)
+  let tx = M;
+  if (STUDIO_CONFIG.logoDataUrl){
+    try { doc.addImage(STUDIO_CONFIG.logoDataUrl, "PNG", M, y, 46, 46); tx = M + 58; } catch(e){}
+  }
+  doc.setFont("helvetica","bold"); doc.setFontSize(16); setText(INK);
+  doc.text(STUDIO_CONFIG.studioName, tx, y+18);
+  doc.setFont("helvetica","normal"); doc.setFontSize(9.5); setText(SOFT);
+  doc.text(STUDIO_CONFIG.studioCity, tx, y+33);
+  doc.setFontSize(10.5); setText(ACCENT); doc.setFont("helvetica","bold");
+  doc.text(`Consenso informato · ${s.tipoApplicazione === "piercing" ? "Piercing" : "Tatuaggio"}`, tx, y+49);
+  // riquadro numero registro a destra
+  if (s.progressivo){
+    const bw = 130, bh = 44, bx = PW - M - bw;
+    setFill("#F5F1EB"); setDraw("#DED7CC"); doc.setLineWidth(0.8);
+    doc.roundedRect(bx, y, bw, bh, 5, 5, "FD");
+    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(FAINT);
+    doc.text("N. REGISTRO", bx+12, y+16);
+    doc.setFont("helvetica","bold"); doc.setFontSize(15); setText(INK);
+    doc.text(s.progressivo, bx+12, y+34);
+  }
+  y += headerH;
+  setDraw(ACCENT); doc.setLineWidth(1.6); doc.line(M, y, PW-M, y); y += 22;
+
+  // ---- helpers di sezione ----
+  const section = (txt) => {
+    ensure(40);
+    setFill("#F5F1EB"); doc.rect(M, y-2, CW, 22, "F");
+    setFill(ACCENT); doc.rect(M, y-2, 4, 22, "F");
+    doc.setFont("helvetica","bold"); doc.setFontSize(10.5); setText(INK);
+    doc.text(txt.toUpperCase(), M+14, y+13);
+    y += 32;
+  };
+  // riga etichetta/valore in due colonne
+  const kv = (label, value, opts={}) => {
+    const val = (value==null||value==="") ? "—" : String(value);
+    doc.setFont("helvetica","normal"); doc.setFontSize(9); setText(FAINT);
+    const labelW = 150;
+    const split = doc.splitTextToSize(val, CW - labelW - 6);
+    const h = Math.max(13, split.length*12);
+    ensure(h);
+    doc.text(label, M, y+9);
+    doc.setFontSize(10); setText(opts.color || INK);
+    if (opts.bold) doc.setFont("helvetica","bold");
+    doc.text(split, M+labelW, y+9);
+    doc.setFont("helvetica","normal");
+    y += h;
+  };
+  // paragrafo lungo
+  const para = (txt, size=9.5, color=SOFT) => {
+    doc.setFont("helvetica","normal"); doc.setFontSize(size); setText(color);
+    const split = doc.splitTextToSize(txt, CW);
+    ensure(split.length*13);
+    doc.text(split, M, y+9); y += split.length*13 + 4;
   };
 
-  doc.setFont("helvetica","bold"); line(STUDIO_CONFIG.studioName, 15, 20);
-  doc.setFont("helvetica","normal");
-  line(`${STUDIO_CONFIG.studioCity} · Modulo di consenso informato per ${s.tipoApplicazione === "piercing" ? "piercing" : "tatuaggio"}`, 10, 18, "#57514B");
-  if (s.progressivo) line(`Registro n. ${s.progressivo}`, 10, 16, "#57514B");
-  doc.setDrawColor("#C7BEB2"); doc.line(M, y, 547, y); y += 20;
-
-  heading("Dati cliente");
-  line(`${s.anagrafica.cognome} ${s.anagrafica.nome} · nato/a il ${fmtDate(s.anagrafica.nascita)}`);
-  line(`Residenza: ${s.anagrafica.comuneResidenza || "—"} (${s.anagrafica.provinciaResidenza || "—"})`);
-  line(`CF: ${s.anagrafica.cf || "—"} · Tel: ${s.anagrafica.telefono || "—"} · Email: ${s.anagrafica.email || "—"}`);
-  y += 4;
+  // ---- DATI CLIENTE ----
+  section("Dati del cliente");
+  kv("Nome e cognome", `${s.anagrafica.cognome} ${s.anagrafica.nome}`, {bold:true});
+  kv("Data di nascita", fmtDate(s.anagrafica.nascita));
+  kv("Residenza", `${s.anagrafica.comuneResidenza || "—"} (${s.anagrafica.provinciaResidenza || "—"})`);
+  kv("Codice fiscale", s.anagrafica.cf);
+  kv("Telefono", s.anagrafica.telefono);
+  kv("Email", s.anagrafica.email);
+  y += 8;
 
   if (s.minorenne){
-    heading("Autorizzazione del minore — Genitori/Tutori");
-    line(`Tutore 1: ${s.tutore1.nome || "—"}, nato/a il ${fmtDate(s.tutore1.dataNascita)} a ${s.tutore1.luogoNascita || "—"} (${s.tutore1.provNascita || "—"})`);
-    line(`Residente in ${s.tutore1.comuneResidenza || "—"} (${s.tutore1.provResidenza || "—"}), via ${s.tutore1.via || "—"} n. ${s.tutore1.numeroCivico || "—"}`);
+    section("Autorizzazione per il minore");
+    kv("Genitore/tutore 1", s.tutore1.nome, {bold:true});
+    kv("Nato/a il", `${fmtDate(s.tutore1.dataNascita)} a ${s.tutore1.luogoNascita || "—"} (${s.tutore1.provNascita || "—"})`);
+    kv("Residente in", `${s.tutore1.comuneResidenza || "—"} (${s.tutore1.provResidenza || "—"}), ${s.tutore1.via || "—"} n. ${s.tutore1.numeroCivico || "—"}`);
     if (s.tutore2.nome){
-      line(`Tutore 2: ${s.tutore2.nome}, nato/a il ${fmtDate(s.tutore2.dataNascita)} a ${s.tutore2.luogoNascita || "—"} (${s.tutore2.provNascita || "—"})`);
-      line(`Residente in ${s.tutore2.comuneResidenza || "—"} (${s.tutore2.provResidenza || "—"}), via ${s.tutore2.via || "—"} n. ${s.tutore2.numeroCivico || "—"}`);
+      kv("Genitore/tutore 2", s.tutore2.nome, {bold:true});
+      kv("Nato/a il", `${fmtDate(s.tutore2.dataNascita)} a ${s.tutore2.luogoNascita || "—"} (${s.tutore2.provNascita || "—"})`);
+      kv("Residente in", `${s.tutore2.comuneResidenza || "—"} (${s.tutore2.provResidenza || "—"}), ${s.tutore2.via || "—"} n. ${s.tutore2.numeroCivico || "—"}`);
     }
-    line(`Documento firmatario (${s.documento.intestatario}): ${s.documento.tipo || "—"} n. ${s.documento.numero || "—"}, rilasciato da ${s.documento.autorita || "—"} il ${fmtDate(s.documento.dataRilascio)}, scadenza ${fmtDate(s.documento.dataScadenza)}`);
-    y += 4;
+    kv(`Documento (${s.documento.intestatario})`, `${s.documento.tipo || "—"} n. ${s.documento.numero || "—"}, ril. da ${s.documento.autorita || "—"} il ${fmtDate(s.documento.dataRilascio)}, scad. ${fmtDate(s.documento.dataScadenza)}`);
+    y += 8;
   }
 
-  heading("Questionario sanitario");
-  HEALTH_QUESTIONS.forEach(q => line(`${q.label} → ${(s.sanitario[q.id]||"—").toUpperCase()}`, 9, 12));
-  if (s.sanitarioNote) line(`Note: ${s.sanitarioNote}`, 9, 12);
-  y += 4;
+  // ---- QUESTIONARIO SANITARIO (due colonne) ----
+  section("Questionario sanitario");
+  doc.setFontSize(9);
+  const colW = CW/2;
+  let qi = 0;
+  const startY = y;
+  const half = Math.ceil(HEALTH_QUESTIONS.length/2);
+  HEALTH_QUESTIONS.forEach((q, i) => {
+    const col = i < half ? 0 : 1;
+    const row = i < half ? i : i - half;
+    if (col === 0 && i === half) {} // no-op
+    const cx = M + col*colW;
+    const cy = startY + row*15;
+    if (cy + 15 > BOTTOM){ /* raro: lascia scorrere sotto */ }
+    const ans = (s.sanitario[q.id]||"—").toUpperCase();
+    setText(FAINT); doc.setFont("helvetica","normal");
+    const qlabel = doc.splitTextToSize(q.label, colW - 44)[0];
+    doc.text(qlabel, cx, cy+9);
+    setText(ans==="SÌ"||ans==="SI" ? ACCENT : SOFT); doc.setFont("helvetica","bold");
+    doc.text(ans, cx + colW - 40, cy+9);
+    doc.setFont("helvetica","normal");
+  });
+  y = startY + half*15 + 6;
+  if (s.sanitarioNote){ setText(SOFT); doc.setFont("helvetica","italic"); doc.setFontSize(9); para(`Note: ${s.sanitarioNote}`); doc.setFont("helvetica","normal"); }
+  y += 8;
 
-  heading("Zona e disegno (dichiarato dal cliente)");
-  line(`Tipo: ${s.tipoApplicazione === "piercing" ? "Piercing" : "Tatuaggio"}`);
+  // ---- ZONA E DISEGNO ----
+  section("Zona e disegno");
   if (s.zonaMode === "sagoma"){
-    const nMarks = (s.markers||[]).length, nDraw = (s.strokes||[]).length;
-    line(`Zona (sagoma ${s.genere}): ${nMarks} punto/i, ${nDraw} disegno/i${s.zonaLibera ? " — " + s.zonaLibera : ""}`);
-    // inserisci le due sagome (fronte/retro) coi segni, se presenti in s._diagImgs
-    if (s._diagImgs){
-      ensure(200);
-      const imgW = 120, imgH = 200; let ix = M;
+    kv("Modalità", `Sagoma anatomica (${s.genere})`);
+    kv("Segni", `${(s.markers||[]).length} punto/i · ${(s.strokes||[]).length} disegno/i${s.zonaLibera ? " — " + s.zonaLibera : ""}`);
+    if (s._diagImgs && (s._diagImgs.fronte || s._diagImgs.retro)){
+      ensure(210);
+      const imgW = 116, imgH = 194; let ix = M;
+      setDraw("#DED7CC"); doc.setLineWidth(0.6);
       ["fronte","retro"].forEach(v => {
         if (s._diagImgs[v]){
-          try { doc.addImage(s._diagImgs[v], "PNG", ix, y, imgW, imgH); } catch(e){}
-          ix += imgW + 20;
+          try {
+            doc.roundedRect(ix-4, y-4, imgW+8, imgH+8, 4, 4, "S");
+            doc.addImage(s._diagImgs[v], "PNG", ix, y, imgW, imgH);
+            setText(FAINT); doc.setFontSize(8);
+            doc.text(v === "fronte" ? "Fronte" : "Retro", ix, y+imgH+14);
+          } catch(e){}
+          ix += imgW + 24;
         }
       });
-      y += imgH + 8;
+      y += imgH + 24;
     }
   } else {
-    line(`Zona/e: ${s.zone.join(", ") || "—"}${s.zonaLibera ? " — " + s.zonaLibera : ""}`);
+    kv("Zona/e", `${s.zone.join(", ") || "—"}${s.zonaLibera ? " — " + s.zonaLibera : ""}`);
   }
-  line(`Grandezza indicativa: ${s.grandezza || "—"}`);
-  line(`Nei nell'area da tatuare: ${s.zoneNei === "si" ? "Sì — " + (s.zoneNeiNote || "nessuna nota") : "No"}`);
-  y += 4;
+  kv("Grandezza indicativa", s.grandezza);
+  kv("Nei nell'area", s.zoneNei === "si" ? "Sì — " + (s.zoneNeiNote || "nessuna nota") : "No");
+  y += 8;
 
-  heading(`Consenso informato (${s.informativaVersion})`);
-  line("Il cliente dichiara di aver letto e compreso il Modulo di Consenso Informato, di aver fornito dichiarazioni veritiere, di impegnarsi a seguire le istruzioni di cura ed esonera l'esecutore e lo studio da responsabilità per i rischi illustrati.", 9.5, 13);
-  line(`Consenso al trattamento dei dati personali (D.Lgs 196/2003): ${s.privacyConsenso ? "prestato" : "non prestato"}.`, 9.5, 13);
-  line(`Disegno visionato e approvato dal cliente: ${s.disegnoConfermato ? "sì" : "no"}.`, 9.5, 13);
-  y += 4;
+  // ---- CONSENSO ----
+  section(`Consenso informato · ${s.informativaVersion || ""}`);
+  para("Il cliente dichiara di aver letto e compreso il Modulo di Consenso Informato, di aver fornito dichiarazioni veritiere, di impegnarsi a seguire le istruzioni di cura ed esonera l'esecutore e lo studio da responsabilità per i rischi illustrati.");
+  kv("Trattamento dati (D.Lgs 196/2003)", s.privacyConsenso ? "Consenso prestato" : "Non prestato", {bold:true, color: s.privacyConsenso?ACCENT:INK});
+  kv("Disegno visionato e approvato", s.disegnoConfermato ? "Sì" : "No", {bold:true});
+  y += 8;
 
+  // ---- DATI SEDUTA ----
   const sd = s.seduta || {};
-  heading("Dati seduta (compilati in studio)");
-  line(`Data effettiva applicazione: ${sd.dataApplicazione ? fmtDate(sd.dataApplicazione) : "—"}`);
-  line(`Zona effettivamente trattata: ${sd.sedeEffettiva || "—"}`);
+  section("Dati della seduta (compilati in studio)");
+  kv("Data applicazione", sd.dataApplicazione ? fmtDate(sd.dataApplicazione) : "—");
+  kv("Zona trattata", sd.sedeEffettiva);
   if ((sd.inchiostri||[]).length){
-    line("Inchiostri usati:");
-    sd.inchiostri.forEach(it => line(`  • ${it.nome || "—"}${it.colore ? " ("+it.colore+")" : ""} · lotto ${it.lotto || "—"}${it.scadenza ? " · scad. "+fmtDate(it.scadenza) : ""}`, 9.5, 13));
-  } else {
-    line(`Inchiostri usati: —`);
-  }
+    kv("Inchiostri usati", sd.inchiostri.map(it => `${it.nome||"—"}${it.colore?" ("+it.colore+")":""} · lotto ${it.lotto||"—"}${it.scadenza?" · scad. "+fmtDate(it.scadenza):""}`).join("\n"));
+  } else kv("Inchiostri usati", "—");
   if ((sd.aghi||[]).length){
-    line("Aghi usati:");
-    sd.aghi.forEach(it => line(`  • ${it.tipo || "—"}${it.marca ? " ("+it.marca+")" : ""} · lotto ${it.lotto || "—"}${it.scadenza ? " · scad. "+fmtDate(it.scadenza) : ""}`, 9.5, 13));
-  } else {
-    line(`Aghi usati: —`);
-  }
-  if (sd.materiali) line(`Note materiali: ${sd.materiali}`);
-  line(`Scheda tecnica allegata: ${sd.schedaTecnicaAllegata ? "Sì" : "No"}`);
-  if (sd.reazioniAvverse) line(`Reazioni avverse riscontrate: ${sd.reazioniAvverse}`);
-  y += 6;
+    kv("Aghi usati", sd.aghi.map(it => `${it.tipo||"—"}${it.marca?" ("+it.marca+")":""} · lotto ${it.lotto||"—"}${it.scadenza?" · scad. "+fmtDate(it.scadenza):""}`).join("\n"));
+  } else kv("Aghi usati", "—");
+  if (sd.materiali) kv("Note materiali", sd.materiali);
+  kv("Scheda tecnica allegata", sd.schedaTecnicaAllegata ? "Sì" : "No");
+  if (sd.reazioniAvverse) kv("Reazioni avverse", sd.reazioniAvverse);
+  y += 10;
 
-  ensure(100);
-  heading("Firme");
-  const sigY = y;
-  if (s.firmaClienteData) doc.addImage(s.firmaClienteData, "PNG", M, sigY, 220, 70);
-  if (s.controfirmaData) doc.addImage(s.controfirmaData, "PNG", M + 260, sigY, 220, 70);
-  y = sigY + 78;
-  doc.setFontSize(9); doc.setTextColor("#57514B");
-  doc.text(`${s.minorenne ? "Genitore/tutore" : "Cliente"} · firmato ${fmtDateTime(s.firmaClienteAt)}`, M, y);
-  doc.text(`Tatuatore (${s.artista}) · controfirmato ${fmtDateTime(s.controfirmaAt)}`, M + 260, y);
-  y += 24;
-  if (s.minorenne && s.firmaTutore2Data){
-    ensure(100);
-    const sig2Y = y;
-    doc.addImage(s.firmaTutore2Data, "PNG", M, sig2Y, 220, 70);
-    y = sig2Y + 78;
-    doc.setFontSize(9); doc.setTextColor("#57514B");
-    doc.text(`Secondo genitore/tutore · firmato ${fmtDateTime(s.firmaTutore2At)}`, M, y);
-    y += 24;
+  // ---- FIRME (box incorniciati) ----
+  const sigBox = (x, w, label, imgData, caption) => {
+    const bh = 96;
+    setDraw("#DED7CC"); doc.setLineWidth(0.8);
+    doc.roundedRect(x, y, w, bh, 4, 4, "S");
+    setText(FAINT); doc.setFont("helvetica","bold"); doc.setFontSize(7.5);
+    doc.text(label.toUpperCase(), x+10, y+15);
+    if (imgData){ try { doc.addImage(imgData, "PNG", x+10, y+20, w-20, 50); } catch(e){} }
+    setDraw("#EAE4DA"); doc.setLineWidth(0.5); doc.line(x+10, y+76, x+w-10, y+76);
+    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(SOFT);
+    doc.text(caption, x+10, y+88);
+  };
+  const twoSig = s.minorenne && s.firmaTutore2Data;
+  ensure(twoSig ? 210 : 110);
+  section("Firme");
+  const halfW = (CW - 20) / 2;
+  sigBox(M, halfW, s.minorenne ? "Genitore / tutore" : "Cliente", s.firmaClienteData, `Firmato il ${fmtDateTime(s.firmaClienteAt)}`);
+  sigBox(M + halfW + 20, halfW, `Tatuatore · ${s.artista||""}`, s.controfirmaData, `Controfirmato il ${fmtDateTime(s.controfirmaAt)}`);
+  y += 96 + 14;
+  if (twoSig){
+    sigBox(M, halfW, "Secondo genitore / tutore", s.firmaTutore2Data, `Firmato il ${fmtDateTime(s.firmaTutore2At)}`);
+    y += 96 + 14;
   }
-  doc.setDrawColor("#C7BEB2"); doc.line(M, y, 547, y); y += 16;
-  doc.setFontSize(8); doc.setTextColor("#8B837A");
-  doc.text(`InkConsent · ID sessione ${s.id} · Stato: ${STATUS[s.status].label} · da conservare almeno ${STUDIO_CONFIG.retentionYears} anni`, M, y);
 
-  doc.save(`consenso-${s.anagrafica.cognome || "cliente"}-${s.id.slice(-6)}.pdf`);
+  footer();
+  doc.save(`consenso-${s.anagrafica.cognome || "cliente"}-${s.progressivo || s.id.slice(-6)}.pdf`);
   delete s._diagImgs; // transiente: non salvare le immagini pesanti in localStorage
 }
 
@@ -2050,10 +2316,24 @@ document.addEventListener("click", (e) => {
     if (id.length < 3){ state.loginError = "L'ID studio deve avere almeno 3 caratteri."; render(); return; }
     if (pw.length < 4){ state.loginError = "La password deve avere almeno 4 caratteri."; render(); return; }
     if (pw !== pw2){ state.loginError = "Le due password non coincidono."; render(); return; }
-    setAuth(id, pw).then(() => {
-      state.needsSetup = false; state.locked = false; state.loginError = null; state.setupBuffer = {};
+    // genera il codice di recupero e passa alla fase 2
+    state.recoveryCode = generateRecoveryCode();
+    setAuth(id, pw, state.recoveryCode).then(() => {
+      state.setupPhase = "recovery"; state.recoverySaved = false; state.loginError = null;
       render();
     });
+    return;
+  }
+  if (action === "copy-recovery"){
+    if (navigator.clipboard) navigator.clipboard.writeText(state.recoveryCode||"").catch(()=>{});
+    return;
+  }
+  if (action === "toggle-recovery-saved"){ state.recoverySaved = !state.recoverySaved; renderLockOnly(); return; }
+  if (action === "setup-finish"){
+    if (!state.recoverySaved){ state.loginError = "Conferma di aver annotato il codice prima di procedere."; render(); return; }
+    state.needsSetup = false; state.setupPhase = null; state.locked = false;
+    state.loginError = null; state.setupBuffer = {}; state.recoveryCode = null;
+    render();
     return;
   }
 
@@ -2065,6 +2345,29 @@ document.addEventListener("click", (e) => {
     });
     return;
   }
+  // --- recupero: mostra la schermata per inserire il codice ---
+  if (action === "show-recovery"){ state.recoveryMode = true; state.loginError = null; state.recoveryInput = ""; render(); return; }
+  if (action === "cancel-recovery"){ state.recoveryMode = false; state.recoveryReset = false; state.loginError = null; render(); return; }
+  if (action === "recovery-submit"){
+    checkRecoveryCode(state.recoveryInput).then(ok => {
+      if (ok){ state.recoveryReset = true; state.loginError = null; render(); }
+      else { state.loginError = "Codice di recupero non valido."; render(); }
+    });
+    return;
+  }
+  if (action === "recovery-reset-pw"){
+    const pw = state.recoveryNewPw||"", pw2 = state.recoveryNewPw2||"";
+    if (pw.length < 4){ state.loginError = "La password deve avere almeno 4 caratteri."; render(); return; }
+    if (pw !== pw2){ state.loginError = "Le due password non coincidono."; render(); return; }
+    resetPasswordKeepingRecovery(pw).then(() => {
+      state.recoveryMode = false; state.recoveryReset = false; state.locked = false;
+      state.loginError = null; state.recoveryInput = ""; state.recoveryNewPw = ""; state.recoveryNewPw2 = "";
+      render();
+    });
+    return;
+  }
+  // --- ripristino da backup dalla schermata di login ---
+  if (action === "login-restore-pick"){ const inp = qs("#login-restore-file"); if (inp) inp.click(); return; }
 
   if (action === "nav"){ state.view = btn.dataset.view; state.step = 1; state.showErrors = null; state.railOpen = false; state.studioSaved = false; state.authSaved = false; state.authError = null; state.backupMsg = null; render(); }
   else if (action === "new-session"){ draft = blankSession(); state.view = "form"; state.step = 1; state.showErrors = null; state.pdfWarning = false; state.railOpen = false; render(); }
@@ -2156,6 +2459,14 @@ document.addEventListener("click", (e) => {
     if (confirm("Eliminare questo ago dall'archivio?")){ deleteNeedle(btn.dataset.id); render(); }
   }
   else if (action === "inv-cancel"){ state.showInkForm = false; state.showNeedleForm = false; state.showFornForm = false; state.fornLoadMode = false; state.fornLoadId = null; state.editBuffer = {}; render(); }
+  else if (action === "premium-show-unlock"){ state.showPremiumUnlock = true; state.premiumError = null; render(); }
+  else if (action === "premium-unlock"){
+    checkMasterPassword(state.premiumPw||"").then(ok => {
+      if (ok){ setPremiumUnlocked(true); state.showPremiumUnlock = false; state.premiumPw = ""; state.premiumError = null; render(); }
+      else { state.premiumError = "Password di sblocco errata."; render(); }
+    });
+  }
+  else if (action === "premium-relock"){ setPremiumUnlocked(false); render(); }
   else if (action === "mag-tab"){ state.magTab = btn.dataset.t; state.showInkForm = state.showNeedleForm = state.showFornForm = false; state.editBuffer = {}; render(); }
   else if (action === "forn-new"){ state.showFornForm = true; state.fornLoadMode = false; state.editBuffer = { categoria: "guanti", quantita: "", soglia: "" }; render(); }
   else if (action === "forn-edit"){ state.editBuffer = { ...(loadForniture().find(x=>x.id===btn.dataset.id)||{}) }; state.showFornForm = true; state.fornLoadMode = false; render(); }
@@ -2317,6 +2628,9 @@ document.addEventListener("input", (e) => {
       state.setupBuffer = { ...(state.setupBuffer||{}), [loginField]: e.target.value };
     } else if (loginField === "loginId"){ state.loginId = e.target.value; }
     else if (loginField === "loginPw"){ state.loginPw = e.target.value; }
+    else if (loginField === "recoveryInput"){ state.recoveryInput = e.target.value; }
+    else if (loginField === "recoveryNewPw"){ state.recoveryNewPw = e.target.value; }
+    else if (loginField === "recoveryNewPw2"){ state.recoveryNewPw2 = e.target.value; }
     return;
   }
   const field = e.target.dataset.field;
@@ -2327,6 +2641,8 @@ document.addEventListener("input", (e) => {
   if (studioField){ state.studioBuffer = { ...(state.studioBuffer||{}), [studioField]: e.target.value }; return; }
   const invField = e.target.dataset.invField;
   if (invField){ state.editBuffer = { ...(state.editBuffer||{}), [invField]: e.target.value }; return; }
+  const premiumField = e.target.dataset.premiumField;
+  if (premiumField === "pw"){ state.premiumPw = e.target.value; return; }
   const authField = e.target.dataset.fieldAuth;
   if (authField){ state.authBuffer = { ...(state.authBuffer||{}), [authField]: e.target.value }; return; }
   const backupField = e.target.dataset.fieldBackup;
@@ -2404,6 +2720,34 @@ document.addEventListener("change", (e) => {
       img.src = reader.result;
     };
     reader.readAsDataURL(file);
+    return;
+  }
+  if (e.target.id === "login-restore-file" && e.target.files && e.target.files[0]){
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const doRestore = async (pw) => {
+        const res = await importBackup(reader.result, pw);
+        applyStudioConfig();
+        state.locked = false; state.needsSetup = false; state.recoveryMode = false;
+        state.loginError = null;
+        state.backupMsg = `Ripristino riuscito: ${res.sessions} consensi. Ora sei dentro.`;
+        render();
+      };
+      try { await doRestore(""); }
+      catch(err){
+        if (err.message === "PASSWORD_REQUIRED" || err.message === "WRONG_PASSWORD"){
+          const pw = prompt("Questo backup è cifrato. Inserisci la password del backup:");
+          if (pw == null) return;
+          try { await doRestore(pw); }
+          catch(e2){ state.loginError = e2.message === "WRONG_PASSWORD" ? "Password del backup errata." : "File non valido."; render(); }
+        } else {
+          state.loginError = err.message === "NOT_A_BACKUP" ? "Questo file non è un backup InkConsent." : "File non valido."; render();
+        }
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
     return;
   }
   if (e.target.id === "import-file" && e.target.files && e.target.files[0]){
@@ -2586,6 +2930,13 @@ function renderSettings(){
       <h3 class="section-title">Tour di benvenuto</h3>
       <p class="section-desc">Rivedi la presentazione iniziale dell'app, utile per mostrarla a un collaboratore.</p>
       <button class="btn btn-ghost" data-action="review-tour">Rivedi il tour</button>
+    </div>
+
+    <div class="card">
+      <h3 class="section-title">Sezione consensi (Premium)</h3>
+      <div class="kv"><span>Stato</span><b>${premiumUnlocked() ? "Sbloccata (modalità test)" : "In vetrina (bloccata)"}</b></div>
+      <p class="section-desc" style="margin-top:10px;">${premiumUnlocked() ? "La sezione consensi è attiva su questo dispositivo. Puoi ri-bloccarla per vedere come appare al pubblico." : "La sezione consensi è mostrata come Premium. Sbloccala dalla schermata Consensi con la password di test."}</p>
+      ${premiumUnlocked() ? `<button class="btn btn-ghost" data-action="premium-relock">Ri-blocca (torna alla vetrina)</button>` : ""}
     </div>
 
     <div class="card">

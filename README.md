@@ -37,9 +37,23 @@ In più un campo **grandezza indicativa** in entrambe le modalità.
 
 ## Le altre funzioni
 
-- **Accesso protetto (PIN)**: blocco a codice con schermata di sblocco e logo
-  animato. Se il dispositivo va perso, senza codice non si apre l'archivio.
-  Codice attivabile/modificabile in "Impostazioni → Accesso e credenziali".
+- **Sezione consensi "Premium" (fase di lancio)**: la dispensa/magazzino è
+  libera per tutti; la parte consensi (nuovo consenso, archivio, registro) è
+  mostrata come Premium con una vetrina. Per i test si sblocca con una
+  password-master (in "Impostazioni → Sezione consensi" vedi lo stato e puoi
+  ri-bloccare). Nota: è una vetrina di lancio, non una protezione anti-copia.
+- **PDF professionale**: intestazione con logo e numero di registro, sezioni con
+  bande titolate, campi allineati, questionario sanitario su due colonne, box
+  firme incorniciati e footer con paginazione. Contenuto giuridico invariato.
+- **Accesso protetto (ID + password)** con recupero a due vie:
+  - *Codice di recupero*: al primo avvio l'app genera un codice
+    (`INK-XXXX-XXXX-XXXX`) da conservare. Se dimentichi la password, dalla
+    schermata di accesso lo inserisci e imposti una password nuova.
+  - *Ripristino da backup*: sempre dalla schermata di accesso, un pulsante
+    carica un file di backup e rientra (le credenziali sono nel backup). Utile
+    anche per cambio dispositivo.
+  La password non è mai recuperabile in chiaro (è salvata come hash con salt):
+  entrambi i sistemi ti fanno rientrare e reimpostarne una nuova.
 - **Backup e ripristino**: esporta tutto (impostazioni, consensi, richieste,
   codice) in un file unico, e re-importalo. Scegli se **cifrarlo** (AES-GCM con
   password: illeggibile senza, ma password persa = dati persi) o lasciarlo in
