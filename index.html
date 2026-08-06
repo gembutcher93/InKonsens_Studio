@@ -25,9 +25,11 @@
 :root{
   --paper:       #EDE8E2;
   --paper-raised:#F8F5F0;
+  --paper-sunk:  #E2DBD2;
   --ink:         #1B1A19;
   --ink-soft:    #57514B;
-  --ink-faint:   #8B837A;
+  --ink-faint:   #6E665D;
+  --ink-ghost:   #9A9188;
   --stencil:     #5B3B63;
   --stencil-deep:#402C46;
   --stencil-tint:#E5DAE8;
@@ -38,8 +40,17 @@
   --ok-tint:     #DCE6DE;
   --line:        #C7BEB2;
   --line-soft:   #DAD3C8;
+  /* scorte — tinte ricavate dalla palette, non un semaforo */
+  --stk-top:#3F6B4E; --stk-top-tint:#DEE7E0;
+  --stk-ok: #4E6640; --stk-ok-tint: #E2E7D9;
+  --stk-low:#8A5A22; --stk-low-tint:#F0E4D2;
+  --stk-out:#9C3B26; --stk-out-tint:#F1DAD2;
   --shadow: 0 1px 2px rgba(27,26,25,.06), 0 8px 24px -12px rgba(27,26,25,.18);
-  --radius: 3px;
+  --shadow-sm: 0 1px 1px rgba(27,26,25,.05);
+  --radius: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --pill: 999px;
   --font-display: 'Fraunces', Georgia, serif;
   --font-body: 'IBM Plex Sans', -apple-system, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
@@ -58,6 +69,9 @@ body{
 }
 h1,h2,h3,.display{font-family:var(--font-display);font-weight:600;letter-spacing:-.01em;color:var(--ink);}
 .mono{font-family:var(--font-mono);}
+.ic{flex:none;display:inline-block;vertical-align:-.18em;}
+.rail-btn .ic,.mag-tab .ic{opacity:.8;}
+.rail-btn.active .ic,.mag-tab.on .ic{opacity:1;}
 a{color:var(--stencil);}
 button{font-family:inherit;}
 ::selection{background:var(--stencil-tint);}
@@ -125,6 +139,11 @@ input[type=text],input[type=date],input[type=tel],input[type=email],select,texta
 }
 input:focus,select:focus,textarea:focus{border-color:var(--stencil);}
 textarea{resize:vertical;min-height:70px;}
+select{
+  appearance:none;-webkit-appearance:none;background-color:#fff;padding-right:38px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2357514B' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9.5l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;background-size:15px;
+}
 
 .check-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--line-soft);}
 .check-row:last-child{border-bottom:none;}
@@ -157,6 +176,7 @@ textarea{resize:vertical;min-height:70px;}
 .btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--line);}
 .btn-ghost:hover{border-color:var(--ink);}
 .btn-sm{padding:7px 12px;font-size:12.5px;}
+@media (max-width:860px){ .btn-sm{padding:9px 14px;} }
 .btn[disabled]{opacity:.4;cursor:not-allowed;}
 .btn-row{display:flex;gap:10px;margin-top:22px;}
 
@@ -188,8 +208,11 @@ textarea{resize:vertical;min-height:70px;}
 .arch-name{flex:1;min-width:0;}
 .arch-name b{font-size:14.5px;}
 .arch-name span{display:block;font-size:12px;color:var(--ink-faint);}
-.arch-empty{padding:48px 20px;text-align:center;color:var(--ink-faint);}
-.arch-empty b{display:block;color:var(--ink);font-family:var(--font-display);font-size:17px;margin-bottom:6px;}
+.arch-empty{padding:42px 24px;text-align:center;color:var(--ink-faint);font-size:13.5px;line-height:1.6;
+  border:1px dashed var(--line);border-radius:var(--radius-md);background:var(--paper-raised);}
+.arch-empty b{display:block;color:var(--ink);font-family:var(--font-display);font-size:17px;margin-bottom:8px;}
+.arch-empty p{margin:0 auto;max-width:360px;}
+.arch-empty .btn{margin-top:16px;}
 
 /* ---------- signature pad ---------- */
 .sigpad-wrap{border:1.5px dashed var(--line);border-radius:var(--radius);background:#fff;position:relative;}
@@ -197,13 +220,26 @@ textarea{resize:vertical;min-height:70px;}
 .sigpad-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:13px;pointer-events:none;}
 
 /* ---------- stepper ---------- */
-.steps{display:flex;gap:6px;margin-bottom:22px;flex-wrap:wrap;}
+.steps{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
 .step-pill{
-  font-family:var(--font-mono);font-size:11px;padding:5px 10px;border-radius:20px;
-  border:1px solid var(--line);color:var(--ink-faint);
+  font-family:var(--font-mono);font-size:11px;padding:7px 11px;border-radius:var(--pill);
+  border:1px solid var(--line);color:var(--ink-faint);background:transparent;cursor:pointer;
+  display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
 }
 .step-pill.on{background:var(--ink);border-color:var(--ink);color:var(--paper);}
 .step-pill.done{border-color:var(--ok);color:var(--ok);}
+.step-pill .ic{opacity:.7;}
+@media (max-width:700px){
+  .steps{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;
+         margin:0 -16px 12px;padding:2px 16px 8px;scroll-snap-type:x proximity;}
+  .steps::-webkit-scrollbar{display:none;}
+  .step-pill{flex:none;scroll-snap-align:center;}
+}
+.step-progress{display:flex;align-items:center;gap:12px;margin:0 0 16px;}
+.step-progress .lbl{font-family:var(--font-mono);font-size:11px;letter-spacing:.05em;
+  color:var(--ink-faint);white-space:nowrap;text-transform:uppercase;}
+.step-progress .track{flex:1;height:3px;background:var(--line-soft);border-radius:var(--pill);overflow:hidden;}
+.step-progress .track i{display:block;height:100%;background:var(--stencil);transition:width .35s ease;}
 
 /* ---------- misc ---------- */
 .section-title{font-size:17px;margin:0 0 4px;}
@@ -268,60 +304,101 @@ textarea{resize:vertical;min-height:70px;}
 /* ---------- magazzino ---------- */
 .inv-form{background:var(--paper);border:1px solid var(--line-soft);border-radius:var(--radius);padding:16px;margin:14px 0;}
 .inv-list{margin-top:14px;display:flex;flex-direction:column;gap:8px;}
-.inv-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line-soft);border-radius:var(--radius);background:#fff;}
+.inv-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;
+  border:1px solid var(--line-soft);border-radius:var(--radius);background:var(--paper-raised);}
 .inv-main{font-size:14px;}
 .inv-sub{display:block;font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);margin-top:3px;}
 .inv-actions{display:flex;gap:6px;flex:none;}
 .inv-select-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line-soft);border-radius:var(--radius);margin-bottom:6px;}
 .inv-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:20px;background:var(--stencil);color:#fff;font-size:12px;margin:3px 4px 0 0;}
-.inv-chip button{all:unset;cursor:pointer;font-weight:700;opacity:.8;}
+.inv-chip button{all:unset;cursor:pointer;display:inline-flex;align-items:center;opacity:.75;}
+.inv-chip button:hover{opacity:1;}
 
 /* ---------- dispensa forniture ---------- */
 .mag-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;}
-.mag-tab{all:unset;cursor:pointer;padding:9px 16px;border-radius:20px;font-size:13.5px;font-weight:500;background:var(--paper-raised);color:var(--ink-soft);border:1px solid var(--line-soft);}
+.mag-tab{all:unset;cursor:pointer;padding:9px 15px;border-radius:var(--pill);font-size:13.5px;font-weight:500;
+  background:var(--paper-raised);color:var(--ink-soft);border:1px solid var(--line-soft);
+  display:inline-flex;align-items:center;gap:7px;}
+.mag-tab:hover{border-color:var(--line);color:var(--ink);}
 .mag-tab.on{background:var(--ink);color:var(--paper);border-color:var(--ink);}
-.disp-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px;}
-.disp-stat{background:var(--ink);color:var(--paper);border-radius:var(--radius);padding:14px 16px;display:flex;flex-direction:column;gap:2px;}
-.disp-stat span{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#B9AFA4;font-family:var(--font-mono);}
-.disp-stat b{font-size:26px;font-family:var(--font-display);line-height:1.1;}
-.disp-stat small{font-size:10.5px;color:#8A8178;font-family:var(--font-mono);}
+.disp-summary{display:grid;grid-template-columns:repeat(3,1fr);margin-bottom:18px;
+  background:var(--ink);color:var(--paper);border-radius:var(--radius-md);overflow:hidden;}
+.disp-stat{padding:13px 15px;display:flex;flex-direction:column;gap:2px;
+  border-right:1px solid rgba(255,255,255,.09);min-width:0;}
+.disp-stat:last-child{border-right:none;}
+.disp-stat span{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#A79D93;font-family:var(--font-mono);}
+.disp-stat b{font-size:23px;font-family:var(--font-display);line-height:1.15;font-weight:600;}
+.disp-stat small{font-size:10px;color:#8A8178;font-family:var(--font-mono);}
 .disp-stat .warn-num{color:var(--flesh);}
-.trend{font-size:14px;}
-.trend-up{color:#E0725E;} .trend-down{color:#7FB77E;} .trend-flat{color:#B9AFA4;}
+.trend{font-size:12px;vertical-align:2px;}
+.trend-up{color:#D98A72;} .trend-down{color:#8FB98C;} .trend-flat{color:#8A8178;}
 .disp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
-.disp-card{background:#fff;border:1px solid var(--line-soft);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;gap:12px;}
-.disp-card-top{display:flex;gap:12px;align-items:center;}
-.disp-thumb{width:56px;height:56px;border-radius:12px;background:var(--paper);flex:none;display:flex;align-items:center;justify-content:center;overflow:hidden;}
-.disp-thumb.sm{width:44px;height:44px;}
+.disp-card{background:var(--paper-raised);border:1px solid var(--line-soft);border-radius:var(--radius-md);
+  padding:14px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow-sm);}
+.disp-card.is-low{border-color:#DDCBAB;}
+.disp-card.is-out{border-color:#DEBBAF;background:#FBF3EF;}
+.disp-card-top{display:flex;gap:12px;align-items:flex-start;}
+.disp-name-row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+.disp-thumb{width:56px;height:56px;border-radius:var(--radius-lg);background:var(--paper);flex:none;
+  display:flex;align-items:center;justify-content:center;overflow:hidden;border:1px solid var(--line-soft);}
+.disp-thumb.sm{width:44px;height:44px;border-radius:10px;}
 .disp-thumb img{width:100%;height:100%;object-fit:contain;}
 .disp-info{flex:1;min-width:0;}
-.disp-name{font-family:var(--font-display);font-weight:600;font-size:15px;line-height:1.2;}
-.disp-cat{font-size:11.5px;color:var(--ink-faint);font-family:var(--font-mono);margin:1px 0 7px;}
+.disp-name{font-family:var(--font-display);font-weight:600;font-size:15px;line-height:1.25;
+  flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.disp-cat{font-size:11.5px;color:var(--ink-faint);font-family:var(--font-mono);margin:1px 0 8px;
+  text-overflow:ellipsis;overflow:hidden;white-space:nowrap;}
 .disp-qty-row{display:flex;align-items:center;gap:10px;}
-.disp-qty{font-size:22px;font-family:var(--font-display);font-weight:700;color:var(--ink);min-width:24px;}
-.disp-bar{flex:1;height:8px;border-radius:6px;background:var(--line);overflow:hidden;}
-.disp-bar i{display:block;height:100%;border-radius:6px;transition:width .3s;}
-.disp-bar .stk-top{background:#6FA96C;} .disp-bar .stk-ok{background:#8FBF6E;}
-.disp-bar .stk-low{background:#E0A34E;} .disp-bar .stk-out{background:#D9574B;}
-.disp-card-bot{display:flex;justify-content:space-between;align-items:center;gap:8px;}
-.disp-mov{display:flex;gap:5px;align-items:center;}
-.disp-step{all:unset;cursor:pointer;width:30px;height:30px;border-radius:8px;background:var(--ink);color:var(--paper);text-align:center;font-size:18px;line-height:30px;font-weight:600;}
-.disp-step:active{opacity:.7;}
-.disp-icon-btn{all:unset;cursor:pointer;width:30px;height:30px;border-radius:8px;background:var(--paper);color:var(--ink-soft);text-align:center;font-size:13px;line-height:30px;border:1px solid var(--line-soft);}
-.disp-badge{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.04em;padding:5px 10px;border-radius:20px;color:#fff;flex:none;}
-.disp-badge.stk-top{background:#6FA96C;} .disp-badge.stk-ok{background:#8FBF6E;}
-.disp-badge.stk-low{background:#E0A34E;} .disp-badge.stk-out{background:#D9574B;}
-@media (max-width:600px){ .disp-summary{grid-template-columns:1fr;} }
+.disp-qty{font-size:22px;font-family:var(--font-display);font-weight:700;color:var(--ink);min-width:24px;
+  font-variant-numeric:tabular-nums;}
+.disp-bar{flex:1;height:6px;border-radius:var(--pill);background:var(--paper-sunk);position:relative;}
+.disp-bar i{display:block;height:100%;border-radius:var(--pill);transition:width .3s ease;}
+.disp-bar .tick{position:absolute;top:-3px;bottom:-3px;width:1.5px;background:var(--ink-ghost);opacity:.65;}
+.disp-bar .stk-top{background:var(--stk-top);} .disp-bar .stk-ok{background:var(--stk-ok);}
+.disp-bar .stk-low{background:var(--stk-low);} .disp-bar .stk-out{background:var(--stk-out);}
+.disp-thresh{font-family:var(--font-mono);font-size:10.5px;color:var(--ink-faint);margin-top:6px;letter-spacing:.02em;}
+.disp-card-bot{display:flex;align-items:center;gap:8px;
+  padding-top:11px;border-top:1px solid var(--line-soft);}
+.disp-mov{display:flex;gap:7px;align-items:center;}
+.disp-qtybtns{display:inline-flex;border:1px solid var(--ink);border-radius:var(--radius-md);overflow:hidden;}
+.disp-step{all:unset;cursor:pointer;width:38px;height:36px;display:inline-flex;align-items:center;
+  justify-content:center;color:var(--ink);background:transparent;}
+.disp-step + .disp-step{border-left:1px solid var(--ink);}
+.disp-step:hover{background:rgba(27,26,25,.06);}
+.disp-step:active{background:var(--ink);color:var(--paper);}
+.disp-icon-btn{all:unset;cursor:pointer;width:36px;height:36px;border-radius:var(--radius-md);
+  display:inline-flex;align-items:center;justify-content:center;
+  color:var(--ink-faint);background:transparent;border:1px solid var(--line-soft);}
+.disp-icon-btn:hover{color:var(--ink);border-color:var(--line);background:var(--paper);}
+.disp-icon-btn.danger:hover{color:var(--warn);border-color:#DEBBAF;background:var(--warn-tint);}
+.disp-badge{font-family:var(--font-mono);font-size:9.5px;font-weight:600;letter-spacing:.09em;
+  padding:5px 9px;border-radius:3px;flex:none;text-transform:uppercase;
+  border:1px solid currentColor;background:transparent;position:relative;overflow:hidden;}
+.disp-badge::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.1;
+  background:repeating-linear-gradient(115deg,currentColor 0 1px,transparent 1px 3px);}
+.disp-badge.stk-top{color:var(--stk-top);background:var(--stk-top-tint);}
+.disp-badge.stk-ok{color:var(--stk-ok);background:var(--stk-ok-tint);}
+.disp-badge.stk-low{color:var(--stk-low);background:var(--stk-low-tint);}
+.disp-badge.stk-out{color:var(--stk-out);background:var(--stk-out-tint);}
+@media (max-width:600px){
+  .disp-summary{grid-template-columns:1fr 1fr;}
+  .disp-stat:nth-child(2){border-right:none;}
+  .disp-stat:nth-child(3){grid-column:1 / -1;border-top:1px solid rgba(255,255,255,.09);border-right:none;}
+  .disp-mov{gap:6px;}
+}
 
 /* ---------- premium gate ---------- */
 .premium-card{max-width:560px;margin:20px auto;background:var(--ink);color:var(--paper);border-radius:calc(var(--radius) * 1.5);padding:36px 30px;text-align:center;position:relative;overflow:hidden;}
 .premium-badge{position:absolute;top:18px;right:-34px;background:var(--flesh);color:#fff;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;padding:5px 40px;transform:rotate(45deg);}
-.premium-lock{font-size:44px;margin-bottom:12px;}
+.premium-lock{width:54px;height:54px;margin:0 auto 14px;border-radius:50%;color:var(--flesh);
+  border:1.5px solid rgba(201,143,108,.4);background:rgba(201,143,108,.1);
+  display:flex;align-items:center;justify-content:center;}
 .premium-title{color:var(--paper);font-size:22px;margin:0 0 12px;}
 .premium-desc{color:#C4BBB0;font-size:14px;line-height:1.6;margin:0 auto 22px;max-width:440px;}
 .premium-features{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 auto 24px;max-width:440px;text-align:left;}
-.pf{background:rgba(255,255,255,.06);border-radius:10px;padding:12px 14px;font-size:13px;display:flex;align-items:center;gap:8px;}
-.pf span{font-size:18px;}
+.pf{background:rgba(255,255,255,.06);border-radius:var(--radius-md);padding:12px 14px;font-size:13px;
+  display:flex;align-items:center;gap:10px;line-height:1.35;}
+.pf .ic{color:var(--flesh);}
 .premium-cta{background:rgba(201,143,108,.15);border:1px solid var(--flesh);border-radius:12px;padding:16px;margin-bottom:20px;}
 .premium-cta p{margin:0;font-size:14px;line-height:1.5;}
 .premium-unlock{border-top:1px solid rgba(255,255,255,.1);padding-top:18px;}
@@ -364,7 +441,9 @@ textarea{resize:vertical;min-height:70px;}
 /* tour */
 .tour-card{position:relative;}
 .tour-skip{position:absolute;top:-6px;right:-6px;all:unset;cursor:pointer;color:#8A8178;font-size:12.5px;padding:6px 8px;}
-.tour-emoji{font-size:56px;margin-bottom:14px;animation:logoIn .5s ease;}
+.tour-icon{width:66px;height:66px;margin:0 auto 16px;border-radius:50%;color:var(--flesh);
+  background:rgba(201,143,108,.12);border:1px solid rgba(201,143,108,.34);
+  display:flex;align-items:center;justify-content:center;animation:logoIn .5s ease;}
 .tour-body{color:#CFC7BC;font-size:14.5px;line-height:1.6;margin:0 0 22px;}
 .tour-dots{display:flex;gap:8px;justify-content:center;margin-bottom:20px;}
 .tour-dot{width:8px;height:8px;border-radius:50%;background:#4a443d;transition:all .2s;}
@@ -376,16 +455,24 @@ textarea{resize:vertical;min-height:70px;}
   .rail{position:fixed;left:0;top:0;bottom:0;transform:translateX(-100%);transition:transform .25s ease;z-index:41;}
   .rail.open{transform:translateX(0);box-shadow:20px 0 40px rgba(0,0,0,.35);}
   .main{padding:20px 16px 60px;}
-  .mobile-topbar{display:flex !important;}
+  .mobile-topbar{
+    display:flex !important;position:sticky;top:0;z-index:30;
+    margin:-20px -16px 16px;padding:10px 16px;
+    background:rgba(237,232,226,.92);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line-soft);
+  }
+  .mobile-topbar .mt-name{font-family:var(--font-mono);font-size:11px;letter-spacing:.05em;
+    color:var(--ink-faint);text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 }
-.mobile-topbar{display:none;align-items:center;gap:10px;margin-bottom:18px;}
+.mobile-topbar{display:none;align-items:center;gap:12px;margin-bottom:18px;}
 .rail-backdrop{
   display:none;position:fixed;inset:0;background:rgba(20,18,16,.45);z-index:40;
 }
 .rail-backdrop.show{display:block;}
 .rail-close{display:none;}
 @media (max-width:860px){
-  .rail-close{display:block;all:unset;cursor:pointer;color:#B9AFA4;font-size:13px;margin-left:auto;}
+  .rail-close{all:unset;display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+    color:#B9AFA4;font-size:13px;margin-left:auto;}
 }
 </style>
 </head>
@@ -533,6 +620,52 @@ const STATUS = {
   archiviato: { label: "Archiviato",       cls: "stamp-archiviato" },
 };
 const CLIENT_LAST_STEP = 6; // il cliente compila i passi 1-6; 7-8 sono fase studio
+
+/* ---------- set icone (SVG inline, tratto 1.6, griglia 24) ----------
+   Disegnate per InkConsent: niente emoji, resa identica su ogni device.
+   Uso: icon("trash", 16). Il colore segue currentColor.
+   ------------------------------------------------------------------- */
+const ICON_PATHS = {
+  menu:      '<path d="M3.5 7h17M3.5 12h17M3.5 17h17"/>',
+  close:     '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+  plus:      '<path d="M12 5.5v13M5.5 12h13"/>',
+  minus:     '<path d="M5.5 12h13"/>',
+  check:     '<path d="M4.5 12.5l5 5 10-11"/>',
+  arrowLeft: '<path d="M19 12H5.5M11 6l-5.5 6L11 18"/>',
+  arrowRight:'<path d="M5 12h13.5M13 6l5.5 6L13 18"/>',
+  chevronDown:'<path d="M6 9.5l6 6 6-6"/>',
+  clipboard: '<rect x="4.5" y="5" width="15" height="16" rx="2.5"/><path d="M9 5V4.2A1.7 1.7 0 0 1 10.7 2.5h2.6A1.7 1.7 0 0 1 15 4.2V5"/><path d="M8.5 11h7M8.5 15h4.5"/>',
+  book:      '<path d="M12 6.6C10.4 5 8.4 4.3 5 4.5v13c3.4-.2 5.4.5 7 2 1.6-1.5 3.6-2.2 7-2v-13c-3.4-.2-5.4.5-7 2z"/><path d="M12 6.6v12.9"/>',
+  box:       '<path d="M3.6 7.6 12 3.2l8.4 4.4v8.8L12 20.8l-8.4-4.4z"/><path d="m3.6 7.6 8.4 4.4 8.4-4.4M12 12v8.8"/>',
+  pen:       '<path d="M4.2 19.8l4.6-1.1L19 8.5a2.15 2.15 0 0 0-3-3L5.3 15.2z"/><path d="m14.7 7.8 3 3"/>',
+  chat:      '<path d="M20.3 12.2a7.6 7.6 0 0 1-11 6.8l-4.6 1.4 1.4-4.5a7.6 7.6 0 1 1 14.2-3.7z"/>',
+  gear:      '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.9v2.3M12 18.8v2.3M21.1 12h-2.3M5.2 12H2.9M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6M18.4 18.4l-1.6-1.6M7.2 7.2 5.6 5.6"/>',
+  trash:     '<path d="M4.6 6.5h14.8M9.6 6.5V4.9a1.4 1.4 0 0 1 1.4-1.4h2a1.4 1.4 0 0 1 1.4 1.4v1.6"/><path d="m6.6 6.5.9 13.1a1.6 1.6 0 0 0 1.6 1.4h5.8a1.6 1.6 0 0 0 1.6-1.4l.9-13.1"/><path d="M10.4 10.6v6.6M13.6 10.6v6.6"/>',
+  restock:   '<path d="M12 3v9.6M8.4 9.4 12 13l3.6-3.6"/><path d="M4.2 15v3.4a2.4 2.4 0 0 0 2.4 2.4h10.8a2.4 2.4 0 0 0 2.4-2.4V15"/>',
+  printer:   '<path d="M7 9.5V4h10v5.5"/><rect x="3.5" y="9.5" width="17" height="7.5" rx="2.2"/><path d="M7 14h10v6.5H7z"/><path d="M16.8 12.6h.6"/>',
+  download:  '<path d="M12 3.5v11M8 10.6l4 4 4-4"/><path d="M4.5 17.6v1.4a2.2 2.2 0 0 0 2.2 2.2h10.6a2.2 2.2 0 0 0 2.2-2.2v-1.4"/>',
+  upload:    '<path d="M12 14.5v-11M8 7.4l4-4 4 4"/><path d="M4.5 17.6v1.4a2.2 2.2 0 0 0 2.2 2.2h10.6a2.2 2.2 0 0 0 2.2-2.2v-1.4"/>',
+  lock:      '<rect x="4.6" y="10" width="14.8" height="11" rx="2.6"/><path d="M8 10V7.6a4 4 0 0 1 8 0V10"/><path d="M12 14.6v2.2"/>',
+  copy:      '<rect x="8.6" y="8.6" width="11.8" height="11.8" rx="2.2"/><path d="M15.4 5.6V4.8a1.2 1.2 0 0 0-1.2-1.2H4.8a1.2 1.2 0 0 0-1.2 1.2v9.4a1.2 1.2 0 0 0 1.2 1.2h.8"/>',
+  basket:    '<path d="M3.6 9.6h16.8l-1.6 9.1a2.1 2.1 0 0 1-2.1 1.7H7.3a2.1 2.1 0 0 1-2.1-1.7z"/><path d="M8.6 9.6 11 3.6M15.4 9.6 13 3.6"/><path d="M9.6 13.4v3.2M14.4 13.4v3.2"/>',
+  droplet:   '<path d="M12 3.2s6 6.5 6 10.4a6 6 0 1 1-12 0C6 9.7 12 3.2 12 3.2z"/><path d="M9.2 14.2a2.8 2.8 0 0 0 2.8 2.8"/>',
+  cartridge: '<rect x="8.8" y="3.4" width="6.4" height="9.2" rx="1.8"/><path d="M10.4 16h3.2M12 12.6V21"/>',
+  pin:       '<path d="M12 20.8s6.4-6.1 6.4-10.4a6.4 6.4 0 1 0-12.8 0C5.6 14.7 12 20.8 12 20.8z"/><circle cx="12" cy="10.3" r="2.3"/>',
+  doc:       '<path d="M13.6 3.2H7.4a2.2 2.2 0 0 0-2.2 2.2v13.2a2.2 2.2 0 0 0 2.2 2.2h9.2a2.2 2.2 0 0 0 2.2-2.2V8.4z"/><path d="M13.6 3.2v5.2h5.2"/><path d="M8.8 13.4h6.4M8.8 16.8h4.2"/>',
+  folder:    '<path d="M3.4 6.6a2 2 0 0 1 2-2h3.5l2 2.6h7.7a2 2 0 0 1 2 2v8.6a2 2 0 0 1-2 2H5.4a2 2 0 0 1-2-2z"/>',
+  signature: '<path d="M3.4 17.4c2.8 0 3.4-9.6 5.6-9.6 1.7 0 1 7.2 2.8 7.2 1.4 0 1.8-4.4 3.4-4.4 1.3 0 1.2 3.2 2.4 3.2.9 0 1.4-1 1.4-1"/><path d="M3.6 20.6h16.8"/>',
+  alert:     '<path d="M12 3.9 20.8 19.6H3.2z"/><path d="M12 10v4.3M12 17.2h.01"/>',
+  search:    '<circle cx="10.6" cy="10.6" r="6.6"/><path d="m15.4 15.4 5 5"/>',
+  shield:    '<path d="M12 3 20 6v5.8c0 4.6-3.3 8.2-8 9.7-4.7-1.5-8-5.1-8-9.7V6z"/>'
+};
+function icon(name, size){
+  const p = ICON_PATHS[name];
+  if (!p) return "";
+  const s = size || 18;
+  return '<svg class="ic" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" '
+       + 'stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" '
+       + 'aria-hidden="true" focusable="false">' + p + '</svg>';
+}
 
 /* ---------- utils ---------- */
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -839,10 +972,10 @@ function addMovimento(id, delta, prezzo){
 /* stato scorta in base a quantità vs soglia riordino */
 function statoScorta(it){
   const q = it.quantita||0, s = it.soglia||0;
-  if (q <= 0) return { key:"esaurito", label:"IN ESAURIMENTO", cls:"stk-out" };
-  if (q <= s) return { key:"bassa", label:"BASSA", cls:"stk-low" };
-  if (s > 0 && q <= s*2) return { key:"buono", label:"BUONO", cls:"stk-ok" };
-  return { key:"ottimo", label:"OTTIMO", cls:"stk-top" };
+  if (q <= 0) return { key:"esaurito", label:"Esaurito", cls:"stk-out" };
+  if (q <= s) return { key:"bassa", label:"Riordina", cls:"stk-low" };
+  if (s > 0 && q <= s*2) return { key:"buono", label:"In riserva", cls:"stk-ok" };
+  return { key:"ottimo", label:"Coperto", cls:"stk-top" };
 }
 /* spesa in un dato mese (YYYY-MM) sommando i carichi con prezzo */
 function spesaMese(ym){
@@ -1135,10 +1268,10 @@ function render(){
 const TOUR_KEY = "inkconsent_tour_v1"; // { dontShow: true }
 function tourDismissed(){ try { return !!(JSON.parse(localStorage.getItem(TOUR_KEY))||{}).dontShow; } catch(e){ return false; } }
 const TOUR_SLIDES = [
-  { emoji: "🖊️", title: "Benvenuto in InkConsent", body: "Il consenso informato del tuo studio, digitale. Compila, firma e archivia in pochi minuti, anche offline." },
-  { emoji: "📋", title: "Prima il cliente, poi tu", body: "Il cliente compila i suoi dati e firma (anche da casa col link). Tu completi i dati tecnici della seduta e controfirmi in studio." },
-  { emoji: "💬", title: "Porta i clienti in studio", body: "Condividi il link pubblico: il cliente racconta il tatuaggio e segna la zona sul corpo. Tu lo ricontatti su WhatsApp con un tap e fissi la consulenza." },
-  { emoji: "🔒", title: "Tutto resta nel tuo dispositivo", body: "Niente cloud, niente dati sparsi. Proteggi l'accesso con una password e fai backup quando vuoi, anche cifrati." },
+  { ico: "pen", title: "Benvenuto in InkConsent", body: "Il consenso informato del tuo studio, digitale. Compila, firma e archivia in pochi minuti, anche offline." },
+  { ico: "clipboard", title: "Prima il cliente, poi tu", body: "Il cliente compila i suoi dati e firma (anche da casa col link). Tu completi i dati tecnici della seduta e controfirmi in studio." },
+  { ico: "chat", title: "Porta i clienti in studio", body: "Condividi il link pubblico: il cliente racconta il tatuaggio e segna la zona sul corpo. Tu lo ricontatti su WhatsApp con un tap e fissi la consulenza." },
+  { ico: "lock", title: "Tutto resta nel tuo dispositivo", body: "Niente cloud, niente dati sparsi. Proteggi l'accesso con una password e fai backup quando vuoi, anche cifrati." },
 ];
 function renderTour(){
   const i = state.tourStep;
@@ -1148,7 +1281,7 @@ function renderTour(){
   <div class="lock-wrap">
     <div class="lock-card tour-card">
       <button class="tour-skip" data-action="tour-skip">Salta</button>
-      <div class="tour-emoji">${s.emoji}</div>
+      <div class="tour-icon">${icon(s.ico,30)}</div>
       <h2 class="lock-title">${esc(s.title)}</h2>
       <p class="tour-body">${esc(s.body)}</p>
       <div class="tour-dots">
@@ -1158,8 +1291,8 @@ function renderTour(){
         <label class="tour-check"><input type="checkbox" ${state.tourDontShow?'checked':''} data-action="tour-toggle-dont"> Non mostrare più all'avvio</label>
       ` : ""}
       <div class="btn-row" style="justify-content:center;">
-        ${i>0 ? `<button class="btn btn-ghost" data-action="tour-prev">← Indietro</button>` : ""}
-        <button class="btn btn-accent" data-action="${last?'tour-finish':'tour-next'}">${last?'Inizia':'Avanti →'}</button>
+        ${i>0 ? `<button class="btn btn-ghost" data-action="tour-prev">${icon("arrowLeft",15)} Indietro</button>` : ""}
+        <button class="btn btn-accent" data-action="${last?'tour-finish':'tour-next'}">${last ? "Inizia" : 'Avanti ' + icon("arrowRight",15)}</button>
       </div>
     </div>
   </div>`;
@@ -1176,7 +1309,7 @@ function renderFirstRunSetup(){
         <h2 class="lock-title">Codice di recupero</h2>
         <p class="lock-sub">Se dimentichi la password, questo codice è l'unico modo per rientrare senza un backup. Scrivilo e conservalo in un posto sicuro.</p>
         <div class="recovery-code">${esc(state.recoveryCode)}</div>
-        <button class="btn btn-ghost btn-sm" data-action="copy-recovery" style="margin-bottom:18px;">📋 Copia il codice</button>
+        <button class="btn btn-ghost btn-sm" data-action="copy-recovery" style="margin-bottom:18px;">${icon("copy",15)} Copia il codice</button>
         <label class="recovery-check">
           <input type="checkbox" data-action="toggle-recovery-saved" ${state.recoverySaved?"checked":""}>
           <span>Ho annotato il codice in un posto sicuro</span>
@@ -1243,7 +1376,7 @@ function renderLockScreen(){
         <div class="btn-row" style="justify-content:center;">
           <button class="btn btn-accent" data-action="recovery-submit">Verifica codice</button>
         </div>
-        <p class="lock-hint"><a href="#" data-action="cancel-recovery">← Torna all'accesso</a></p>
+        <p class="lock-hint"><a href="#" data-action="cancel-recovery">${icon("arrowLeft",14)} Torna all'accesso</a></p>
       </div>
     </div>`;
   }
@@ -1367,21 +1500,22 @@ function renderStudioShell(){
           <div class="rail-brand-name">${esc(STUDIO_CONFIG.studioName)}</div>
           <div class="rail-brand-sub">${esc(STUDIO_CONFIG.studioCity)}</div>
         </div>
-        <button class="rail-close" data-action="toggle-rail">✕ Chiudi</button>
+        <button class="rail-close" data-action="toggle-rail">${icon("close",15)} Chiudi</button>
       </div>
       <div class="rail-nav">
-        <button class="rail-btn ${state.view==='archive'?'active':''}" data-action="nav" data-view="archive">📋 Archivio consensi</button>
-        <button class="rail-btn ${state.view==='registro'?'active':''}" data-action="nav" data-view="registro">📖 Registro</button>
-        <button class="rail-btn ${state.view==='magazzino'?'active':''}" data-action="nav" data-view="magazzino">🧴 Magazzino</button>
-        <button class="rail-btn ${state.view==='form'?'active':''}" data-action="new-session">✎ Nuovo consenso</button>
-        <button class="rail-btn ${state.view==='leads'||state.view==='lead-detail'?'active':''}" data-action="nav" data-view="leads">💬 Richieste preventivo${nuoveLeads ? `<span class="nav-badge">${nuoveLeads}</span>` : ""}</button>
-        <button class="rail-btn ${state.view==='settings'?'active':''}" data-action="nav" data-view="settings">⚙ Impostazioni studio</button>
+        <button class="rail-btn ${state.view==='archive'?'active':''}" data-action="nav" data-view="archive">${icon("clipboard",17)} Archivio consensi</button>
+        <button class="rail-btn ${state.view==='registro'?'active':''}" data-action="nav" data-view="registro">${icon("book",17)} Registro</button>
+        <button class="rail-btn ${state.view==='magazzino'?'active':''}" data-action="nav" data-view="magazzino">${icon("box",17)} Magazzino</button>
+        <button class="rail-btn ${state.view==='form'?'active':''}" data-action="new-session">${icon("pen",17)} Nuovo consenso</button>
+        <button class="rail-btn ${state.view==='leads'||state.view==='lead-detail'?'active':''}" data-action="nav" data-view="leads">${icon("chat",17)} Richieste preventivo${nuoveLeads ? `<span class="nav-badge">${nuoveLeads}</span>` : ""}</button>
+        <button class="rail-btn ${state.view==='settings'?'active':''}" data-action="nav" data-view="settings">${icon("gear",17)} Impostazioni studio</button>
       </div>
       <div class="rail-foot">InkConsent · engine v1.0<br>Motore condiviso, personalizzabile per studio.</div>
     </nav>
     <div class="main">
       <div class="mobile-topbar">
-        <button class="btn btn-ghost btn-sm" data-action="toggle-rail">☰ Menu</button>
+        <button class="btn btn-ghost btn-sm" data-action="toggle-rail">${icon("menu",16)} Menu</button>
+        <span class="mt-name">${esc(STUDIO_CONFIG.studioName)}</span>
       </div>
       <div id="studio-main">${renderStudioView()}</div>
     </div>
@@ -1405,7 +1539,7 @@ function renderPremiumGate(){
   <div class="main-inner">
     <div class="premium-card">
       <div class="premium-badge">PREMIUM</div>
-      <div class="premium-lock">🔒</div>
+      <div class="premium-lock">${icon("lock",26)}</div>
       <h2 class="premium-title">La gestione dei consensi informati è in arrivo</h2>
       <p class="premium-desc">
         Compilazione guidata, firma del cliente anche da remoto, controfirma in studio,
@@ -1413,10 +1547,10 @@ function renderPremiumGate(){
         Tutto conforme e a norma, offline e sul tuo dispositivo.
       </p>
       <div class="premium-features">
-        <div class="pf"><span>📝</span> Consenso in due fasi (cliente + studio)</div>
-        <div class="pf"><span>✍️</span> Firma digitale e controfirma</div>
-        <div class="pf"><span>📂</span> Archivio + registro a norma</div>
-        <div class="pf"><span>📄</span> Esportazione PDF professionale</div>
+        <div class="pf">${icon("clipboard",18)} Consenso in due fasi (cliente + studio)</div>
+        <div class="pf">${icon("signature",18)} Firma digitale e controfirma</div>
+        <div class="pf">${icon("folder",18)} Archivio + registro a norma</div>
+        <div class="pf">${icon("doc",18)} Esportazione PDF professionale</div>
       </div>
       <div class="premium-cta">
         <p><b>Vuoi attivarla per il tuo studio?</b><br>Contatta ${esc(STUDIO_CONFIG.studioName)} per il pacchetto completo.</p>
@@ -1471,7 +1605,7 @@ function renderRegistro(){
   return `
   <div class="topbar">
     <div><h1>Registro consensi</h1><p>${archived.length} consensi archiviati · pronto per la stampa in caso di controllo</p></div>
-    <button class="btn btn-primary btn-sm no-print" data-action="print-registro">🖨 Stampa registro</button>
+    <button class="btn btn-primary btn-sm no-print" data-action="print-registro">${icon("printer",16)} Stampa registro</button>
   </div>
   <div class="main-inner">
     <div class="card" id="registro-print">
@@ -1496,28 +1630,37 @@ function renderFornCard(it){
   const q = it.quantita||0, soglia = it.soglia||0;
   const pct = soglia > 0 ? Math.max(6, Math.min(100, (q/(soglia*3))*100)) : (q>0?100:6);
   const img = it.foto || cat.icon;
+  const cardCls = st.key === "esaurito" ? " is-out" : (st.key === "bassa" ? " is-low" : "");
   return `
-  <div class="disp-card">
+  <div class="disp-card${cardCls}">
     <div class="disp-card-top">
       <div class="disp-thumb"><img src="${img}" alt="" onerror="this.style.opacity=0"></div>
       <div class="disp-info">
-        <div class="disp-name">${esc(it.nome||"—")}</div>
+        <div class="disp-name-row">
+          <span class="disp-name">${esc(it.nome||"—")}</span>
+          <span class="disp-badge ${st.cls}">${st.label}</span>
+        </div>
         <div class="disp-cat">${esc(cat.label)}</div>
         <div class="disp-qty-row">
           <span class="disp-qty">${q}</span>
-          <div class="disp-bar"><i class="${st.cls}" style="width:${pct}%"></i></div>
+          <div class="disp-bar">
+            <i class="${st.cls}" style="width:${pct}%"></i>
+            ${soglia > 0 ? `<span class="tick" style="left:33.3%" title="soglia di riordino"></span>` : ""}
+          </div>
         </div>
+        <div class="disp-thresh">${soglia > 0 ? `riordina sotto ${soglia}` : `soglia di riordino non impostata`}</div>
       </div>
     </div>
     <div class="disp-card-bot">
       <div class="disp-mov">
-        <button class="disp-step" data-action="forn-minus" data-id="${it.id}" title="Consumato">−</button>
-        <button class="disp-step" data-action="forn-plus" data-id="${it.id}" title="Aggiunto">+</button>
-        <button class="disp-icon-btn" data-action="forn-load" data-id="${it.id}" title="Registra acquisto con prezzo">⟳</button>
-        <button class="disp-icon-btn" data-action="forn-edit" data-id="${it.id}" title="Modifica">✎</button>
-        <button class="disp-icon-btn" data-action="forn-delete" data-id="${it.id}" title="Elimina">🗑</button>
+        <div class="disp-qtybtns">
+          <button class="disp-step" data-action="forn-minus" data-id="${it.id}" title="Ne ho consumato uno" aria-label="Togli un pezzo">${icon("minus",16)}</button>
+          <button class="disp-step" data-action="forn-plus" data-id="${it.id}" title="Ne ho aggiunto uno" aria-label="Aggiungi un pezzo">${icon("plus",16)}</button>
+        </div>
+        <button class="disp-icon-btn" data-action="forn-load" data-id="${it.id}" title="Registra un acquisto con il prezzo" aria-label="Registra acquisto">${icon("restock",16)}</button>
+        <button class="disp-icon-btn" data-action="forn-edit" data-id="${it.id}" title="Modifica articolo" aria-label="Modifica articolo">${icon("pen",16)}</button>
+        <button class="disp-icon-btn danger" data-action="forn-delete" data-id="${it.id}" title="Elimina articolo" aria-label="Elimina articolo">${icon("trash",16)}</button>
       </div>
-      <span class="disp-badge ${st.cls}">${st.label}</span>
     </div>
   </div>`;
 }
@@ -1585,6 +1728,11 @@ function renderMagazzino(){
   const prevYm = new Date(now.getFullYear(), now.getMonth()-1, 1).toISOString().slice(0,7);
   const totPezzi = forniture.reduce((a,it) => a + (it.quantita||0), 0);
   const bassaCount = forniture.filter(it => { const s = statoScorta(it).key; return s === "bassa" || s === "esaurito"; }).length;
+  // in cima quello che sta finendo: il riepilogo e la lista raccontano la stessa cosa
+  const PRIO = { esaurito:0, bassa:1, buono:2, ottimo:3 };
+  const fornOrd = forniture.slice().sort((a,b) =>
+    (PRIO[statoScorta(a).key] - PRIO[statoScorta(b).key]) ||
+    String(a.nome||"").localeCompare(String(b.nome||""), "it"));
   const spesaOra = spesaMese(ym), spesaPrev = spesaMese(prevYm);
   const spesaTrend = spesaPrev === 0 ? (spesaOra > 0 ? "up" : "flat") : (spesaOra > spesaPrev ? "up" : (spesaOra < spesaPrev ? "down" : "flat"));
   const catList = CATEGORIE_FORNITURE;
@@ -1595,15 +1743,15 @@ function renderMagazzino(){
   </div>
   <div class="main-inner">
     <div class="mag-tabs">
-      <button class="mag-tab ${tab==='forniture'?'on':''}" data-action="mag-tab" data-t="forniture">🧺 Forniture</button>
-      <button class="mag-tab ${tab==='inchiostri'?'on':''}" data-action="mag-tab" data-t="inchiostri">🎨 Inchiostri</button>
-      <button class="mag-tab ${tab==='aghi'?'on':''}" data-action="mag-tab" data-t="aghi">📍 Aghi</button>
+      <button class="mag-tab ${tab==='forniture'?'on':''}" data-action="mag-tab" data-t="forniture">${icon("basket",16)} Forniture</button>
+      <button class="mag-tab ${tab==='inchiostri'?'on':''}" data-action="mag-tab" data-t="inchiostri">${icon("droplet",16)} Inchiostri</button>
+      <button class="mag-tab ${tab==='aghi'?'on':''}" data-action="mag-tab" data-t="aghi">${icon("cartridge",16)} Aghi</button>
     </div>
 
     ${tab === "forniture" ? `
       <div class="disp-summary">
-        <div class="disp-stat"><span>Totale materiale</span><b>${totPezzi}</b></div>
-        <div class="disp-stat"><span>Scorta bassa</span><b class="${bassaCount>0?'warn-num':''}">${bassaCount}</b></div>
+        <div class="disp-stat"><span>Pezzi in dispensa</span><b>${totPezzi}</b></div>
+        <div class="disp-stat"><span>Da riordinare</span><b class="${bassaCount>0?'warn-num':''}">${bassaCount}</b></div>
         <div class="disp-stat"><span>Spesa mese</span><b>€ ${spesaOra.toFixed(0)} <span class="trend trend-${spesaTrend}">${spesaTrend==='up'?'▲':spesaTrend==='down'?'▼':'—'}</span></b><small>prec. € ${spesaPrev.toFixed(0)}</small></div>
       </div>
 
@@ -1616,8 +1764,8 @@ function renderMagazzino(){
 
       ${forniture.length ? `
         <div class="disp-grid">
-          ${forniture.map(it => renderFornCard(it)).join("")}
-        </div>` : (!state.showFornForm ? `<div class="arch-empty"><b>Dispensa vuota</b>Aggiungi guanti, pellicole, disinfettanti e tutto il resto per tenere sotto controllo scorte e spese.</div>` : "")}
+          ${fornOrd.map(it => renderFornCard(it)).join("")}
+        </div>` : (!state.showFornForm ? `<div class="arch-empty"><b>La dispensa è vuota</b><p>Aggiungi guanti, pellicole, saponi e disinfettanti: l'app tiene il conto dei pezzi, ti avvisa quando scendono sotto soglia e somma la spesa del mese.</p><button class="btn btn-accent btn-sm" data-action="forn-new">${icon("plus",15)} Aggiungi il primo articolo</button></div>` : "")}
     ` : ""}
 
     ${tab === "inchiostri" ? `
@@ -2162,8 +2310,8 @@ function renderLeadStep3(){
     <button class="chip ${leadDraft.genere==='femminile'?'on':''}" data-action="set-genere" data-g="femminile">Corpo femminile</button>
   </div>
   <div class="gender-toggle" style="margin-top:8px;">
-    <button class="chip ${sm==='pin'?'on':''}" data-action="set-segnamode" data-m="pin">📍 Punto</button>
-    <button class="chip ${sm==='disegno'?'on':''}" data-action="set-segnamode" data-m="disegno">✏️ Disegna</button>
+    <button class="chip ${sm==='pin'?'on':''}" data-action="set-segnamode" data-m="pin">${icon("pin",15)} Punto</button>
+    <button class="chip ${sm==='disegno'?'on':''}" data-action="set-segnamode" data-m="disegno">${icon("pen",15)} Disegna</button>
     <button class="chip" data-action="clear-sagoma">Cancella</button>
   </div>
   <div class="body-pair">
@@ -2205,8 +2353,8 @@ function renderLeadNav(step){
   const isLast = step === 4;
   return `
   <div class="btn-row">
-    ${step > 1 ? `<button class="btn btn-ghost" data-action="lead-prev">← Indietro</button>` : ""}
-    <button class="btn btn-accent" data-action="${isLast ? "lead-submit" : "lead-next"}">${isLast ? "Invia richiesta" : "Avanti →"}</button>
+    ${step > 1 ? `<button class="btn btn-ghost" data-action="lead-prev">${icon("arrowLeft",15)} Indietro</button>` : ""}
+    <button class="btn btn-accent" data-action="${isLast ? "lead-submit" : "lead-next"}">${isLast ? "Invia richiesta" : 'Avanti ' + icon("arrowRight",15)}</button>
   </div>`;
 }
 
@@ -2243,7 +2391,7 @@ function renderLeadDetail(){
   return `
   <div class="topbar">
     <div><h1>${esc(c.cognome)} ${esc(c.nome)}</h1><p class="mono">Richiesta del ${fmtDateTime(l.createdAt)}</p></div>
-    <button class="btn btn-ghost btn-sm" data-action="nav" data-view="leads">← Richieste</button>
+    <button class="btn btn-ghost btn-sm" data-action="nav" data-view="leads">${icon("arrowLeft",15)} Richieste</button>
   </div>
   <div class="main-inner">
     <div class="card">
@@ -2948,8 +3096,8 @@ function renderSettings(){
       </div>
       ${state.cifraBackup ? `<div class="field"><label>Password del backup</label><input type="password" data-field-backup="password" placeholder="Scegli una password robusta"></div>` : ""}
       <div class="btn-row">
-        <button class="btn btn-primary" data-action="do-export">⬇ Esporta backup</button>
-        <button class="btn btn-ghost" data-action="do-import-pick">⬆ Ripristina da file</button>
+        <button class="btn btn-primary" data-action="do-export">${icon("download",16)} Esporta backup</button>
+        <button class="btn btn-ghost" data-action="do-import-pick">${icon("upload",16)} Ripristina da file</button>
       </div>
       <input type="file" id="import-file" accept="application/json,.json" style="display:none;">
       ${state.backupMsg ? `<div class="callout ${state.backupMsgType||'info'}" style="margin-top:12px;">${state.backupMsg}</div>` : ""}
@@ -2978,18 +3126,22 @@ function renderStudioForm(){
       <h1>${draft.anagrafica.nome || draft.anagrafica.cognome ? `${esc(draft.anagrafica.cognome)} ${esc(draft.anagrafica.nome)}` : "Nuovo consenso"}</h1>
       <p class="mono">#${draft.id.slice(-6)} · ${STATUS[draft.status].label}${draft.filledByClientRemotely ? " · compilato dal cliente" : ""}</p>
     </div>
-    <button class="btn btn-ghost btn-sm" data-action="nav" data-view="archive">← Archivio</button>
+    <button class="btn btn-ghost btn-sm" data-action="nav" data-view="archive">${icon("arrowLeft",15)} Archivio</button>
   </div>
   <div class="main-inner">
+    <div class="step-progress">
+      <span class="lbl">Passo ${state.step} di ${STEP_LABELS.length}</span>
+      <span class="track"><i style="width:${Math.round(state.step / STEP_LABELS.length * 100)}%"></i></span>
+    </div>
     <div class="steps">
       ${STEP_LABELS.map((label,i) => {
         const n = i+1;
         const cls = n === state.step ? "on" : (n < state.step ? "done" : "");
-        const phaseTick = n === CLIENT_LAST_STEP + 1 ? ' style="margin-left:10px;"' : "";
-        return `<button class="step-pill ${cls}"${phaseTick} data-action="goto-step" data-step="${n}">${n}. ${label}${n === CLIENT_LAST_STEP+1 ? " 🖊" : ""}</button>`;
+        const inStudio = n > CLIENT_LAST_STEP;
+        return `<button class="step-pill ${cls}" data-action="goto-step" data-step="${n}" title="${inStudio ? "Da compilare in studio" : "Parte del cliente"}">${n}. ${label}${inStudio ? icon("pen",13) : ""}</button>`;
       }).join("")}
     </div>
-    <p class="field hint" style="margin:-8px 0 16px;">Passi 1-6: parte del cliente (anche da remoto). Passi 7-8 🖊: da compilare in studio il giorno dell'appuntamento.</p>
+    <p class="field hint" style="margin:-4px 0 16px;">Passi 1-${CLIENT_LAST_STEP}: li compila il cliente, anche da casa. Passi ${CLIENT_LAST_STEP+1}-${STEP_LABELS.length} ${icon("pen",13)}: in studio, il giorno dell'appuntamento.</p>
     <div class="card" id="step-content">${renderStepBody(state.step, "studio")}</div>
   </div>`;
 }
@@ -3185,8 +3337,8 @@ function renderStepZona(ctx){
       <button class="chip ${draft.genere==='femminile'?'on':''}" data-action="set-genere-consenso" data-g="femminile">Corpo femminile</button>
     </div>
     <div class="gender-toggle" style="margin-top:8px;">
-      <button class="chip ${(draft.zonaSegnaMode||'pin')==='pin'?'on':''}" data-action="set-segnamode-consenso" data-m="pin">📍 Punto</button>
-      <button class="chip ${(draft.zonaSegnaMode||'pin')==='disegno'?'on':''}" data-action="set-segnamode-consenso" data-m="disegno">✏️ Disegna</button>
+      <button class="chip ${(draft.zonaSegnaMode||'pin')==='pin'?'on':''}" data-action="set-segnamode-consenso" data-m="pin">${icon("pin",15)} Punto</button>
+      <button class="chip ${(draft.zonaSegnaMode||'pin')==='disegno'?'on':''}" data-action="set-segnamode-consenso" data-m="disegno">${icon("pen",15)} Disegna</button>
       <button class="chip" data-action="clear-sagoma-consenso">Cancella</button>
     </div>
     <p class="field hint" style="margin:8px 0 0;">${(draft.zonaSegnaMode||'pin')==='pin' ? "Tocca il punto sulla sagoma; toccalo di nuovo per rimuoverlo." : "Disegna col dito attorno alla zona."}</p>
@@ -3342,7 +3494,7 @@ function renderStepSeduta(ctx){
   </div>
 
   <div class="subhead">Inchiostri usati</div>
-  ${(s.inchiostri||[]).length ? `<div>${s.inchiostri.map(it => `<span class="inv-chip">${esc(it.nome)}${it.colore?` · ${esc(it.colore)}`:""} · lotto ${esc(it.lotto||"—")} <button data-action="seduta-remove-ink" data-id="${it.id}">✕</button></span>`).join("")}</div>` : ""}
+  ${(s.inchiostri||[]).length ? `<div>${s.inchiostri.map(it => `<span class="inv-chip">${esc(it.nome)}${it.colore?` · ${esc(it.colore)}`:""} · lotto ${esc(it.lotto||"—")} <button data-action="seduta-remove-ink" data-id="${it.id}">${icon("close",12)}</button></span>`).join("")}</div>` : ""}
   ${inks.length ? `
     <div class="field" style="margin-top:8px;">
       <select data-action="seduta-add-ink">
@@ -3352,7 +3504,7 @@ function renderStepSeduta(ctx){
     </div>` : `<p class="section-desc">Nessun inchiostro in archivio. <a href="#" data-action="nav" data-view="magazzino">Aggiungine nel Magazzino</a> per selezionarli qui.</p>`}
 
   <div class="subhead">Aghi usati</div>
-  ${(s.aghi||[]).length ? `<div>${s.aghi.map(it => `<span class="inv-chip">${esc(it.tipo)}${it.marca?` · ${esc(it.marca)}`:""} · lotto ${esc(it.lotto||"—")} <button data-action="seduta-remove-needle" data-id="${it.id}">✕</button></span>`).join("")}</div>` : ""}
+  ${(s.aghi||[]).length ? `<div>${s.aghi.map(it => `<span class="inv-chip">${esc(it.tipo)}${it.marca?` · ${esc(it.marca)}`:""} · lotto ${esc(it.lotto||"—")} <button data-action="seduta-remove-needle" data-id="${it.id}">${icon("close",12)}</button></span>`).join("")}</div>` : ""}
   ${needles.length ? `
     <div class="field" style="margin-top:8px;">
       <select data-action="seduta-add-needle">
@@ -3404,7 +3556,7 @@ function renderStepControfirma(ctx){
   <div class="btn-row" style="margin-top:10px;">
     <button class="btn btn-ghost btn-sm" data-action="clear-sig" data-target="controfirmaData">Cancella firma</button>
     ${draft.status === "archiviato" ? `<button class="btn btn-ghost btn-sm" data-action="save-draft">Salva modifiche</button>` : ""}
-    ${draft.status === "archiviato" && draft.anagrafica.telefono ? `<a class="btn btn-accent btn-sm" href="${waLink(draft.anagrafica.telefono, aftercareMessage(draft))}" target="_blank" rel="noopener">💬 Invia aftercare</a>` : ""}
+    ${draft.status === "archiviato" && draft.anagrafica.telefono ? `<a class="btn btn-accent btn-sm" href="${waLink(draft.anagrafica.telefono, aftercareMessage(draft))}" target="_blank" rel="noopener">${icon("chat",15)} Invia aftercare</a>` : ""}
   </div>
   ${renderFormNav(8, ctx)}`;
 }
@@ -3414,16 +3566,16 @@ function renderFormNav(step, ctx){
   const lastClientStep = CLIENT_LAST_STEP; // 6
   const lastStudioStep = 8;
   const isLast = isClient ? step === lastClientStep : step === lastStudioStep;
-  let nextLabel = "Avanti →";
+  let nextLabel = 'Avanti ' + icon("arrowRight",15);
   let nextAction = "next-step";
   if (isLast && isClient) { nextLabel = "Invia allo studio"; nextAction = "submit-client"; }
   if (isLast && !isClient) {
-    if (draft.status === "archiviato") { nextLabel = "⬇ Scarica di nuovo il PDF"; nextAction = "download-pdf"; }
+    if (draft.status === "archiviato") { nextLabel = icon("download",15) + ' Scarica di nuovo il PDF'; nextAction = "download-pdf"; }
     else { nextLabel = "Archivia consenso"; nextAction = "finalize-studio"; }
   }
   return `
   <div class="btn-row">
-    ${step > 1 ? `<button class="btn btn-ghost" data-action="prev-step">← Indietro</button>` : ""}
+    ${step > 1 ? `<button class="btn btn-ghost" data-action="prev-step">${icon("arrowLeft",15)} Indietro</button>` : ""}
     <button class="btn ${isLast ? "btn-accent" : "btn-primary"}" data-action="${nextAction}">${nextLabel}</button>
   </div>`;
 }
