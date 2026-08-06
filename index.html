@@ -275,6 +275,43 @@ textarea{resize:vertical;min-height:70px;}
 .inv-select-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line-soft);border-radius:var(--radius);margin-bottom:6px;}
 .inv-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:20px;background:var(--stencil);color:#fff;font-size:12px;margin:3px 4px 0 0;}
 .inv-chip button{all:unset;cursor:pointer;font-weight:700;opacity:.8;}
+
+/* ---------- dispensa forniture ---------- */
+.mag-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;}
+.mag-tab{all:unset;cursor:pointer;padding:9px 16px;border-radius:20px;font-size:13.5px;font-weight:500;background:var(--paper-raised);color:var(--ink-soft);border:1px solid var(--line-soft);}
+.mag-tab.on{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+.disp-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px;}
+.disp-stat{background:var(--ink);color:var(--paper);border-radius:var(--radius);padding:14px 16px;display:flex;flex-direction:column;gap:2px;}
+.disp-stat span{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#B9AFA4;font-family:var(--font-mono);}
+.disp-stat b{font-size:26px;font-family:var(--font-display);line-height:1.1;}
+.disp-stat small{font-size:10.5px;color:#8A8178;font-family:var(--font-mono);}
+.disp-stat .warn-num{color:var(--flesh);}
+.trend{font-size:14px;}
+.trend-up{color:#E0725E;} .trend-down{color:#7FB77E;} .trend-flat{color:#B9AFA4;}
+.disp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
+.disp-card{background:#fff;border:1px solid var(--line-soft);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;gap:12px;}
+.disp-card-top{display:flex;gap:12px;align-items:center;}
+.disp-thumb{width:56px;height:56px;border-radius:12px;background:var(--paper);flex:none;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.disp-thumb.sm{width:44px;height:44px;}
+.disp-thumb img{width:100%;height:100%;object-fit:contain;}
+.disp-info{flex:1;min-width:0;}
+.disp-name{font-family:var(--font-display);font-weight:600;font-size:15px;line-height:1.2;}
+.disp-cat{font-size:11.5px;color:var(--ink-faint);font-family:var(--font-mono);margin:1px 0 7px;}
+.disp-qty-row{display:flex;align-items:center;gap:10px;}
+.disp-qty{font-size:22px;font-family:var(--font-display);font-weight:700;color:var(--ink);min-width:24px;}
+.disp-bar{flex:1;height:8px;border-radius:6px;background:var(--line);overflow:hidden;}
+.disp-bar i{display:block;height:100%;border-radius:6px;transition:width .3s;}
+.disp-bar .stk-top{background:#6FA96C;} .disp-bar .stk-ok{background:#8FBF6E;}
+.disp-bar .stk-low{background:#E0A34E;} .disp-bar .stk-out{background:#D9574B;}
+.disp-card-bot{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.disp-mov{display:flex;gap:5px;align-items:center;}
+.disp-step{all:unset;cursor:pointer;width:30px;height:30px;border-radius:8px;background:var(--ink);color:var(--paper);text-align:center;font-size:18px;line-height:30px;font-weight:600;}
+.disp-step:active{opacity:.7;}
+.disp-icon-btn{all:unset;cursor:pointer;width:30px;height:30px;border-radius:8px;background:var(--paper);color:var(--ink-soft);text-align:center;font-size:13px;line-height:30px;border:1px solid var(--line-soft);}
+.disp-badge{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.04em;padding:5px 10px;border-radius:20px;color:#fff;flex:none;}
+.disp-badge.stk-top{background:#6FA96C;} .disp-badge.stk-ok{background:#8FBF6E;}
+.disp-badge.stk-low{background:#E0A34E;} .disp-badge.stk-out{background:#D9574B;}
+@media (max-width:600px){ .disp-summary{grid-template-columns:1fr;} }
 .only-print{display:none;}
 @media print{
   .rail, .mobile-topbar, .no-print, .topbar button{display:none !important;}
@@ -718,6 +755,62 @@ function upsertNeedle(item){
 }
 function deleteNeedle(id){ saveNeedles(loadNeedles().filter(x => x.id !== id)); }
 function newId(){ return "x" + Math.random().toString(36).slice(2, 9); }
+
+/* ---- FORNITURE (dispensa): guanti, pellicole, disinfettanti, ecc. ----
+   Ogni articolo tiene la quantità corrente + movimenti (carico/scarico).
+   I carichi con prezzo alimentano il recap spese. Categorie con icona. */
+const FORNITURE_KEY = "inkconsent_forniture_v1";
+const CATEGORIE_FORNITURE = [
+  { slug: "guanti",        label: "Guanti",              icon: "cat-guanti.png" },
+  { slug: "pellicole",     label: "Tape e pellicole",    icon: "cat-pellicole.png" },
+  { slug: "disinfettante", label: "Disinfettanti",       icon: "cat-disinfettante.png" },
+  { slug: "greensoap",     label: "Green soap / saponi", icon: "cat-greensoap.png" },
+  { slug: "carta",         label: "Carta / panni",       icon: "cat-carta.png" },
+  { slug: "cartastesa",    label: "Carta stendi / lettini", icon: "cat-cartastesa.png" },
+  { slug: "rasoi",         label: "Rasoi",               icon: "cat-rasoi.png" },
+  { slug: "inkcaps",       label: "Ink caps / bicchierini", icon: "cat-inkcaps.png" },
+  { slug: "cartucce",      label: "Cartucce",            icon: "cat-cartucce.png" },
+  { slug: "stencil",       label: "Stencil / accessori", icon: "cat-stencil.png" },
+  { slug: "macchinette",   label: "Macchinette / ricambi", icon: "cat-macchinette.png" },
+  { slug: "medicazione",   label: "Garze / medicazione", icon: "cat-carta.png" },
+];
+function catInfo(slug){ return CATEGORIE_FORNITURE.find(c => c.slug === slug) || { slug, label: "Altro", icon: "cat-stencil.png" }; }
+function loadForniture(){ try { return JSON.parse(localStorage.getItem(FORNITURE_KEY)) || []; } catch(e){ return []; } }
+function saveForniture(list){ localStorage.setItem(FORNITURE_KEY, JSON.stringify(list)); }
+function upsertFornitura(item){
+  const list = loadForniture();
+  const i = list.findIndex(x => x.id === item.id);
+  if (i >= 0) list[i] = item; else list.unshift(item);
+  saveForniture(list); return item;
+}
+function deleteFornitura(id){ saveForniture(loadForniture().filter(x => x.id !== id)); }
+/* movimento: delta (+ carico, - scarico), prezzo totale opzionale (solo carichi) */
+function addMovimento(id, delta, prezzo){
+  const list = loadForniture();
+  const it = list.find(x => x.id === id);
+  if (!it) return;
+  it.quantita = Math.max(0, (it.quantita||0) + delta);
+  it.movimenti = it.movimenti || [];
+  it.movimenti.push({ at: new Date().toISOString(), delta, prezzo: prezzo||0 });
+  saveForniture(list);
+  return it;
+}
+/* stato scorta in base a quantità vs soglia riordino */
+function statoScorta(it){
+  const q = it.quantita||0, s = it.soglia||0;
+  if (q <= 0) return { key:"esaurito", label:"IN ESAURIMENTO", cls:"stk-out" };
+  if (q <= s) return { key:"bassa", label:"BASSA", cls:"stk-low" };
+  if (s > 0 && q <= s*2) return { key:"buono", label:"BUONO", cls:"stk-ok" };
+  return { key:"ottimo", label:"OTTIMO", cls:"stk-top" };
+}
+/* spesa in un dato mese (YYYY-MM) sommando i carichi con prezzo */
+function spesaMese(ym){
+  let tot = 0;
+  loadForniture().forEach(it => (it.movimenti||[]).forEach(m => {
+    if (m.prezzo > 0 && m.at.slice(0,7) === ym) tot += m.prezzo;
+  }));
+  return tot;
+}
 /* scadenza: true se manca meno di 30 giorni o è già passata */
 function isExpiringSoon(dateStr){
   if (!dateStr) return false;
@@ -783,6 +876,7 @@ function collectBackup(){
     richieste: loadRichieste(),
     inks: loadInks(),
     needles: loadNeedles(),
+    forniture: loadForniture(),
   };
 }
 async function deriveKey(password, salt){
@@ -836,6 +930,7 @@ async function importBackup(fileText, password){
   if (obj.richieste) saveRichieste(obj.richieste);
   if (obj.inks) saveInks(obj.inks);
   if (obj.needles) saveNeedles(obj.needles);
+  if (obj.forniture) saveForniture(obj.forniture);
   return {
     sessions: (obj.sessions||[]).length,
     richieste: (obj.richieste||[]).length,
@@ -1226,6 +1321,85 @@ function renderRegistro(){
   </div>`;
 }
 
+function renderFornCard(it){
+  const cat = catInfo(it.categoria);
+  const st = statoScorta(it);
+  const q = it.quantita||0, soglia = it.soglia||0;
+  const pct = soglia > 0 ? Math.max(6, Math.min(100, (q/(soglia*3))*100)) : (q>0?100:6);
+  const img = it.foto || cat.icon;
+  return `
+  <div class="disp-card">
+    <div class="disp-card-top">
+      <div class="disp-thumb"><img src="${img}" alt="" onerror="this.style.opacity=0"></div>
+      <div class="disp-info">
+        <div class="disp-name">${esc(it.nome||"—")}</div>
+        <div class="disp-cat">${esc(cat.label)}</div>
+        <div class="disp-qty-row">
+          <span class="disp-qty">${q}</span>
+          <div class="disp-bar"><i class="${st.cls}" style="width:${pct}%"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="disp-card-bot">
+      <div class="disp-mov">
+        <button class="disp-step" data-action="forn-minus" data-id="${it.id}" title="Consumato">−</button>
+        <button class="disp-step" data-action="forn-plus" data-id="${it.id}" title="Aggiunto">+</button>
+        <button class="disp-icon-btn" data-action="forn-load" data-id="${it.id}" title="Registra acquisto con prezzo">⟳</button>
+        <button class="disp-icon-btn" data-action="forn-edit" data-id="${it.id}" title="Modifica">✎</button>
+        <button class="disp-icon-btn" data-action="forn-delete" data-id="${it.id}" title="Elimina">🗑</button>
+      </div>
+      <span class="disp-badge ${st.cls}">${st.label}</span>
+    </div>
+  </div>`;
+}
+
+function renderFornForm(eb, catList){
+  const isLoad = state.fornLoadMode; // registrazione acquisto con prezzo
+  if (isLoad){
+    const it = loadForniture().find(x => x.id === state.fornLoadId);
+    return `
+    <div class="inv-form">
+      <h4 style="margin:0 0 10px;font-family:var(--font-display);">Registra acquisto — ${esc(it ? it.nome : "")}</h4>
+      <div class="grid-2">
+        <div class="field"><label>Quantità acquistata</label><input type="number" min="1" data-inv-field="loadQ" value="${esc(eb.loadQ||'')}" placeholder="Es. 3"></div>
+        <div class="field"><label>Prezzo totale pagato (€)</label><input type="number" min="0" step="0.01" data-inv-field="loadP" value="${esc(eb.loadP||'')}" placeholder="Es. 24.90"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary btn-sm" data-action="forn-load-save">Registra carico</button>
+        <button class="btn btn-ghost btn-sm" data-action="inv-cancel">Annulla</button>
+      </div>
+    </div>`;
+  }
+  return `
+  <div class="inv-form">
+    <div class="grid-2">
+      <div class="field"><label>Nome articolo</label><input type="text" data-inv-field="nome" value="${esc(eb.nome||'')}" placeholder="Es. Guanti nitrile neri M"></div>
+      <div class="field"><label>Categoria</label>
+        <select data-inv-field="categoria">
+          ${catList.map(c => `<option value="${c.slug}" ${eb.categoria===c.slug?"selected":""}>${esc(c.label)}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="field"><label>Quantità attuale</label><input type="number" min="0" data-inv-field="quantita" value="${esc(eb.quantita!=null?eb.quantita:'')}" placeholder="Es. 8"></div>
+      <div class="field"><label>Soglia di riordino</label><input type="number" min="0" data-inv-field="soglia" value="${esc(eb.soglia!=null?eb.soglia:'')}" placeholder="Avvisami sotto…"></div>
+    </div>
+    <div class="field">
+      <label>Foto (facoltativa — sostituisce l'icona)</label>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="disp-thumb sm"><img src="${eb.foto || catInfo(eb.categoria||'guanti').icon}" alt=""></div>
+        <button class="btn btn-ghost btn-sm" data-action="forn-pick-photo">Carica foto…</button>
+        ${eb.foto ? `<button class="btn btn-ghost btn-sm" data-action="forn-remove-photo">Usa icona</button>` : ""}
+        <input type="file" id="forn-photo" accept="image/png,image/jpeg" style="display:none;">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary btn-sm" data-action="forn-save">${eb.id ? "Salva modifiche" : "Aggiungi in dispensa"}</button>
+      <button class="btn btn-ghost btn-sm" data-action="inv-cancel">Annulla</button>
+    </div>
+  </div>`;
+}
+
 function renderMagazzino(){
   const inks = loadInks();
   const needles = loadNeedles();
@@ -1235,12 +1409,49 @@ function renderMagazzino(){
     if (isExpiringSoon(d)) return `<span class="reg-minor" style="background:var(--flesh);">in scadenza</span>`;
     return "";
   };
+  const tab = state.magTab || "forniture";
+  const forniture = loadForniture();
+  const now = new Date();
+  const ym = now.toISOString().slice(0,7);
+  const prevYm = new Date(now.getFullYear(), now.getMonth()-1, 1).toISOString().slice(0,7);
+  const totPezzi = forniture.reduce((a,it) => a + (it.quantita||0), 0);
+  const bassaCount = forniture.filter(it => { const s = statoScorta(it).key; return s === "bassa" || s === "esaurito"; }).length;
+  const spesaOra = spesaMese(ym), spesaPrev = spesaMese(prevYm);
+  const spesaTrend = spesaPrev === 0 ? (spesaOra > 0 ? "up" : "flat") : (spesaOra > spesaPrev ? "up" : (spesaOra < spesaPrev ? "down" : "flat"));
+  const catList = CATEGORIE_FORNITURE;
+
   return `
   <div class="topbar">
-    <div><h1>Magazzino</h1><p>Inchiostri e aghi · seleziona i lotti nel consenso senza riscriverli</p></div>
+    <div><h1>Magazzino</h1><p>Dispensa dello studio · scorte, consumi e spese</p></div>
   </div>
   <div class="main-inner">
+    <div class="mag-tabs">
+      <button class="mag-tab ${tab==='forniture'?'on':''}" data-action="mag-tab" data-t="forniture">🧺 Forniture</button>
+      <button class="mag-tab ${tab==='inchiostri'?'on':''}" data-action="mag-tab" data-t="inchiostri">🎨 Inchiostri</button>
+      <button class="mag-tab ${tab==='aghi'?'on':''}" data-action="mag-tab" data-t="aghi">📍 Aghi</button>
+    </div>
 
+    ${tab === "forniture" ? `
+      <div class="disp-summary">
+        <div class="disp-stat"><span>Totale materiale</span><b>${totPezzi}</b></div>
+        <div class="disp-stat"><span>Scorta bassa</span><b class="${bassaCount>0?'warn-num':''}">${bassaCount}</b></div>
+        <div class="disp-stat"><span>Spesa mese</span><b>€ ${spesaOra.toFixed(0)} <span class="trend trend-${spesaTrend}">${spesaTrend==='up'?'▲':spesaTrend==='down'?'▼':'—'}</span></b><small>prec. € ${spesaPrev.toFixed(0)}</small></div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0 14px;">
+        <div class="mono" style="color:var(--ink-faint);font-size:13px;">${forniture.length} articoli in dispensa</div>
+        <button class="btn btn-accent btn-sm" data-action="forn-new">+ Aggiungi articolo</button>
+      </div>
+
+      ${state.showFornForm ? renderFornForm(eb, catList) : ""}
+
+      ${forniture.length ? `
+        <div class="disp-grid">
+          ${forniture.map(it => renderFornCard(it)).join("")}
+        </div>` : (!state.showFornForm ? `<div class="arch-empty"><b>Dispensa vuota</b>Aggiungi guanti, pellicole, disinfettanti e tutto il resto per tenere sotto controllo scorte e spese.</div>` : "")}
+    ` : ""}
+
+    ${tab === "inchiostri" ? `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <h3 class="section-title" style="margin:0;">Inchiostri <span class="mono" style="color:var(--ink-faint);font-size:13px;">(${inks.length})</span></h3>
@@ -1275,7 +1486,9 @@ function renderMagazzino(){
             </div>`).join("")}
         </div>` : (!state.showInkForm ? `<p class="section-desc">Nessun inchiostro in archivio. Aggiungine uno per poterlo selezionare nel consenso.</p>` : "")}
     </div>
+    ` : ""}
 
+    ${tab === "aghi" ? `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <h3 class="section-title" style="margin:0;">Aghi <span class="mono" style="color:var(--ink-faint);font-size:13px;">(${needles.length})</span></h3>
@@ -1310,6 +1523,7 @@ function renderMagazzino(){
             </div>`).join("")}
         </div>` : (!state.showNeedleForm ? `<p class="section-desc">Nessun ago in archivio. Aggiungine uno per poterlo selezionare nel consenso.</p>` : "")}
     </div>
+    ` : ""}
 
   </div>`;
 }
@@ -1941,7 +2155,34 @@ document.addEventListener("click", (e) => {
   else if (action === "needle-delete"){
     if (confirm("Eliminare questo ago dall'archivio?")){ deleteNeedle(btn.dataset.id); render(); }
   }
-  else if (action === "inv-cancel"){ state.showInkForm = false; state.showNeedleForm = false; state.editBuffer = {}; render(); }
+  else if (action === "inv-cancel"){ state.showInkForm = false; state.showNeedleForm = false; state.showFornForm = false; state.fornLoadMode = false; state.fornLoadId = null; state.editBuffer = {}; render(); }
+  else if (action === "mag-tab"){ state.magTab = btn.dataset.t; state.showInkForm = state.showNeedleForm = state.showFornForm = false; state.editBuffer = {}; render(); }
+  else if (action === "forn-new"){ state.showFornForm = true; state.fornLoadMode = false; state.editBuffer = { categoria: "guanti", quantita: "", soglia: "" }; render(); }
+  else if (action === "forn-edit"){ state.editBuffer = { ...(loadForniture().find(x=>x.id===btn.dataset.id)||{}) }; state.showFornForm = true; state.fornLoadMode = false; render(); }
+  else if (action === "forn-save"){
+    const b = state.editBuffer || {};
+    if (!(b.nome||"").trim()){ alert("Inserisci il nome dell'articolo."); return; }
+    upsertFornitura({
+      id: b.id || newId(),
+      nome: b.nome||"", categoria: b.categoria||"guanti",
+      quantita: parseInt(b.quantita,10)||0, soglia: parseInt(b.soglia,10)||0,
+      foto: b.foto||"", movimenti: b.movimenti||[],
+    });
+    state.showFornForm = false; state.editBuffer = {}; render();
+  }
+  else if (action === "forn-delete"){ if (confirm("Eliminare questo articolo dalla dispensa?")){ deleteFornitura(btn.dataset.id); render(); } }
+  else if (action === "forn-plus"){ addMovimento(btn.dataset.id, +1, 0); render(); }
+  else if (action === "forn-minus"){ addMovimento(btn.dataset.id, -1, 0); render(); }
+  else if (action === "forn-load"){ state.showFornForm = true; state.fornLoadMode = true; state.fornLoadId = btn.dataset.id; state.editBuffer = {}; render(); }
+  else if (action === "forn-load-save"){
+    const b = state.editBuffer || {};
+    const q = parseInt(b.loadQ,10)||0, p = parseFloat(b.loadP)||0;
+    if (q <= 0){ alert("Inserisci la quantità acquistata."); return; }
+    addMovimento(state.fornLoadId, q, p);
+    state.showFornForm = false; state.fornLoadMode = false; state.fornLoadId = null; state.editBuffer = {}; render();
+  }
+  else if (action === "forn-pick-photo"){ const inp = qs("#forn-photo"); if (inp) inp.click(); }
+  else if (action === "forn-remove-photo"){ state.editBuffer = { ...(state.editBuffer||{}), foto: "" }; render(); }
   else if (action === "seduta-remove-ink"){ draft.seduta.inchiostri = (draft.seduta.inchiostri||[]).filter(x => x.id !== btn.dataset.id); upsertSession(draft); renderStepOnly(); }
   else if (action === "seduta-remove-needle"){ draft.seduta.aghi = (draft.seduta.aghi||[]).filter(x => x.id !== btn.dataset.id); upsertSession(draft); renderStepOnly(); }
   else if (action === "new-remote-link"){
@@ -2120,6 +2361,26 @@ document.addEventListener("change", (e) => {
   if (selAction === "seduta-add-needle" && e.target.value && draft){
     const nd = loadNeedles().find(x => x.id === e.target.value);
     if (nd){ draft.seduta.aghi = [ ...(draft.seduta.aghi||[]), { id: nd.id, marca: nd.marca, tipo: nd.tipo, lotto: nd.lotto, scadenza: nd.scadenza } ]; upsertSession(draft); renderStepOnly(); }
+    return;
+  }
+  if (e.target.id === "forn-photo" && e.target.files && e.target.files[0]){
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 200;
+        let w = img.width, h = img.height;
+        if (w > h && w > max){ h = h*max/w; w = max; } else if (h >= w && h > max){ w = w*max/h; h = max; }
+        const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+        cv.getContext("2d").drawImage(img, 0, 0, w, h);
+        state.editBuffer = { ...(state.editBuffer||{}), foto: cv.toDataURL("image/jpeg", 0.82) };
+        render();
+      };
+      img.onerror = () => alert("Immagine non valida.");
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
     return;
   }
   if (e.target.id === "logo-file" && e.target.files && e.target.files[0]){

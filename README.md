@@ -52,12 +52,15 @@ In più un campo **grandezza indicativa** in entrambe le modalità.
 - **Richieste preventivo**: link pubblico, sagoma corpo, contatti, notifica
   push opzionale, WhatsApp con un click, conversione in consenso.
 - **PDF** client-side, firme incluse, sezioni separate cliente/seduta.
-- **Magazzino inchiostri e aghi**: archivio gestito come i consensi (aggiungi,
-  modifica, elimina). Ogni inchiostro ha marca, colore, lotto e scadenza; ogni
-  ago ha marca, tipo (3RL, 7RS…), lotto e scadenza. Nello step "Dati seduta" del
-  consenso selezioni uno o più inchiostri e uno o più aghi dall'archivio, così
-  il lotto è sempre tracciato senza riscriverlo. Badge "in scadenza"/"scaduto".
-  Tutto finisce nel PDF e nel backup.
+- **Magazzino a schede (dispensa)**: tre sezioni — Forniture, Inchiostri, Aghi.
+  - *Forniture* (guanti, pellicole, disinfettanti, ecc.): dispensa visiva a card
+    con icona di categoria (sostituibile con foto), quantità, barra di livello e
+    badge di stato (OTTIMO / BUONO / BASSA / IN ESAURIMENTO). Pulsanti +/− per
+    consumo/carico rapido, ⟳ per registrare un acquisto con prezzo. Fascia in
+    alto con Totale materiale, Scorta bassa e Spesa del mese (confronto col mese
+    precedente). Soglia di riordino per articolo.
+  - *Inchiostri e Aghi*: archivio lotti a norma (marca, tipo, lotto, scadenza),
+    selezionabili nel consenso. Le icone categoria sono i file `cat-*.png`.
 - **Sagoma anatomica** fronte/retro (M/F): la zona si segna su vere immagini
   del corpo (`body-man_front.png`, `body-man_back.png`, `body-girl_front.png`,
   `body-girl_back.png`), con due modi a scelta — **📍 Punto** (pin numerati) o
