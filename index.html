@@ -215,6 +215,17 @@ select{
 .arch-empty .btn{margin-top:16px;}
 
 /* ---------- signature pad ---------- */
+/* passaggio consenso cliente -> studio */
+.handoff-qr{background:#fff;border:1px solid var(--line-soft);border-radius:var(--radius-md);
+  padding:16px;display:flex;align-items:center;justify-content:center;min-height:180px;}
+.handoff-code{width:100%;font-family:var(--font-mono);font-size:10px;line-height:1.45;
+  background:var(--paper-raised);border:1px solid var(--line-soft);border-radius:var(--radius);
+  padding:10px;height:74px;resize:none;color:var(--ink-soft);word-break:break-all;}
+.handoff-size{font-family:var(--font-mono);font-size:10.5px;color:var(--ink-faint);}
+.scan-wrap{position:relative;border-radius:var(--radius-md);overflow:hidden;background:#000;aspect-ratio:4/3;}
+.scan-wrap video{width:100%;height:100%;object-fit:cover;display:block;}
+.scan-frame{position:absolute;inset:14%;border:2px solid rgba(255,255,255,.85);border-radius:var(--radius-md);
+  box-shadow:0 0 0 100vmax rgba(0,0,0,.35);pointer-events:none;}
 .sigpad-wrap{border:1.5px dashed var(--line);border-radius:var(--radius);background:#fff;position:relative;}
 .sigpad-wrap canvas{display:block;width:100%;height:170px;touch-action:none;cursor:crosshair;}
 .sigpad-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:13px;pointer-events:none;}
@@ -588,6 +599,15 @@ const SUPABASE_CONFIG = {
   tenantId: "podere173", // identifica questo studio tra i tanti che usano l'app
 };
 
+/* ---------- funzioni attivabili per studio ----------
+   Il motore e' condiviso: ogni studio accende quello che gli serve.
+   "richieste" = modulo pubblico di richiesta preventivo/consulenza.
+   Chi le consulenze le fa in studio (e chiede la caparra di persona)
+   lo tiene spento, ma il codice resta e si riaccende con true.   */
+const FEATURES = {
+  richieste: false,
+};
+
 /* ---------- reference data ----------
    Le 15 condizioni sono trascritte 1:1 dal modulo cartaceo dello
    studio ("Nelle condizioni di seguito riportate NON è possibile
@@ -734,15 +754,106 @@ function blankSession(){
   };
 }
 
-/* ---------- storage (localStorage, offline-first) ---------- */
-const STORE_KEY = "inkconsent_sessions_v1";
-function loadSessions(){
-  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
-  catch(e){ return []; }
+/* ============================================================
+   ARCHIVIO LOCALE — IndexedDB
+   localStorage sta stretto: ~5 MB, e con firme e diagrammi in
+   base64 li tocchi prima di quanto sembri. Quando il tetto arriva
+   il browser smette di salvare in silenzio: il consenso sembra
+   registrato e invece non c'e'. Qui i dati grossi (consensi,
+   magazzino, richieste) stanno su IndexedDB, che quel tetto non
+   ce l'ha.
+   In RAM ne teniamo una copia, cosi' il resto dell'app continua a
+   leggere e scrivere in modo sincrono esattamente come prima; la
+   scrittura su disco parte subito dopo, in background.
+   Le chiavi piccole (accesso, config studio, premium, tour) restano
+   su localStorage: servono sincrone gia' al primo istante di boot.
+   ============================================================ */
+const IDB_NAME = "inkconsent", IDB_STORE = "kv";
+let _idbP = null;
+const _mem = Object.create(null);
+const _wq  = Object.create(null);
+
+function idbReady(){
+  if (_idbP) return _idbP;
+  _idbP = new Promise((resolve) => {
+    let req;
+    try { req = indexedDB.open(IDB_NAME, 1); }
+    catch(e){ console.warn("IndexedDB non disponibile, resto su localStorage"); resolve(null); return; }
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => { console.warn("IndexedDB non apribile, resto su localStorage"); resolve(null); };
+  });
+  return _idbP;
 }
+async function idbGet(key){
+  const db = await idbReady();
+  if (!db) return undefined;
+  return new Promise((resolve) => {
+    try {
+      const r = db.transaction(IDB_STORE, "readonly").objectStore(IDB_STORE).get(key);
+      r.onsuccess = () => resolve(r.result);
+      r.onerror   = () => resolve(undefined);
+    } catch(e){ resolve(undefined); }
+  });
+}
+async function idbSet(key, val){
+  const db = await idbReady();
+  if (!db){ try { localStorage.setItem(key, JSON.stringify(val)); } catch(e){} return false; }
+  return new Promise((resolve) => {
+    try {
+      const r = db.transaction(IDB_STORE, "readwrite").objectStore(IDB_STORE).put(val, key);
+      r.onsuccess = () => resolve(true);
+      r.onerror   = () => resolve(false);
+    } catch(e){ resolve(false); }
+  });
+}
+
+/* Idratazione al boot: IndexedDB -> RAM.
+   Se IndexedDB e' vuota ma in localStorage c'e' roba, la migriamo.
+   La copia vecchia NON viene cancellata: resta come rete di sicurezza
+   finche' non sei sicuro che il passaggio sia andato liscio.        */
+const BIG_STORES = [];
+async function hydrateStores(){
+  for (const k of BIG_STORES){
+    let v = await idbGet(k);
+    if (v === undefined){
+      let ls = null;
+      try { ls = JSON.parse(localStorage.getItem(k)); } catch(e){}
+      if (ls != null){ v = ls; await idbSet(k, v); console.info("Migrato su IndexedDB:", k); }
+    }
+    if (v !== undefined && v !== null) _mem[k] = v;
+  }
+}
+function readStore(key, fallback){
+  if (_mem[key] !== undefined) return _mem[key];
+  try {
+    const v = JSON.parse(localStorage.getItem(key));
+    if (v != null){ _mem[key] = v; return v; }
+  } catch(e){}
+  return fallback;
+}
+function writeStore(key, val){
+  _mem[key] = val;
+  clearTimeout(_wq[key]);
+  _wq[key] = setTimeout(() => { delete _wq[key]; idbSet(key, val); }, 120);
+}
+/* se l'app viene chiusa o messa in background, scriviamo subito */
+function flushStores(){
+  Object.keys(_wq).forEach(k => { clearTimeout(_wq[k]); delete _wq[k]; if (_mem[k] !== undefined) idbSet(k, _mem[k]); });
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden) flushStores(); });
+window.addEventListener("pagehide", flushStores);
+
+/* ---------- consensi ---------- */
+const STORE_KEY = "inkconsent_sessions_v1";
+BIG_STORES.push(STORE_KEY);
+function loadSessions(){ return readStore(STORE_KEY, []); }
 function saveSessions(list){
   const clean = list.map(s => { const c = {...s}; delete c._diagImgs; return c; });
-  localStorage.setItem(STORE_KEY, JSON.stringify(clean));
+  writeStore(STORE_KEY, clean);
 }
 function upsertSession(session){
   const list = loadSessions();
@@ -868,8 +979,9 @@ function blankRichiesta(){
   };
 }
 const RICHIESTE_KEY = "inkconsent_richieste_v1";
-function loadRichieste(){ try { return JSON.parse(localStorage.getItem(RICHIESTE_KEY)) || []; } catch(e){ return []; } }
-function saveRichieste(list){ localStorage.setItem(RICHIESTE_KEY, JSON.stringify(list)); }
+BIG_STORES.push(RICHIESTE_KEY);
+function loadRichieste(){ return readStore(RICHIESTE_KEY, []); }
+function saveRichieste(list){ writeStore(RICHIESTE_KEY, list); }
 function upsertRichiesta(r){
   const list = loadRichieste();
   const i = list.findIndex(x => x.id === r.id);
@@ -888,10 +1000,11 @@ function getRichiesta(id){ return loadRichieste().find(r => r.id === id) || null
    ============================================================ */
 const INKS_KEY = "inkconsent_inks_v1";
 const NEEDLES_KEY = "inkconsent_needles_v1";
-function loadInks(){ try { return JSON.parse(localStorage.getItem(INKS_KEY)) || []; } catch(e){ return []; } }
-function saveInks(list){ localStorage.setItem(INKS_KEY, JSON.stringify(list)); }
-function loadNeedles(){ try { return JSON.parse(localStorage.getItem(NEEDLES_KEY)) || []; } catch(e){ return []; } }
-function saveNeedles(list){ localStorage.setItem(NEEDLES_KEY, JSON.stringify(list)); }
+BIG_STORES.push(INKS_KEY, NEEDLES_KEY);
+function loadInks(){ return readStore(INKS_KEY, []); }
+function saveInks(list){ writeStore(INKS_KEY, list); }
+function loadNeedles(){ return readStore(NEEDLES_KEY, []); }
+function saveNeedles(list){ writeStore(NEEDLES_KEY, list); }
 function upsertInk(item){
   const list = loadInks();
   const i = list.findIndex(x => x.id === item.id);
@@ -920,7 +1033,7 @@ function newId(){ return "x" + Math.random().toString(36).slice(2, 9); }
 // Per cambiarla: calcola lo sha256 della nuova password e incolla qui l'hash.
 const PREMIUM_MASTER_HASH = "71d256a21f66e37d9847b59e9b1c688c169ca0e98178a9376348eb864adec4cf";
 const PREMIUM_KEY = "inkconsent_premium_v1";
-const PREMIUM_VIEWS = ["form", "archive", "registro", "leads", "lead-detail"];
+const PREMIUM_VIEWS = ["form", "archive", "registro", "leads", "lead-detail", "import"];
 function premiumUnlocked(){ try { return localStorage.getItem(PREMIUM_KEY) === "1"; } catch(e){ return false; } }
 function setPremiumUnlocked(v){ if (v) localStorage.setItem(PREMIUM_KEY, "1"); else localStorage.removeItem(PREMIUM_KEY); }
 async function checkMasterPassword(pw){
@@ -949,8 +1062,9 @@ const CATEGORIE_FORNITURE = [
   { slug: "medicazione",   label: "Garze / medicazione", icon: "cat-carta.png" },
 ];
 function catInfo(slug){ return CATEGORIE_FORNITURE.find(c => c.slug === slug) || { slug, label: "Altro", icon: "cat-stencil.png" }; }
-function loadForniture(){ try { return JSON.parse(localStorage.getItem(FORNITURE_KEY)) || []; } catch(e){ return []; } }
-function saveForniture(list){ localStorage.setItem(FORNITURE_KEY, JSON.stringify(list)); }
+BIG_STORES.push(FORNITURE_KEY);
+function loadForniture(){ return readStore(FORNITURE_KEY, []); }
+function saveForniture(list){ writeStore(FORNITURE_KEY, list); }
 function upsertFornitura(item){
   const list = loadForniture();
   const i = list.findIndex(x => x.id === item.id);
@@ -1178,9 +1292,15 @@ function bodyImg(gender, view){
    ============================================================ */
 const params = new URLSearchParams(location.search);
 const state = {
-  mode: params.get("client") === "1" ? "client" : (params.get("richiesta") === "1" ? "richiesta" : "studio"),
-  view: "archive",       // archive | form | settings | leads | lead-form | registro
+  mode: params.get("client") === "1" ? "client" : (params.get("richiesta") === "1" && FEATURES.richieste ? "richiesta" : "studio"),
+  view: "archive",       // archive | form | settings | leads | lead-form | registro | import
   step: 1,
+  // passaggio consenso cliente -> studio (offline, via QR o codice)
+  handoffCode: "",
+  scanning: false,
+  importPaste: "",
+  importError: "",
+  importOk: "",
   railOpen: false,
   locked: false,         // impostato all'avvio se c'è un accesso configurato
   needsSetup: false,     // primo avvio: crea accesso studio
@@ -1428,6 +1548,21 @@ function afterRender(){
     qrHost.innerHTML = "";
     new QRCode(qrHost, { text: buildClientLink(qs("#qr-host").dataset.sid), width: 132, height: 132, colorDark: "#1B1A19", colorLight: "#ffffff" });
   }
+  const hoHost = qs("#handoff-qr-host");
+  if (hoHost && window.QRCode){
+    hoHost.innerHTML = "";
+    try {
+      new QRCode(hoHost, {
+        text: hoHost.dataset.code, width: 260, height: 260,
+        colorDark: "#1B1A19", colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.L, // capienza massima: serve tutto lo spazio
+      });
+    } catch(e){
+      hoHost.innerHTML = '<p class="field hint">Il QR non è stato generato. Usa il codice testuale qui sotto.</p>';
+    }
+  }
+  if (state.scanning) startScanner();
+
   // lavagnetta: canvas di disegno libero (una per vista fronte/retro)
   qsa(".body-draw").forEach(cv => initBodyDrawing(cv));
 }
@@ -1507,7 +1642,8 @@ function renderStudioShell(){
         <button class="rail-btn ${state.view==='registro'?'active':''}" data-action="nav" data-view="registro">${icon("book",17)} Registro</button>
         <button class="rail-btn ${state.view==='magazzino'?'active':''}" data-action="nav" data-view="magazzino">${icon("box",17)} Magazzino</button>
         <button class="rail-btn ${state.view==='form'?'active':''}" data-action="new-session">${icon("pen",17)} Nuovo consenso</button>
-        <button class="rail-btn ${state.view==='leads'||state.view==='lead-detail'?'active':''}" data-action="nav" data-view="leads">${icon("chat",17)} Richieste preventivo${nuoveLeads ? `<span class="nav-badge">${nuoveLeads}</span>` : ""}</button>
+        <button class="rail-btn ${state.view==='import'?'active':''}" data-action="nav" data-view="import">${icon("restock",17)} Importa consenso</button>
+        ${FEATURES.richieste ? `<button class="rail-btn ${state.view==='leads'||state.view==='lead-detail'?'active':''}" data-action="nav" data-view="leads">${icon("chat",17)} Richieste preventivo${nuoveLeads ? `<span class="nav-badge">${nuoveLeads}</span>` : ""}</button>` : ""}
         <button class="rail-btn ${state.view==='settings'?'active':''}" data-action="nav" data-view="settings">${icon("gear",17)} Impostazioni studio</button>
       </div>
       <div class="rail-foot">InkConsent · engine v1.0<br>Motore condiviso, personalizzabile per studio.</div>
@@ -1530,6 +1666,7 @@ function renderStudioView(){
   if (state.view === "leads") return renderLeads();
   if (state.view === "lead-detail" && leadDraft) return renderLeadDetail();
   if (state.view === "registro") return renderRegistro();
+  if (state.view === "import") return renderImport();
   return renderArchive();
 }
 
@@ -1887,22 +2024,37 @@ function initSignaturePad(canvas, targetField){
     img.src = existing;
   }
 
+  /* Oltre al PNG teniamo i tratti come coordinate: una firma vettoriale
+     pesa ~600 byte invece di 20-40 KB, e ci sta in un QR. Il PNG serve
+     ancora per PDF e anteprima, ma non e' piu' l'unica copia.        */
+  const vecKey = targetField.replace(/Data$/, "") + "Vec";
+  const strokesVec = (draft[vecKey] && Array.isArray(draft[vecKey].s)) ? draft[vecKey].s.slice() : [];
+  let curStroke = null;
+
   let drawing = false, lastX = 0, lastY = 0;
   const pos = (e) => {
     const r = canvas.getBoundingClientRect();
     const t = e.touches ? e.touches[0] : e;
     return { x: t.clientX - r.left, y: t.clientY - r.top };
   };
-  const start = (e) => { e.preventDefault(); drawing = true; const p = pos(e); lastX = p.x; lastY = p.y; };
+  const start = (e) => {
+    e.preventDefault(); drawing = true;
+    const p = pos(e); lastX = p.x; lastY = p.y;
+    curStroke = [[Math.round(p.x), Math.round(p.y)]];
+  };
   const move = (e) => {
     if (!drawing) return; e.preventDefault();
     const p = pos(e);
     ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(p.x, p.y); ctx.stroke();
+    if (curStroke) curStroke.push([Math.round(p.x), Math.round(p.y)]);
     lastX = p.x; lastY = p.y;
   };
   const end = () => {
     if (!drawing) return;
     drawing = false;
+    if (curStroke && curStroke.length > 1) strokesVec.push(curStroke);
+    curStroke = null;
+    draft[vecKey] = { w: Math.round(rect.width), h: Math.round(rect.height), s: strokesVec };
     draft[targetField] = canvas.toDataURL("image/png");
     if (targetField === "firmaClienteData") draft.firmaClienteAt = new Date().toISOString();
     if (targetField === "firmaTutore2Data") draft.firmaTutore2At = new Date().toISOString();
@@ -1915,6 +2067,255 @@ function initSignaturePad(canvas, targetField){
   canvas.addEventListener("touchstart", start, {passive:false});
   canvas.addEventListener("touchmove", move, {passive:false});
   canvas.addEventListener("touchend", end);
+}
+
+/* Ridisegna una firma vettoriale e la riporta a PNG. Serve quando il
+   consenso arriva dal telefono del cliente via QR: nel codice viaggiano
+   i tratti, il PNG lo rigeneriamo qui identico all'originale. */
+function vecToPng(vec, scale){
+  if (!vec || !Array.isArray(vec.s) || !vec.s.length) return null;
+  const k = scale || 2;
+  const cv = document.createElement("canvas");
+  cv.width = Math.max(1, Math.round((vec.w||300) * k));
+  cv.height = Math.max(1, Math.round((vec.h||170) * k));
+  const c = cv.getContext("2d");
+  c.scale(k, k);
+  c.lineWidth = 2.2; c.lineCap = "round"; c.lineJoin = "round"; c.strokeStyle = "#1B1A19";
+  vec.s.forEach(st => {
+    if (!st || st.length < 2) return;
+    c.beginPath();
+    st.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]));
+    c.stroke();
+  });
+  return cv.toDataURL("image/png");
+}
+
+/* ============================================================
+   PASSAGGIO CONSENSO — dal telefono del cliente al tuo, offline
+   Il cliente compila e firma sul proprio telefono (in studio, comodo).
+   Alla fine il suo telefono genera un QR + un codice testuale: tu
+   inquadri o incolli, e il consenso entra nel tuo archivio.
+   Niente rete, niente server, nessun dato che esce dai dispositivi.
+   Peso tipico del pacchetto compresso: 1-2 KB, dentro un QR solo.
+   ============================================================ */
+const HANDOFF_PREFIX = "IC1:";
+const QR_BYTE_LIMIT = 2900; // capienza reale di un QR v40 livello L
+
+function b64urlEncode(u8){
+  let s = "";
+  for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function b64urlDecode(str){
+  const s = String(str).replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(s);
+  const u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return u;
+}
+/* Un tratto campionato a mano libera e' pieno di punti inutili: due
+   pixel di distanza non li vede nessuno, ma nel QR pesano. Qui li
+   diradiamo e poi salviamo le differenze tra un punto e il successivo
+   invece delle coordinate assolute: numeri piccolissimi, che il gzip
+   schiaccia benissimo. La firma resta identica a occhio.          */
+function thinPts(pts, minD){
+  if (!pts || pts.length < 3) return pts || [];
+  const out = [pts[0]];
+  let last = pts[0];
+  for (let i = 1; i < pts.length - 1; i++){
+    const dx = pts[i][0]-last[0], dy = pts[i][1]-last[1];
+    if (dx*dx + dy*dy >= minD*minD){ out.push(pts[i]); last = pts[i]; }
+  }
+  out.push(pts[pts.length-1]);
+  return out;
+}
+function deltaEnc(pts, scale){
+  const out = []; let px = 0, py = 0;
+  for (const p of pts){
+    const x = Math.round(p[0]*scale), y = Math.round(p[1]*scale);
+    out.push(x-px, y-py); px = x; py = y;
+  }
+  return out;
+}
+function deltaDec(arr, scale){
+  const out = []; let x = 0, y = 0;
+  for (let i = 0; i < arr.length; i += 2){
+    x += arr[i]; y += arr[i+1];
+    out.push([x/scale, y/scale]);
+  }
+  return out;
+}
+function packVec(v){
+  if (!v || !Array.isArray(v.s) || !v.s.length) return null;
+  return { w: v.w, h: v.h, s: v.s.map(st => deltaEnc(thinPts(st, 2), 1)) };
+}
+function unpackVec(v){
+  if (!v || !Array.isArray(v.s)) return null;
+  return { w: v.w, h: v.h, s: v.s.map(a => deltaDec(a, 1)) };
+}
+
+/* Impacchetta solo la parte del cliente (passi 1-6), con chiavi corte
+   e coordinate arrotondate: ogni byte risparmiato e' spazio nel QR. */
+function packSession(s){
+  return {
+    v: 1, id: s.id, cr: s.createdAt,
+    a: s.anagrafica,
+    mi: s.minorenne ? 1 : 0,
+    t1: s.minorenne ? s.tutore1 : null,
+    t2: (s.minorenne && s.richiedeSecondaFirma) ? s.tutore2 : null,
+    dc: s.minorenne ? s.documento : null,
+    sa: s.sanitario, sn: s.sanitarioNote,
+    ta: s.tipoApplicazione,
+    zm: s.zonaMode, z: s.zone, zl: s.zonaLibera, ge: s.genere, zs: s.zonaSegnaMode,
+    mk: (s.markers||[]).map(m => [m.view === "retro" ? 1 : 0, Math.round(m.xPct*10), Math.round(m.yPct*10)]),
+    sk: (s.strokes||[]).map(st => [st.view === "retro" ? 1 : 0,
+        deltaEnc(thinPts((st.points||[]).map(p => [p.xPct, p.yPct]), 0.7), 10)]),
+    gr: s.grandezza, zn: s.zoneNei, znn: s.zoneNeiNote,
+    iv: s.informativaVersion,
+    il: s.informativaLetta ? 1 : 0, pc: s.privacyConsenso ? 1 : 0, df: s.disegnoConfermato ? 1 : 0,
+    r2: s.richiedeSecondaFirma ? 1 : 0,
+    f1: packVec(s.firmaClienteVec), f1t: s.firmaClienteAt,
+    f2: packVec(s.firmaTutore2Vec), f2t: s.firmaTutore2At,
+  };
+}
+function unpackSession(p){
+  const s = blankSession();
+  if (p.id) s.id = p.id;
+  if (p.cr) s.createdAt = p.cr;
+  s.anagrafica = { ...s.anagrafica, ...(p.a || {}) };
+  s.minorenne = !!p.mi;
+  if (p.t1) s.tutore1 = { ...s.tutore1, ...p.t1 };
+  if (p.t2) s.tutore2 = { ...s.tutore2, ...p.t2 };
+  if (p.dc) s.documento = { ...s.documento, ...p.dc };
+  s.sanitario = p.sa || {};
+  s.sanitarioNote = p.sn || "";
+  s.tipoApplicazione = p.ta || s.tipoApplicazione;
+  s.zonaMode = p.zm || s.zonaMode;
+  s.zone = p.z || [];
+  s.zonaLibera = p.zl || "";
+  s.genere = p.ge || s.genere;
+  s.zonaSegnaMode = p.zs || s.zonaSegnaMode;
+  s.markers = (p.mk||[]).map(m => ({ view: m[0] ? "retro" : "fronte", xPct: m[1]/10, yPct: m[2]/10 }));
+  s.strokes = (p.sk||[]).map(st => ({ view: st[0] ? "retro" : "fronte",
+      points: deltaDec(st[1]||[], 10).map(pt => ({ xPct: pt[0], yPct: pt[1] })) }));
+  s.grandezza = p.gr || "";
+  s.zoneNei = p.zn || null;
+  s.zoneNeiNote = p.znn || "";
+  s.informativaVersion = p.iv || s.informativaVersion;
+  s.informativaLetta = !!p.il;
+  s.privacyConsenso = !!p.pc;
+  s.disegnoConfermato = !!p.df;
+  s.richiedeSecondaFirma = !!p.r2;
+  s.firmaClienteVec = unpackVec(p.f1);
+  s.firmaClienteData = vecToPng(s.firmaClienteVec, 2);
+  s.firmaClienteAt = p.f1t || null;
+  s.firmaTutore2Vec = unpackVec(p.f2);
+  s.firmaTutore2Data = vecToPng(s.firmaTutore2Vec, 2);
+  s.firmaTutore2At = p.f2t || null;
+  s.status = "attesa";
+  s.filledByClientRemotely = true;
+  s.updatedAt = new Date().toISOString();
+  return s;
+}
+
+async function encodeHandoff(session){
+  const bytes = new TextEncoder().encode(JSON.stringify(packSession(session)));
+  let out = bytes, flag = "R";
+  if (typeof CompressionStream === "function"){
+    try {
+      const cs = new CompressionStream("gzip");
+      const w = cs.writable.getWriter(); w.write(bytes); w.close();
+      out = new Uint8Array(await new Response(cs.readable).arrayBuffer());
+      flag = "G";
+    } catch(e){ /* niente gzip su questo browser: si va grezzi */ }
+  }
+  return HANDOFF_PREFIX + flag + b64urlEncode(out);
+}
+async function decodeHandoff(code){
+  const raw = String(code || "").trim().replace(/\s+/g, "");
+  if (!raw.startsWith(HANDOFF_PREFIX)) throw new Error("BAD_CODE");
+  const flag = raw[HANDOFF_PREFIX.length];
+  let bytes = b64urlDecode(raw.slice(HANDOFF_PREFIX.length + 1));
+  if (flag === "G"){
+    const ds = new DecompressionStream("gzip");
+    const w = ds.writable.getWriter(); w.write(bytes); w.close();
+    bytes = new Uint8Array(await new Response(ds.readable).arrayBuffer());
+  }
+  return unpackSession(JSON.parse(new TextDecoder().decode(bytes)));
+}
+
+/* ============================================================
+   LETTORE QR — usa BarcodeDetector, gia' dentro Chrome su Android.
+   Dove non c'e', non carichiamo librerie da internet (l'app deve
+   funzionare in un seminterrato senza campo): si passa al codice
+   testuale, che fa lo stesso lavoro.
+   ============================================================ */
+let _scanStream = null, _scanTimer = null;
+
+async function startScanner(){
+  const video = qs("#scan-video");
+  if (!video || _scanStream) return;
+  if (!("BarcodeDetector" in window)){
+    state.scanning = false;
+    state.importError = "Questo browser non sa leggere i QR. Fatti mandare il codice testuale e incollalo qui sotto.";
+    render(); return;
+  }
+  try {
+    _scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    video.srcObject = _scanStream;
+    await video.play();
+  } catch(e){
+    stopScanner();
+    state.importError = "Non riesco ad accedere alla fotocamera. Controlla i permessi del browser, oppure incolla il codice qui sotto.";
+    render(); return;
+  }
+  const detector = new BarcodeDetector({ formats: ["qr_code"] });
+  _scanTimer = setInterval(async () => {
+    if (!_scanStream || video.readyState < 2) return;
+    try {
+      const found = await detector.detect(video);
+      if (found && found.length){
+        const raw = found[0].rawValue || "";
+        if (raw.startsWith(HANDOFF_PREFIX)){
+          stopScanner();
+          await importHandoff(raw);
+        }
+      }
+    } catch(e){ /* frame illeggibile: al prossimo giro */ }
+  }, 350);
+}
+function stopScanner(){
+  clearInterval(_scanTimer); _scanTimer = null;
+  if (_scanStream){ _scanStream.getTracks().forEach(tr => tr.stop()); _scanStream = null; }
+  state.scanning = false;
+}
+
+/* Importa il consenso e lo mette in archivio. Se un consenso con lo
+   stesso id c'e' gia' (doppia scansione), non lo duplichiamo: apriamo
+   quello, cosi' non ti ritrovi due schede identiche. */
+async function importHandoff(code){
+  state.importError = ""; state.importOk = "";
+  let s;
+  try { s = await decodeHandoff(code); }
+  catch(e){
+    state.importError = e && e.message === "BAD_CODE"
+      ? "Questo non è un codice di consenso InkConsent. Controlla di aver copiato tutto, dall'inizio alla fine."
+      : "Il codice risulta danneggiato o incompleto. Fattelo rimandare.";
+    render(); return;
+  }
+  const esistente = getSession(s.id);
+  if (esistente){
+    draft = esistente;
+    state.view = "form"; state.step = CLIENT_LAST_STEP + 1;
+    state.importPaste = "";
+    render(); return;
+  }
+  upsertSession(s);
+  draft = s;
+  state.importPaste = "";
+  state.view = "form";
+  state.step = CLIENT_LAST_STEP + 1; // dritto ai dati seduta: la parte del cliente e' fatta
+  render();
 }
 
 /* ============================================================
@@ -2561,13 +2962,38 @@ document.addEventListener("click", (e) => {
     else draft.controfirmaAt = null;
     renderStepOnly();
   }
+  else if (action === "copy-handoff"){
+    const ta = qs(".handoff-code");
+    if (ta){
+      ta.select();
+      navigator.clipboard ? navigator.clipboard.writeText(state.handoffCode||"").catch(()=>document.execCommand("copy"))
+                          : document.execCommand("copy");
+      const btn = e.target.closest("button");
+      if (btn){ const old = btn.innerHTML; btn.innerHTML = icon("check",15) + " Copiato"; setTimeout(()=>{ btn.innerHTML = old; }, 1800); }
+    }
+  }
+  else if (action === "scan-start"){ state.importError = ""; state.scanning = true; render(); }
+  else if (action === "scan-stop"){ stopScanner(); render(); }
+  else if (action === "import-paste"){
+    const ta = qs('[data-import-field]');
+    const code = ta ? ta.value.trim() : "";
+    if (!code){ state.importError = "Incolla prima il codice che ti ha mandato il cliente."; render(); return; }
+    importHandoff(code);
+  }
   else if (action === "add-second-sig"){ draft.richiedeSecondaFirma = true; renderStepOnly(); }
   else if (action === "remove-second-sig"){ draft.richiedeSecondaFirma = false; draft.firmaTutore2Data = null; draft.firmaTutore2At = null; renderStepOnly(); }
   else if (action === "submit-client"){
     const errs = validateStep(CLIENT_LAST_STEP);
     if (errs.length){ state.showErrors = CLIENT_LAST_STEP; renderStepOnly(); return; }
     draft.status = "attesa"; draft.filledByClientRemotely = true;
-    upsertSession(draft); render();
+    upsertSession(draft);
+    state.handoffCode = "";
+    render();
+    // il codice per il tatuatore: si prepara subito dopo il render,
+    // cosi' il cliente vede intanto la schermata di conferma
+    encodeHandoff(draft)
+      .then(code => { state.handoffCode = code; render(); })
+      .catch(err => { console.warn("Codice non generato:", err); });
   }
   else if (action === "finalize-studio"){
     const errs = validateStep(8);
@@ -2770,6 +3196,7 @@ document.addEventListener("click", (e) => {
 });
 
 document.addEventListener("input", (e) => {
+  if (e.target.matches("[data-import-field]")){ state.importPaste = e.target.value; return; }
   const loginField = e.target.dataset.loginField;
   if (loginField){
     if (loginField === "studioId" || loginField === "pw" || loginField === "pw2"){
@@ -2955,22 +3382,29 @@ function initRichiestaMode(){
   render();
 }
 
-applyStudioConfig();
-if (state.mode === "studio"){
-  const hasAuth = authIsSet();
-  if (hasAuth){
-    // sicurezza prima di tutto: se c'è un accesso, l'app parte bloccata.
-    state.locked = true;
-  } else if (!tourDismissed()){
-    // primo utilizzo: tour, poi creazione accesso
-    state.showTour = true;
-  } else {
-    state.needsSetup = true;
+/* Il boot ora aspetta l'idratazione da IndexedDB: senza, il primo
+   render leggerebbe un archivio vuoto e sembrerebbe che i consensi
+   siano spariti.                                                   */
+(async function boot(){
+  applyStudioConfig();
+  try { await hydrateStores(); }
+  catch(e){ console.warn("Idratazione archivio fallita, uso quel che c'è in locale:", e); }
+
+  if (state.mode === "studio"){
+    if (authIsSet()){
+      // sicurezza prima di tutto: se c'è un accesso, l'app parte bloccata.
+      state.locked = true;
+    } else if (!tourDismissed()){
+      // primo utilizzo: tour, poi creazione accesso
+      state.showTour = true;
+    } else {
+      state.needsSetup = true;
+    }
   }
-}
-if (state.mode === "client") initClientMode();
-else if (state.mode === "richiesta") initRichiestaMode();
-else render();
+  if (state.mode === "client") await initClientMode();
+  else if (state.mode === "richiesta") initRichiestaMode();
+  else render();
+})();
 
 if ("serviceWorker" in navigator){
   window.addEventListener("load", () => {
@@ -3172,13 +3606,68 @@ function renderClientShell(){
   </div>`;
 }
 function renderClientDone(){
+  const code = state.handoffCode || "";
+  const kb = code ? (code.length/1024).toFixed(1) : "0";
+  const tooBig = code.length > QR_BYTE_LIMIT;
   return `
   <div class="client-shell">
-    <div class="client-body" style="padding-top:60px;text-align:center;">
-      <div class="rail-mark" style="width:56px;height:56px;font-size:22px;margin:0 auto 18px;">${markHtml()}</div>
+    <div class="client-body" style="padding-top:40px;text-align:center;">
+      <div class="rail-mark" style="width:56px;height:56px;font-size:22px;margin:0 auto 16px;">${markHtml()}</div>
       <h2>Fatto — grazie${draft.anagrafica.nome ? ", " + esc(draft.anagrafica.nome) : ""}</h2>
-      <p class="section-desc">Il modulo è arrivato allo studio. Il tatuatore lo controfirmerà con te al momento dell'appuntamento — non devi fare altro.</p>
-      <span class="stamp ${STATUS[draft.status].cls}">${STATUS[draft.status].label}</span>
+      <p class="section-desc">Manca solo un passaggio: mostra questo codice al tatuatore, che lo inquadra col suo dispositivo. I tuoi dati non passano da internet — vanno direttamente dal tuo telefono al suo.</p>
+
+      ${!code ? `<p class="section-desc mono">Preparazione del codice…</p>` : (tooBig ? `
+        <div class="callout warn" style="text-align:left;">
+          <b>Il codice è troppo lungo per il QR</b>
+          <p>Usa il pulsante qui sotto per copiarlo e mandalo al tatuatore su WhatsApp: funziona esattamente allo stesso modo.</p>
+        </div>` : `
+        <div class="handoff-qr"><div id="handoff-qr-host" data-code="${esc(code)}"></div></div>
+        <p class="handoff-size" style="margin-top:8px;">${kb} KB · valido solo per questo consenso</p>`)}
+
+      ${code ? `
+      <details style="margin-top:18px;text-align:left;">
+        <summary class="mono" style="cursor:pointer;font-size:12px;color:var(--ink-faint);">Non riesce a inquadrare? Passa il codice a mano</summary>
+        <textarea class="handoff-code" readonly onclick="this.select()">${esc(code)}</textarea>
+        <div class="btn-row" style="margin-top:8px;">
+          <button class="btn btn-ghost btn-sm" data-action="copy-handoff">${icon("copy",15)} Copia il codice</button>
+        </div>
+      </details>` : ""}
+
+      <p class="field hint" style="margin-top:20px;">Finché non chiudi questa pagina il codice resta disponibile. Il consenso è già firmato: nessuno può modificarlo dopo.</p>
+    </div>
+  </div>`;
+}
+
+/* ---------- lato studio: importa il consenso dal telefono del cliente ---------- */
+function renderImport(){
+  return `
+  <div class="topbar">
+    <div><h1>Importa consenso</h1><p>Dal telefono del cliente al tuo, senza passare da internet</p></div>
+    <button class="btn btn-ghost btn-sm" data-action="nav" data-view="archive">${icon("arrowLeft",15)} Archivio</button>
+  </div>
+  <div class="main-inner">
+    ${state.importError ? `<div class="callout warn"><b>Non ci siamo</b><p>${esc(state.importError)}</p></div>` : ""}
+    ${state.importOk ? `<div class="callout ok"><b>Consenso importato</b><p>${esc(state.importOk)}</p></div>` : ""}
+
+    <div class="card">
+      <h3 class="section-title">Inquadra il codice</h3>
+      <p class="section-desc">Punta la fotocamera sul QR che il cliente ha sullo schermo. Appena lo legge, il consenso entra in archivio e puoi proseguire con dati seduta e controfirma.</p>
+      ${state.scanning ? `
+        <div class="scan-wrap"><video id="scan-video" playsinline muted></video><div class="scan-frame"></div></div>
+        <div class="btn-row" style="margin-top:12px;"><button class="btn btn-ghost btn-sm" data-action="scan-stop">Ferma la fotocamera</button></div>
+      ` : `
+        <div class="btn-row"><button class="btn btn-accent" data-action="scan-start">${icon("search",16)} Apri la fotocamera</button></div>
+        ${!("BarcodeDetector" in window) ? `<p class="field hint">Questo browser non sa leggere i QR da solo: usa il campo qui sotto incollando il codice che il cliente ti manda su WhatsApp.</p>` : ""}
+      `}
+    </div>
+
+    <div class="card">
+      <h3 class="section-title">Oppure incolla il codice</h3>
+      <p class="section-desc">Se la fotocamera fa i capricci, fatti mandare il codice testuale e incollalo qui. È lo stesso identico contenuto del QR.</p>
+      <div class="field">
+        <textarea class="handoff-code" style="height:110px;" placeholder="IC1:G…" data-import-field="1">${esc(state.importPaste||"")}</textarea>
+      </div>
+      <div class="btn-row"><button class="btn btn-primary" data-action="import-paste">${icon("download",16)} Importa</button></div>
     </div>
   </div>`;
 }
