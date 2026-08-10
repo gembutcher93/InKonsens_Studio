@@ -606,6 +606,8 @@ function applyStudioConfig(){
   STUDIO_CONFIG.publicUrl = o.publicUrl;
   STUDIO_CONFIG.aftercareText = o.aftercareText || "";
   STUDIO_CONFIG.logoDataUrl = o.logoDataUrl || "";
+  STUDIO_CONFIG.regione = (state.studioBuffer && "regione" in state.studioBuffer) ? state.studioBuffer.regione : (o.regione || "");
+  STUDIO_CONFIG.noteConsenso = (state.studioBuffer && "noteConsenso" in state.studioBuffer) ? state.studioBuffer.noteConsenso : (o.noteConsenso || "");
   STUDIO_CONFIG.artists = o.artistsText.split(",").map(s => s.trim()).filter(Boolean);
   if (!STUDIO_CONFIG.artists.length) STUDIO_CONFIG.artists = ["Artista"];
   const r = document.documentElement.style;
@@ -896,7 +898,7 @@ function blankSession(){
 /* Chiave pubblica dell'assistenza. La generi UNA VOLTA con
    assistenza-recupero.html e incolli qui la parte pubblica.
    La privata non deve mai finire in questo file. */
-const SUPPORT_PUBLIC_KEY = "MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA6bogWrQ/gCuy3kXRKsi8D1UbDYj3yqEnzL4N8OeAiQ5dFfR7nGCNS9EtVgbYp+PCI/B/QDZiFZQuPx9L5ZqrzEHN39rv6JiFUfNTWOS7ItcdmlePF4/SvO4UdCGDze6dDTGrUJrW4tnsGpRxh1KwEIHY/2ItbQeXgkKYfjVGrq9X17Kq+e8VjaW+r4cf0YUUauJXbrfUcfRhmghVBBnxPF3b6/ouihMZjZkxHjEVf+YS3zV1A0Oxk6psWq7+KTYVQpMZifH/XkYTfUhpOJJCUymH66Puw3G/Odg4dIHG157+CGJxIQ16X+HsxGTdPjkIRox1w3wY3Z5zwP4x7zU06FBfmLLEqyIEroqdcH37ES8pui8kgjnmnApSHI+iwKSYDYzgthUmtZ7n/2FH2se0Hpjq9GO5k7U7SDOnzLmac3Dk3bzXGIKrL9o+/CdjMVwvan0YsF10fsg+rUCedjubm5VT9YY7DRVqGmu48nNZ+Ft4uWj6tbxDZUfjWcCW7omdAgMBAAE=";
+const SUPPORT_PUBLIC_KEY = "MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAxNdLBhyYchlmZR3N4WnajYCIra4UNtWNslJAkEfxDrxq3DsKYw5dNS/6V27I7nWWxcLvWKQfTXjllAETMFVUafyoVmEdEho8NcFI5TWPl5XKapIQfrugnRy3JIQaA6AXcG/gjueQsJM/jKFyvLJWd43RodiFqxZX6rQLtGPE+1Q42x5ScrrdHEcdWijEuI7HIPuh/UZjuUHen90Tm9IBDKZ1YGqe4/s0fOrh9RG3zSxdvt7BFR3AkVEu0doUlqJV3pcEZPPRl3Ss/IJISE0FNkTZpvBaRAikoIR+yjqtBD/oghhE1ebGiVCqEI8Oo4Y0/XXQyaXaAJPmgVei4X/jbxcYK382t9Tyh3dfeUxiPfRmAKYFHVIdCW3qzeO5TNywOVDaqiUzJzQ75PGKoy5upx1Y3D2e4LovA0Ncot4EcHE+7OIFsSOxk3LVWcnzdRVSd5FkOWSKRMOnjQj8/M0GZEpdAFGy17ImQs2jH9qGMILlrn6C8HeE7eDGEXrokiCDAgMBAAE=";
 
 /* ============================================================
    CASSAFORTE — chiave unica, tre serrature
@@ -1097,7 +1099,7 @@ const enc = new TextEncoder();
 const dec = new TextDecoder();
 
 function randomBytes(n){ const b = new Uint8Array(n); crypto.getRandomValues(b); return b; }
-function b64(u8){ let s = ""; for (let i=0;i<u8.length;i++) s += String.fromCharCode(u8[i]); return btoa(s); }
+function b64(buf){ const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf); let s = ""; for (let i=0;i<u8.length;i++) s += String.fromCharCode(u8[i]); return btoa(s); }
 function unb64(str){ const bin = atob(str); const u = new Uint8Array(bin.length); for (let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; }
 
 /* ---------- frase di recupero ---------- */
@@ -1718,8 +1720,10 @@ async function deriveKey(password, salt){
     baseKey, { name: "AES-GCM", length: 256 }, false, ["encrypt","decrypt"]
   );
 }
-function b64(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))); }
-function unb64(str){ return Uint8Array.from(atob(str), c => c.charCodeAt(0)); }
+/* b64/unb64 sicure sono definite piu' su (ciclo, niente spread che
+   esplode sulle firme grandi). Qui NON le ridefinisco: la vecchia
+   versione con lo spread mandava in errore il backup non appena
+   l'archivio conteneva una firma. */
 
 /* Backup formato 2: dentro il file ci va anche una copia delle buste
    della cassaforte. Cosi' un backup cifrato si riapre in tre modi —
@@ -4102,7 +4106,10 @@ document.addEventListener("change", (e) => {
   const leadField = e.target.dataset.fieldLead;
   if (leadField && leadDraft) setLeadField(leadField, e.target.value);
   const studioField = e.target.dataset.fieldStudio;
-  if (studioField){ state.studioBuffer = { ...(state.studioBuffer||{}), [studioField]: e.target.value }; }
+  if (studioField){
+    state.studioBuffer = { ...(state.studioBuffer||{}), [studioField]: e.target.value };
+    if (studioField === "regione"){ applyStudioConfig(); state.studioSaved = false; render(); return; }
+  }
   const authField = e.target.dataset.fieldAuth;
   if (authField){ state.authBuffer = { ...(state.authBuffer||{}), [authField]: e.target.value }; }
   const backupField = e.target.dataset.fieldBackup;
@@ -4396,7 +4403,11 @@ function renderSettings(){
         <textarea data-field-studio="noteConsenso" rows="4" placeholder="Righe che vuoi aggiungere in coda alla dichiarazione del consenso.">${esc(STUDIO_CONFIG.noteConsenso||"")}</textarea>
         <div class="hint">Finiscono in fondo alla dichiarazione che il cliente firma, e nel PDF.</div>
       </div>
-      <div class="kv"><span>Testo che verrà firmato</span><b class="mono">${esc(moduloAttivo().etichetta)}</b></div>
+      <div class="btn-row">
+        <button class="btn btn-primary btn-sm" data-action="save-studio">${icon("check",15)} Salva modulo</button>
+        ${state.studioSaved ? `<span class="mono" style="align-self:center;font-size:12px;color:var(--stk-top);">Salvato</span>` : ""}
+      </div>
+      <div class="kv" style="margin-top:10px;"><span>Testo che verrà firmato</span><b class="mono">${esc(moduloAttivo().etichetta)}</b></div>
       ${!moduloAttivo().verificato ? `<div class="callout warn" style="margin-top:12px;"><b>Testo non ancora verificato per questa Regione.</b> Il modulo base è trascritto da quello in uso in ${esc(MODULO_BASE.nome_origine)}. Prima di usarlo altrove fallo controllare, e aggiungi il testo regionale in <span class="mono">consensi.json</span>.</div>` : ""}
       <div class="callout info" style="margin-top:12px;">Ogni consenso registra la versione del testo con cui è stato firmato: aggiornare il modulo non cambia quelli già archiviati.</div>
     </div>
