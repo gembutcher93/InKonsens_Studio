@@ -668,8 +668,32 @@ const MODULO_BASE = {
   versione: "2.0",
   effettiFrequenti: EFFETTI_FREQUENTI,
   effettiRari: EFFETTI_RARI,
-  avvertenze: [],
+  // avvertenze che ricorrono in ogni regolamento regionale, quindi stanno
+  // nel tronco comune: valgono per Sardegna e per tutte le regioni "standard"
+  avvertenze: [
+    "Per rimuovere gli effetti di un tatuaggio è necessario ricorrere a interventi (es. laser o chirurgia) che sono costosi, possono essere dolorosi e non sempre garantiscono il ripristino della pelle allo stato originario.",
+    "È sconsigliato eseguire tatuaggi durante la gravidanza o l'allattamento.",
+    "Non si eseguono tatuaggi su cute con processi infiammatori, lesioni o malattie della pelle in atto.",
+  ],
   dichiarazione: null,       // null = usa STUDIO_CONFIG.dichiarazioneConsenso
+};
+
+/* Gruppi di regioni che condividono lo stesso testo del modulo base.
+   Chi seleziona una di queste regioni firma "Standard nazionale", non
+   una voce col nome della singola regione: il testo e' identico, quindi
+   raggrupparle evita venti voci uguali. Se un domani una di queste
+   introduce un testo suo, basta darle una voce in MODULI_REGIONALI e
+   sparisce in automatico dal gruppo. */
+const GRUPPO_STANDARD = {
+  nome: "Standard nazionale",
+  /* Solo le regioni che seguono il modello standard delle Linee Guida
+     ministeriali 1998, senza un testo di consenso proprio (Blocco 1).
+     Le altre restano "da verificare" finche' non si controlla se la loro
+     peculiarita' tocca DAVVERO il testo del consenso o solo aspetti
+     amministrativi (eta' minima, conservazione, formazione) che non
+     cambiano cosa il cliente firma. */
+  regioni: ["abruzzo", "basilicata", "calabria", "molise",
+            "umbria", "valle-aosta", "trentino"],
 };
 
 const REGIONI_IT = [
@@ -713,6 +737,9 @@ function moduloAttivo(tipo){
   const reg = STUDIO_CONFIG.regione || "";
   const r = MODULI_REGIONALI[reg] || null;
   const isPiercing = tipo === "piercing";
+  // una regione senza testo proprio ma nel gruppo standard e' "verificata":
+  // usa il base, che e' lo standard nazionale
+  const inGruppo = !r && GRUPPO_STANDARD.regioni.includes(reg);
   const nomeReg = (REGIONI_IT.find(x => x[0] === reg) || [])[1] || "";
   const note = (STUDIO_CONFIG.noteConsenso || "").trim();
   return {
@@ -729,13 +756,15 @@ function moduloAttivo(tipo){
       note,
     ].filter(Boolean).join("\n\n"),
     noteStudio: note,
-    /* Se la Regione scelta e' quella da cui il testo proviene, il modulo
-       e' gia' quello giusto: si chiama col suo nome, non "base". */
-    verificato: reg === MODULO_BASE.origine || !!r,
+    /* Verificato quando: e' la regione d'origine del testo, ha un testo
+       regionale suo, oppure appartiene al gruppo standard nazionale. */
+    verificato: reg === MODULO_BASE.origine || !!r || inGruppo,
     etichetta: (reg === MODULO_BASE.origine
         ? MODULO_BASE.nome_origine + " v" + MODULO_BASE.versione
-        : "Base v" + MODULO_BASE.versione + (r ? " + " + nomeReg + " v" + (r.versione || "1.0") : ""))
-      + (reg && reg !== MODULO_BASE.origine && !r ? " · " + nomeReg + " (da verificare)" : "")
+        : r ? "Base v" + MODULO_BASE.versione + " + " + nomeReg + " v" + (r.versione || "1.0")
+        : inGruppo ? GRUPPO_STANDARD.nome + " v" + MODULO_BASE.versione
+        : "Base v" + MODULO_BASE.versione)
+      + (reg && reg !== MODULO_BASE.origine && !r && !inGruppo ? " · " + nomeReg + " (da verificare)" : "")
       + (note ? " + note studio" : ""),
   };
 }
@@ -4417,7 +4446,18 @@ function renderSettings(){
         <label>Regione</label>
         <select data-field-studio="regione">
           <option value="">Nessuna · solo modulo base</option>
-          ${REGIONI_IT.map(([k,n]) => `<option value="${k}" ${STUDIO_CONFIG.regione===k?"selected":""}>${esc(n)}${(MODULI_REGIONALI[k] || k === MODULO_BASE.origine) ? "" : " — testo da verificare"}</option>`).join("")}
+          ${(() => {
+            const sel = (k) => STUDIO_CONFIG.regione===k ? "selected" : "";
+            const nome = (k) => (REGIONI_IT.find(x=>x[0]===k)||["",""])[1];
+            const propria = REGIONI_IT.filter(([k]) => MODULI_REGIONALI[k] || k === MODULO_BASE.origine);
+            const standard = REGIONI_IT.filter(([k]) => !MODULI_REGIONALI[k] && k !== MODULO_BASE.origine && GRUPPO_STANDARD.regioni.includes(k));
+            const altre = REGIONI_IT.filter(([k]) => !MODULI_REGIONALI[k] && k !== MODULO_BASE.origine && !GRUPPO_STANDARD.regioni.includes(k));
+            let h = "";
+            if (propria.length) h += `<optgroup label="Con modulo regionale proprio">` + propria.map(([k,n]) => `<option value="${k}" ${sel(k)}>${esc(n)}</option>`).join("") + `</optgroup>`;
+            if (standard.length) h += `<optgroup label="${esc(GRUPPO_STANDARD.nome)}">` + standard.map(([k,n]) => `<option value="${k}" ${sel(k)}>${esc(n)}</option>`).join("") + `</optgroup>`;
+            if (altre.length) h += `<optgroup label="Senza modulo ufficiale · usano il base">` + altre.map(([k,n]) => `<option value="${k}" ${sel(k)}>${esc(n)}</option>`).join("") + `</optgroup>`;
+            return h;
+          })()}
         </select>
       </div>
       <div class="field">

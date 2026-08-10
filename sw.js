@@ -9,7 +9,7 @@
    Nota: i dati (consensi, magazzino) NON passano da qui. Stanno in
    IndexedDB sul dispositivo e il service worker non li tocca mai.   */
 
-const CACHE = "inkconsent-v17";
+const CACHE = "inkconsent-v19";
 
 const PRECACHE = [
   "./",
