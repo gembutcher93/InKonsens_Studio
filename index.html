@@ -557,6 +557,12 @@ const STUDIO_DEFAULTS = {
   studioCity: "Ozieri (SS)",
   studioMark: "P173",
   artistsText: "GemBucher, Ospite / Guest", // editabile come testo, split su virgola
+  // dati fiscali/autorizzativi: facoltativi. Alcune Regioni chiedono che
+  // compaiano sul consenso, altre no. Vuoti = non stampati.
+  ragioneSociale: "",
+  partitaIva: "",
+  indirizzoStudio: "",
+  protocolloScia: "",
   publicUrl: "https://tuo-studio.vercel.app",
   colorInk: "#1B1A19",
   colorStencil: "#5B3B63",
@@ -584,7 +590,7 @@ const STUDIO_CONFIG = {
 CONFERMO che quanto da me dichiarato corrisponde al vero.
 Mi impegno a seguire attentamente le istruzioni per la CURA del tatuaggio/piercing fino a completa guarigione.
 ESONERO l'esecutore del tatuaggio/piercing e lo studio da qualsiasi responsabilità in merito ai rischi di infezione e reazioni indesiderate sopra illustrate, e da ogni pretesa di risarcimento danni connessa alla prestazione commissionata.`,
-  privacyText: `Con la sottoscrizione del presente modulo, ai sensi e per gli effetti degli artt. 13 e 23 del D.Lgs. n. 196/2003, si fornisce il consenso al trattamento dei dati personali forniti a seguito della segnalazione inoltrata. Ai sensi del D.Lgs. 196/2003 i dati contenuti nella presente dichiarazione verranno utilizzati esclusivamente allo scopo per il quale essi sono richiesti.`,
+  privacyText: `Con la sottoscrizione del presente modulo il cliente, informato ai sensi degli artt. 13 e 14 del Regolamento UE 2016/679 (GDPR) e del D.Lgs. 196/2003 come modificato dal D.Lgs. 101/2018, presta il proprio consenso esplicito al trattamento dei dati personali forniti. In particolare, ai sensi dell'art. 9 del Regolamento UE 2016/679, presta consenso esplicito al trattamento dei dati relativi alla salute raccolti nel questionario anamnestico, necessari alla valutazione dell'idoneità all'esecuzione del trattamento. I dati sono trattati dal titolare (lo studio) esclusivamente per le finalità connesse all'esecuzione del trattamento e agli obblighi di conservazione previsti dalla normativa, e non sono diffusi a terzi.`,
   disegnoText: `Dichiaro di essere stato informato sui rischi legati all'esecuzione e sulle precauzioni da tenere dopo l'effettuazione del tatuaggio o del piercing; di aver visionato il disegno del tatuaggio prima dell'esecuzione e di averne approvato il contenuto; confermo inoltre di essere consapevole che il tatuaggio verrà eseguito artigianalmente secondo il disegno approvato e di accettarne l'esecuzione.`,
 };
 
@@ -606,6 +612,10 @@ function applyStudioConfig(){
   STUDIO_CONFIG.publicUrl = o.publicUrl;
   STUDIO_CONFIG.aftercareText = o.aftercareText || "";
   STUDIO_CONFIG.logoDataUrl = o.logoDataUrl || "";
+  STUDIO_CONFIG.ragioneSociale = o.ragioneSociale || "";
+  STUDIO_CONFIG.partitaIva = o.partitaIva || "";
+  STUDIO_CONFIG.indirizzoStudio = o.indirizzoStudio || "";
+  STUDIO_CONFIG.protocolloScia = o.protocolloScia || "";
   STUDIO_CONFIG.regione = (state.studioBuffer && "regione" in state.studioBuffer) ? state.studioBuffer.regione : (o.regione || "");
   STUDIO_CONFIG.noteConsenso = (state.studioBuffer && "noteConsenso" in state.studioBuffer) ? state.studioBuffer.noteConsenso : (o.noteConsenso || "");
   STUDIO_CONFIG.artists = o.artistsText.split(",").map(s => s.trim()).filter(Boolean);
@@ -3150,7 +3160,8 @@ function buildPdf(s){
   const ensure = (needed) => { if (y + needed > BOTTOM) newPage(); };
 
   // ---- intestazione con logo + riquadro registro ----
-  const headerH = 66;
+  const hasFisc = !!(STUDIO_CONFIG.ragioneSociale || STUDIO_CONFIG.indirizzoStudio || STUDIO_CONFIG.partitaIva || STUDIO_CONFIG.protocolloScia);
+  const headerH = hasFisc ? 82 : 66;
   // logo (se presente come dataURL)
   let tx = M;
   if (STUDIO_CONFIG.logoDataUrl){
@@ -3160,8 +3171,17 @@ function buildPdf(s){
   doc.text(STUDIO_CONFIG.studioName, tx, y+18);
   doc.setFont("helvetica","normal"); doc.setFontSize(9.5); setText(SOFT);
   doc.text(STUDIO_CONFIG.studioCity, tx, y+33);
+  // riga dati fiscali/autorizzativi: solo i campi compilati, per chi ne ha l'obbligo
+  const fisc = [
+    STUDIO_CONFIG.ragioneSociale,
+    STUDIO_CONFIG.indirizzoStudio,
+    STUDIO_CONFIG.partitaIva ? "P.IVA/C.F. " + STUDIO_CONFIG.partitaIva : "",
+    STUDIO_CONFIG.protocolloScia ? "SCIA/SUAP " + STUDIO_CONFIG.protocolloScia : "",
+  ].filter(Boolean).join("  ·  ");
+  let yInfo = y + 33;
+  if (fisc){ doc.setFontSize(7.5); setText(FAINT); doc.text(fisc, tx, y+45); yInfo = y + 45; }
   doc.setFontSize(10.5); setText(ACCENT); doc.setFont("helvetica","bold");
-  doc.text(`Consenso informato · ${s.tipoApplicazione === "piercing" ? "Piercing" : "Tatuaggio"}`, tx, y+49);
+  doc.text(`Consenso informato · ${s.tipoApplicazione === "piercing" ? "Piercing" : "Tatuaggio"}`, tx, yInfo+16);
   // riquadro numero registro a destra
   if (s.progressivo){
     const bw = 130, bh = 44, bx = PW - M - bw;
@@ -3289,7 +3309,7 @@ function buildPdf(s){
   // ---- CONSENSO ----
   section(`Consenso informato · ${s.informativaVersion || ""}`);
   para("Il cliente dichiara di aver letto e compreso il Modulo di Consenso Informato, di aver fornito dichiarazioni veritiere, di impegnarsi a seguire le istruzioni di cura ed esonera l'esecutore e lo studio da responsabilità per i rischi illustrati.");
-  kv("Trattamento dati (D.Lgs 196/2003)", s.privacyConsenso ? "Consenso prestato" : "Non prestato", {bold:true, color: s.privacyConsenso?ACCENT:INK});
+  kv("Trattamento dati (GDPR, Reg. UE 2016/679, artt. 9 e 13)", s.privacyConsenso ? "Consenso esplicito prestato" : "Non prestato", {bold:true, color: s.privacyConsenso?ACCENT:INK});
   kv("Disegno visionato e approvato", s.disegnoConfermato ? "Sì" : "No", {bold:true});
   y += 8;
 
@@ -4402,6 +4422,26 @@ function renderSettings(){
         <label>Note e clausole dello studio</label>
         <textarea data-field-studio="noteConsenso" rows="4" placeholder="Righe che vuoi aggiungere in coda alla dichiarazione del consenso.">${esc(STUDIO_CONFIG.noteConsenso||"")}</textarea>
         <div class="hint">Finiscono in fondo alla dichiarazione che il cliente firma, e nel PDF.</div>
+      </div>
+
+      <div class="subhead" style="margin-top:6px;">Dati dello studio sul consenso</div>
+      <p class="section-desc">Alcune Regioni chiedono che sul consenso compaiano ragione sociale, indirizzo, P.IVA e gli estremi della SCIA/SUAP. Compila solo quello che ti serve: i campi vuoti non vengono stampati.</p>
+      <div class="field">
+        <label>Ragione sociale</label>
+        <input type="text" data-field-studio="ragioneSociale" value="${esc(STUDIO_CONFIG.ragioneSociale||"")}" placeholder="Es. Podere 173 di Mario Rossi">
+      </div>
+      <div class="field">
+        <label>Indirizzo dello studio</label>
+        <input type="text" data-field-studio="indirizzoStudio" value="${esc(STUDIO_CONFIG.indirizzoStudio||"")}" placeholder="Via, civico, CAP, città">
+      </div>
+      <div class="field">
+        <label>Partita IVA / Codice Fiscale</label>
+        <input type="text" data-field-studio="partitaIva" value="${esc(STUDIO_CONFIG.partitaIva||"")}" placeholder="Es. 01234567890">
+      </div>
+      <div class="field">
+        <label>Protocollo SCIA / SUAP</label>
+        <input type="text" data-field-studio="protocolloScia" value="${esc(STUDIO_CONFIG.protocolloScia||"")}" placeholder="Numero e data dell'autorizzazione sanitaria">
+        <div class="hint">L'estremo dell'autorizzazione sanitaria, se la tua Regione lo richiede sul modulo.</div>
       </div>
       <div class="btn-row">
         <button class="btn btn-primary btn-sm" data-action="save-studio">${icon("check",15)} Salva modulo</button>
