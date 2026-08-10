@@ -709,9 +709,10 @@ async function caricaModuliEsterni(){
 }
 
 /* Fonde i tre strati e restituisce il modulo da mostrare e da firmare. */
-function moduloAttivo(){
+function moduloAttivo(tipo){
   const reg = STUDIO_CONFIG.regione || "";
   const r = MODULI_REGIONALI[reg] || null;
+  const isPiercing = tipo === "piercing";
   const nomeReg = (REGIONI_IT.find(x => x[0] === reg) || [])[1] || "";
   const note = (STUDIO_CONFIG.noteConsenso || "").trim();
   return {
@@ -719,7 +720,8 @@ function moduloAttivo(){
     nomeRegione: nomeReg,
     effettiFrequenti: [...(MODULO_BASE.effettiFrequenti||[]), ...((r && r.effettiFrequenti) || [])],
     effettiRari:      [...(MODULO_BASE.effettiRari||[]),      ...((r && r.effettiRari) || [])],
-    avvertenze:       [...(MODULO_BASE.avvertenze||[]),       ...((r && r.avvertenze) || [])],
+    avvertenze:       [...(MODULO_BASE.avvertenze||[]),       ...((r && r.avvertenze) || []),
+                       ...(isPiercing && r && r.avvertenzePiercing ? r.avvertenzePiercing : [])],
     riferimento: (r && r.riferimento) || "",
     dichiarazione: [
       MODULO_BASE.dichiarazione || STUDIO_CONFIG.dichiarazioneConsenso,
@@ -4857,7 +4859,7 @@ function renderConsensoBodyFrame(view){
 }
 
 function renderStepInformativa(ctx){
-  const m = moduloAttivo();
+  const m = moduloAttivo(draft.tipoApplicazione);
   return `
   ${renderErrors(4)}
   <h3 class="section-title">Rischi e consenso</h3>
@@ -4875,7 +4877,7 @@ function renderStepInformativa(ctx){
   </div>
 
   ${m.avvertenze.length ? `
-    <div class="subhead">Avvertenze${m.nomeRegione ? " · " + esc(m.nomeRegione) : ""}</div>
+    <div class="subhead">Avvertenze${m.nomeRegione ? " · " + esc(m.nomeRegione) : ""}${draft.tipoApplicazione === "piercing" ? " (piercing)" : ""}</div>
     <div class="callout info" style="font-size:13px;line-height:1.7;">
       <ul style="margin:0;padding-left:18px;">${m.avvertenze.map(e => `<li>${esc(e)}</li>`).join("")}</ul>
     </div>` : ""}

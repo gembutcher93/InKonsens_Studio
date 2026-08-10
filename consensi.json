@@ -1,13 +1,10 @@
 {
   "_nota": "Testi del consenso, aggiornabili senza ripubblicare l'app. Va nella root, accanto a index.html. Se manca, l'app usa i testi incorporati. Alza sempre 'versione' quando cambi un testo: i consensi gia' firmati conservano la versione con cui sono stati firmati. Le voci con nome che inizia per underscore vengono ignorate: servono da esempio.",
-
   "base": {
     "versione": "2.0",
     "avvertenze": []
   },
-
   "regioni": {
-
     "piemonte": {
       "versione": "1.0",
       "riferimento": "D.P.G.R. Piemonte 46/R del 2003 · Allegati D ed E",
@@ -25,12 +22,37 @@
       "effettiRari": [],
       "dichiarazioneExtra": "Dichiaro di essere stato informato in merito ai potenziali rischi per la salute derivanti dall'applicazione di tatuaggio o piercing sopra elencati, e controfirmo per presa visione ai sensi del D.P.G.R. Piemonte 46/R/2003 (Allegato D)."
     },
-
+    "liguria": {
+      "versione": "1.0",
+      "riferimento": "DGR Liguria 593/2023 · Allegato 1 (sostituisce DGR 787/2008 e 831/2009)",
+      "avvertenze": [
+        "Infezioni locali: causate da microrganismi presenti sulla cute; in genere si risolvono senza lasciare alterazioni, ma non eccezionalmente possono generare cicatrici deturpanti o cheloidi, soprattutto per applicazioni multiple sulla cartilagine delle orecchie.",
+        "Infezioni sistemiche: gli agenti infettanti possono essere virali o batterici; i più frequenti sono i virus dell'epatite B e C e il virus HIV. È stato segnalato un aumento delle endocarditi associate al piercing, in particolare in soggetti già sottoposti a valvuloplastica, oltre a casi di nefrite.",
+        "Sensibilizzazioni allergiche: l'introduzione di colori o metalli può provocare una reazione allergica, a breve o a lungo termine, anche durante l'applicazione; in caso di difficoltà di respiro e sudorazione ricorrere ai servizi di emergenza. Non infrequente la sensibilizzazione al nichel.",
+        "Altre manifestazioni: reazioni infiammatorie a carico della cute o delle terminazioni nervose. Complicazioni serie ma rare sono melanoma maligno e carcinoma delle cellule basali.",
+        "È sconsigliato sottoporsi a tatuaggio o piercing per: donne in gravidanza o allattamento; soggetti con infiammazioni, lesioni o malattie della pelle; soggetti con tendenza ai cheloidi; malattie che predispongono alle infezioni (diabete, immunodeficienze, uso di cortisonici ad alte dosi); soggetti allergici; soggetti cardiopatici, con disturbi della coagulazione o tendenza alle emorragie.",
+        "La rimozione degli effetti di tatuaggi o piercing richiede interventi chirurgici che non sempre garantiscono il ripristino delle condizioni precedenti.",
+        "In base alle linee guida ministeriali è sconsigliato praticare tatuaggi e piercing sul viso e nelle seguenti sedi: labbra, palpebre, seno, lingua, apparato genitale.",
+        "Qualsiasi reazione indesiderata conseguente a tatuaggio o piercing deve essere segnalata a personale medico."
+      ],
+      "avvertenzePiercing": [
+        "Lingua: possibili difetti di pronuncia, difficoltà di masticazione, danni alle gengive, scheggiature dei denti, maggior rischio di sanguinamento e, in casi estremi, ostruzione delle vie respiratorie o paralisi parziale della lingua da danno a un nervo.",
+        "Cartilagine dell'orecchio: più esposta a infezioni e ascessi rispetto al lobo; talvolta si rende necessaria la rimozione chirurgica della cartilagine infetta.",
+        "Naso: superficie interna difficile da disinfettare, quindi più soggetta a infezioni.",
+        "Genitali: il piercing può ostacolare i rapporti e provocare dolore alla minzione, soprattutto sul pene.",
+        "A chi pratica sport sono sconsigliati i piercing a bocca e naso per il rischio di ostruzione delle vie aeree."
+      ],
+      "effettiFrequenti": [],
+      "effettiRari": [],
+      "dichiarazioneExtra": "Dichiaro di essere stato informato sui rischi derivanti dalla procedura di tatuaggio/piercing e sulle precauzioni da osservare dopo il trattamento, tramite consegna di informativa scritta, e mi impegno a eseguire tutte le istruzioni concernenti il trattamento nel periodo di guarigione, consapevole delle conseguenze dovute a mia negligenza. I dati sono trattati nel rispetto del GDPR (Reg. UE 2016/679) esclusivamente per lo scopo per cui sono richiesti; gli Organismi di vigilanza possono effettuare verifiche e accertamenti d'ufficio. Le informazioni fornite e il consenso vanno conservati per almeno 10 anni."
+    },
     "_esempio": {
       "_nota": "Modello di voce. Togli l'underscore dal nome quando il testo e' verificato.",
       "versione": "1.0",
       "riferimento": "estremi dell'atto regionale",
-      "avvertenze": ["riga aggiuntiva richiesta dalla Regione"],
+      "avvertenze": [
+        "riga aggiuntiva richiesta dalla Regione"
+      ],
       "effettiFrequenti": [],
       "effettiRari": [],
       "dichiarazioneExtra": "capoverso aggiunto in coda alla dichiarazione firmata."
