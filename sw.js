@@ -9,12 +9,13 @@
    Nota: i dati (consensi, magazzino) NON passano da qui. Stanno in
    IndexedDB sul dispositivo e il service worker non li tocca mai.   */
 
-const CACHE = "inkconsent-v12";
+const CACHE = "inkconsent-v14";
 
 const PRECACHE = [
   "./",
   "index.html",
   "manifest.json",
+  "consensi.json",
 
   /* librerie — prima erano su cdnjs, ora locali */
   "jspdf.umd.min.js",

@@ -177,6 +177,10 @@ select{
 .btn-accent{background:var(--stencil);color:#fff;}
 .btn-accent:hover{background:var(--stencil-deep);}
 .btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--line);}
+/* su fondo scuro il testo scuro sparisce: qui si schiarisce tutto */
+.lock-card .btn-ghost,.premium-card .btn-ghost,.tour-card .btn-ghost{color:var(--paper);border-color:#6b635a;}
+.lock-card .btn-ghost:hover,.premium-card .btn-ghost:hover,.tour-card .btn-ghost:hover{background:rgba(255,255,255,.08);}
+.lock-card .btn-primary,.tour-card .btn-primary{background:var(--paper);color:var(--ink);border-color:var(--paper);}
 .btn-ghost:hover{border-color:var(--ink);}
 .btn-sm{padding:7px 12px;font-size:12.5px;}
 @media (max-width:860px){ .btn-sm{padding:9px 14px;} }
@@ -450,6 +454,44 @@ select{
 .lock-hint a{color:var(--flesh);text-decoration:underline;cursor:pointer;}
 .lock-ok{color:#7FB77E;font-size:12.5px;margin:10px 0 0;font-family:var(--font-mono);}
 .recovery-code{font-family:var(--font-mono);font-size:20px;letter-spacing:2px;color:var(--paper);background:rgba(255,255,255,.08);border:1px dashed #6b635a;border-radius:12px;padding:16px;margin:8px 0 14px;user-select:all;}
+/* condizioni: riquadro scorrevole su fondo scuro */
+/* fascia backup: appare in alto quando la copia di oggi non c'e' */
+.bkbar{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:var(--radius-md);
+  margin-bottom:16px;font-size:13px;line-height:1.4;border:1px solid;}
+.bkbar .ic{flex:none;} .bkbar span{flex:1;}
+.bkbar.due{background:var(--stencil-tint);border-color:#CBB9CF;color:var(--stencil-deep);}
+.bkbar.old{background:var(--warn-tint);border-color:#DEBBAF;color:#6B2113;}
+.bkbar button{flex:none;}
+/* archivio raggruppato per mese */
+.arch-month{margin:22px 0 10px;display:flex;align-items:baseline;gap:10px;}
+.arch-month h4{margin:0;font-family:var(--font-display);font-size:16px;color:var(--ink);text-transform:capitalize;}
+.arch-month .cnt{font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);letter-spacing:.04em;}
+.arch-month .line{flex:1;height:1px;background:var(--line-soft);}
+.arch-month .btn{flex:none;}
+.arch-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:4px;}
+.arch-toolbar .field{margin:0;flex:1;min-width:180px;}
+.terms-box{max-height:38vh;overflow-y:auto;text-align:left;background:rgba(255,255,255,.05);
+  border:1px solid #4a443e;border-radius:10px;padding:14px 15px;margin:6px 0 14px;
+  font-size:12.5px;line-height:1.62;color:#c9c1b7;-webkit-overflow-scrolling:touch;}
+.terms-box h4{margin:14px 0 5px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--flesh);font-family:var(--font-mono);}
+.terms-box h4:first-child{margin-top:0;}
+.terms-box p{margin:0 0 8px;} .terms-box b{color:var(--paper);}
+.terms-check{display:flex;align-items:flex-start;gap:10px;text-align:left;color:#b9afa4;
+  font-size:12.5px;line-height:1.5;margin-bottom:11px;cursor:pointer;}
+.terms-check input{width:19px;height:19px;flex:none;margin-top:1px;}
+.terms-check.on{color:var(--paper);}
+/* frase di recupero: 12 parole numerate, leggibili per trascriverle a mano */
+.frase-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin:10px 0 16px;text-align:left;}
+.frase-grid span{background:rgba(255,255,255,.07);border:1px solid #6b635a;border-radius:7px;
+  padding:8px 10px;font-family:var(--font-mono);font-size:13.5px;color:var(--paper);user-select:all;}
+.frase-grid span i{color:#8d857b;font-style:normal;margin-right:7px;font-size:11px;}
+.frase-input{width:100%;min-height:96px;font-family:var(--font-mono);font-size:13.5px;line-height:1.7;
+  background:rgba(255,255,255,.06);border:1px solid #6b635a;border-radius:10px;color:var(--paper);
+  padding:12px;resize:vertical;}
+.lock-alt{margin-top:20px;padding-top:16px;border-top:1px solid #4a443e;text-align:left;}
+.lock-alt h4{margin:0 0 6px;font-size:13px;color:var(--paper);font-family:var(--font-display);}
+.lock-alt p{margin:0 0 10px;font-size:12px;line-height:1.55;color:#9a9188;}
 .recovery-check{display:flex;align-items:center;gap:10px;justify-content:center;color:#B9AFA4;font-size:13px;margin-bottom:18px;cursor:pointer;}
 .recovery-check input{width:18px;height:18px;flex:none;}
 /* tour */
@@ -590,6 +632,100 @@ const EFFETTI_RARI = [
   "Reazioni allergiche a componenti del colore del pigmento asettico",
 ];
 
+/* ============================================================
+   MODULI DI CONSENSO — base nazionale + integrazione regionale
+   Il testo non e' piu' scritto dentro le schermate. Sta in tre
+   strati che si sommano:
+     1. base       — il tronco comune (oggi: il modulo dello studio)
+     2. regione    — quello che la Regione scelta aggiunge o cambia
+     3. studio     — le righe che il tatuatore scrive di suo pugno
+   Quando uscira' il decreto ministeriale si aggiorna lo strato 1
+   e basta: i venti strati regionali restano dove sono.
+   I testi regionali vanno verificati da chi di dovere prima di
+   metterli in produzione: qui trovi i contenitori, non le sentenze.
+   ============================================================ */
+const MODULO_BASE = {
+  id: "base",
+  nome: "Modulo base",
+  /* Da dove viene questo testo: e' trascritto dal modulo cartaceo in uso
+     in Sardegna. Non e' un modello nazionale neutro, e va detto — cosi'
+     chi lavora altrove sa che deve verificarlo, e chi lavora in Sardegna
+     vede scritto "Sardegna" e non "base" sul consenso che fa firmare. */
+  origine: "sardegna",
+  nome_origine: "Sardegna",
+  versione: "2.0",
+  effettiFrequenti: EFFETTI_FREQUENTI,
+  effettiRari: EFFETTI_RARI,
+  avvertenze: [],
+  dichiarazione: null,       // null = usa STUDIO_CONFIG.dichiarazioneConsenso
+};
+
+const REGIONI_IT = [
+  ["abruzzo","Abruzzo"],["basilicata","Basilicata"],["calabria","Calabria"],["campania","Campania"],
+  ["emilia-romagna","Emilia-Romagna"],["friuli","Friuli-Venezia Giulia"],["lazio","Lazio"],
+  ["liguria","Liguria"],["lombardia","Lombardia"],["marche","Marche"],["molise","Molise"],
+  ["piemonte","Piemonte"],["puglia","Puglia"],["sardegna","Sardegna"],["sicilia","Sicilia"],
+  ["toscana","Toscana"],["trentino","Trentino-Alto Adige"],["umbria","Umbria"],
+  ["valle-aosta","Valle d'Aosta"],["veneto","Veneto"],
+];
+
+/* Integrazioni regionali. Vuote finche' non ci metti il testo verificato:
+   una regione senza contenuti usa semplicemente il modulo base.
+   Si aggiornano anche da fuori, con consensi.json, senza toccare l'app. */
+let MODULI_REGIONALI = {
+  // esempio di come si compila una voce:
+  // "sardegna": {
+  //   versione: "1.0",
+  //   riferimento: "estremi del regolamento regionale",
+  //   avvertenze: ["riga aggiuntiva richiesta dalla Regione"],
+  //   effettiFrequenti: [], effettiRari: [],
+  //   dichiarazioneExtra: "capoverso da aggiungere in coda alla dichiarazione",
+  // },
+};
+
+/* consensi.json accanto a index.html: permette di aggiornare i testi
+   senza ripubblicare l'app. Se non c'e' o non si carica, restano quelli
+   incorporati — l'app deve funzionare anche senza rete. */
+async function caricaModuliEsterni(){
+  try {
+    const r = await fetch("consensi.json", { cache: "no-cache" });
+    if (!r.ok) return;
+    const j = await r.json();
+    if (j.base) Object.assign(MODULO_BASE, j.base);
+    if (j.regioni) MODULI_REGIONALI = { ...MODULI_REGIONALI, ...j.regioni };
+  } catch(e){ /* nessun file esterno: si va con quelli interni */ }
+}
+
+/* Fonde i tre strati e restituisce il modulo da mostrare e da firmare. */
+function moduloAttivo(){
+  const reg = STUDIO_CONFIG.regione || "";
+  const r = MODULI_REGIONALI[reg] || null;
+  const nomeReg = (REGIONI_IT.find(x => x[0] === reg) || [])[1] || "";
+  const note = (STUDIO_CONFIG.noteConsenso || "").trim();
+  return {
+    regione: reg,
+    nomeRegione: nomeReg,
+    effettiFrequenti: [...(MODULO_BASE.effettiFrequenti||[]), ...((r && r.effettiFrequenti) || [])],
+    effettiRari:      [...(MODULO_BASE.effettiRari||[]),      ...((r && r.effettiRari) || [])],
+    avvertenze:       [...(MODULO_BASE.avvertenze||[]),       ...((r && r.avvertenze) || [])],
+    riferimento: (r && r.riferimento) || "",
+    dichiarazione: [
+      MODULO_BASE.dichiarazione || STUDIO_CONFIG.dichiarazioneConsenso,
+      (r && r.dichiarazioneExtra) || "",
+      note,
+    ].filter(Boolean).join("\n\n"),
+    noteStudio: note,
+    /* Se la Regione scelta e' quella da cui il testo proviene, il modulo
+       e' gia' quello giusto: si chiama col suo nome, non "base". */
+    verificato: reg === MODULO_BASE.origine || !!r,
+    etichetta: (reg === MODULO_BASE.origine
+        ? MODULO_BASE.nome_origine + " v" + MODULO_BASE.versione
+        : "Base v" + MODULO_BASE.versione + (r ? " + " + nomeReg + " v" + (r.versione || "1.0") : ""))
+      + (reg && reg !== MODULO_BASE.origine && !r ? " · " + nomeReg + " (da verificare)" : "")
+      + (note ? " + note studio" : ""),
+  };
+}
+
 /* ---------- SUPABASE (optional multi-device sync) ----------
    Lascia vuoto per lavorare 100% offline/locale (default).
    Per abilitare la sincronizzazione multi-dispositivo — utile
@@ -728,7 +864,7 @@ function blankSession(){
     grandezza: "",        // dimensione indicativa del tatuaggio
     zoneNei: null,        // "si" | "no"
     zoneNeiNote: "",
-    informativaVersion: STUDIO_CONFIG.informativaVersion,
+    informativaVersion: moduloAttivo().etichetta,   // resta agli atti quale testo ha firmato
     informativaLetta: false,
     privacyConsenso: false,
     disegnoConfermato: false,
@@ -755,6 +891,319 @@ function blankSession(){
     controfirmaAt: null,
     noteStudio: "",
   };
+}
+
+/* Chiave pubblica dell'assistenza. La generi UNA VOLTA con
+   assistenza-recupero.html e incolli qui la parte pubblica.
+   La privata non deve mai finire in questo file. */
+const SUPPORT_PUBLIC_KEY = "MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA6bogWrQ/gCuy3kXRKsi8D1UbDYj3yqEnzL4N8OeAiQ5dFfR7nGCNS9EtVgbYp+PCI/B/QDZiFZQuPx9L5ZqrzEHN39rv6JiFUfNTWOS7ItcdmlePF4/SvO4UdCGDze6dDTGrUJrW4tnsGpRxh1KwEIHY/2ItbQeXgkKYfjVGrq9X17Kq+e8VjaW+r4cf0YUUauJXbrfUcfRhmghVBBnxPF3b6/ouihMZjZkxHjEVf+YS3zV1A0Oxk6psWq7+KTYVQpMZifH/XkYTfUhpOJJCUymH66Puw3G/Odg4dIHG157+CGJxIQ16X+HsxGTdPjkIRox1w3wY3Z5zwP4x7zU06FBfmLLEqyIEroqdcH37ES8pui8kgjnmnApSHI+iwKSYDYzgthUmtZ7n/2FH2se0Hpjq9GO5k7U7SDOnzLmac3Dk3bzXGIKrL9o+/CdjMVwvan0YsF10fsg+rUCedjubm5VT9YY7DRVqGmu48nNZ+Ft4uWj6tbxDZUfjWcCW7omdAgMBAAE=";
+
+/* ============================================================
+   CASSAFORTE — chiave unica, tre serrature
+   L'archivio e' cifrato con una chiave casuale (DEK, AES-GCM 256).
+   Quella chiave viene poi chiusa dentro tre buste indipendenti:
+     1. la password dello studio
+     2. la frase di recupero di 12 parole (standard BIP39, italiano)
+     3. la chiave pubblica dell'assistenza
+   Aprirne una qualsiasi restituisce la stessa chiave. La chiave
+   privata dell'assistenza non sta dentro l'app e non ci entra mai:
+   per questo la busta 3 e' asimmetrica (RSA-OAEP).
+   Chi fa assistenza apre solo la busta, non i dati: prende la chiave
+   e la richiude con una password temporanea. Il contenuto dei
+   consensi non viene mai decifrato durante il recupero.
+   ============================================================ */
+
+/* wordlist BIP39 italiana (2048 voci) — parole scelte per essere
+   distinguibili anche scritte a mano dalle prime 4 lettere */
+const BIP39_IT = (
+  "abaco abbaglio abbinato abete abisso abolire abrasivo abrogato accadere accenno accusato acetone " +
+  "achille acido acqua acre acrilico acrobata acuto adagio addebito addome adeguato aderire adipe " +
+  "adottare adulare affabile affetto affisso affranto aforisma afoso africano agave agente agevole " +
+  "aggancio agire agitare agonismo agricolo agrumeto aguzzo alabarda alato albatro alberato albo " +
+  "albume alce alcolico alettone alfa algebra aliante alibi alimento allagato allegro allievo " +
+  "allodola allusivo almeno alogeno alpaca alpestre altalena alterno alticcio altrove alunno " +
+  "alveolo alzare amalgama amanita amarena ambito ambrato ameba america ametista amico ammasso " +
+  "ammenda ammirare ammonito amore ampio ampliare amuleto anacardo anagrafe analista anarchia " +
+  "anatra anca ancella ancora andare andrea anello angelo angolare angusto anima annegare annidato " +
+  "anno annuncio anonimo anticipo anzi apatico apertura apode apparire appetito appoggio approdo " +
+  "appunto aprile arabica arachide aragosta araldica arancio aratura arazzo arbitro archivio ardito " +
+  "arenile argento argine arguto aria armonia arnese arredato arringa arrosto arsenico arso " +
+  "artefice arzillo asciutto ascolto asepsi asettico asfalto asino asola aspirato aspro assaggio " +
+  "asse assoluto assurdo asta astenuto astice astratto atavico ateismo atomico atono attesa " +
+  "attivare attorno attrito attuale ausilio austria autista autonomo autunno avanzato avere " +
+  "avvenire avviso avvolgere azione azoto azzimo azzurro babele baccano bacino baco badessa " +
+  "badilata bagnato baita balcone baldo balena ballata balzano bambino bandire baraonda barbaro " +
+  "barca baritono barlume barocco basilico basso batosta battuto baule bava bavosa becco beffa " +
+  "belgio belva benda benevole benigno benzina bere berlina beta bibita bici bidone bifido biga " +
+  "bilancia bimbo binocolo biologo bipede bipolare birbante birra biscotto bisesto bisnonno bisonte " +
+  "bisturi bizzarro blando blatta bollito bonifico bordo bosco botanico bottino bozzolo braccio " +
+  "bradipo brama branca bravura bretella brevetto brezza briglia brillante brindare broccolo brodo " +
+  "bronzina brullo bruno bubbone buca budino buffone buio bulbo buono burlone burrasca bussola " +
+  "busta cadetto caduco calamaro calcolo calesse calibro calmo caloria cambusa camerata camicia " +
+  "cammino camola campale canapa candela cane canino canotto cantina capace capello capitolo " +
+  "capogiro cappero capra capsula carapace carcassa cardo carisma carovana carretto cartolina " +
+  "casaccio cascata caserma caso cassone castello casuale catasta catena catrame cauto cavillo " +
+  "cedibile cedrata cefalo celebre cellulare cena cenone centesimo ceramica cercare certo cerume " +
+  "cervello cesoia cespo ceto chela chiaro chicca chiedere chimera china chirurgo chitarra ciao " +
+  "ciclismo cifrare cigno cilindro ciottolo circa cirrosi citrico cittadino ciuffo civetta civile " +
+  "classico clinica cloro cocco codardo codice coerente cognome collare colmato colore colposo " +
+  "coltivato colza coma cometa commando comodo computer comune conciso condurre conferma congelare " +
+  "coniuge connesso conoscere consumo continuo convegno coperto copione coppia copricapo corazza " +
+  "cordata coricato cornice corolla corpo corredo corsia cortese cosmico costante cottura covato " +
+  "cratere cravatta creato credere cremoso crescita creta criceto crinale crisi critico croce " +
+  "cronaca crostata cruciale crusca cucire cuculo cugino cullato cupola curatore cursore curvo " +
+  "cuscino custode dado daino dalmata damerino daniela dannoso danzare datato davanti davvero " +
+  "debutto decennio deciso declino decollo decreto dedicato definito deforme degno delegare delfino " +
+  "delirio delta demenza denotato dentro deposito derapata derivare deroga descritto deserto " +
+  "desiderio desumere detersivo devoto diametro dicembre diedro difeso diffuso digerire digitale " +
+  "diluvio dinamico dinnanzi dipinto diploma dipolo diradare dire dirotto dirupo disagio discreto " +
+  "disfare disgelo disposto distanza disumano dito divano divelto dividere divorato doblone docente " +
+  "doganale dogma dolce domato domenica dominare dondolo dono dormire dote dottore dovuto dozzina " +
+  "drago druido dubbio dubitare ducale duna duomo duplice duraturo ebano eccesso ecco eclissi " +
+  "economia edera edicola edile editoria educare egemonia egli egoismo egregio elaborato elargire " +
+  "elegante elencato eletto elevare elfico elica elmo elsa eluso emanato emblema emesso emiro " +
+  "emotivo emozione empirico emulo endemico enduro energia enfasi enoteca entrare enzima epatite " +
+  "epilogo episodio epocale eppure equatore erario erba erboso erede eremita erigere ermetico eroe " +
+  "erosivo errante esagono esame esanime esaudire esca esempio esercito esibito esigente esistere " +
+  "esito esofago esortato esoso espanso espresso essenza esso esteso estimare estonia estroso " +
+  "esultare etilico etnico etrusco etto euclideo europa evaso evidenza evitato evoluto evviva " +
+  "fabbrica faccenda fachiro falco famiglia fanale fanfara fango fantasma fare farfalla farinoso " +
+  "farmaco fascia fastoso fasullo faticare fato favoloso febbre fecola fede fegato felpa feltro " +
+  "femmina fendere fenomeno fermento ferro fertile fessura festivo fetta feudo fiaba fiducia fifa " +
+  "figurato filo finanza finestra finire fiore fiscale fisico fiume flacone flamenco flebo flemma " +
+  "florido fluente fluoro fobico focaccia focoso foderato foglio folata folclore folgore fondente " +
+  "fonetico fonia fontana forbito forchetta foresta formica fornaio foro fortezza forzare fosfato " +
+  "fosso fracasso frana frassino fratello freccetta frenata fresco frigo frollino fronde frugale " +
+  "frutta fucilata fucsia fuggente fulmine fulvo fumante fumetto fumoso fune funzione fuoco furbo " +
+  "furgone furore fuso futile gabbiano gaffe galateo gallina galoppo gambero gamma garanzia garbo " +
+  "garofano garzone gasdotto gasolio gastrico gatto gaudio gazebo gazzella geco gelatina gelso " +
+  "gemello gemmato gene genitore gennaio genotipo gergo ghepardo ghiaccio ghisa giallo gilda " +
+  "ginepro giocare gioiello giorno giove girato girone gittata giudizio giurato giusto globulo " +
+  "glutine gnomo gobba golf gomito gommone gonfio gonna governo gracile grado grafico grammo grande " +
+  "grattare gravoso grazia greca gregge grifone grigio grinza grotta gruppo guadagno guaio guanto " +
+  "guardare gufo guidare ibernato icona identico idillio idolo idra idrico idrogeno igiene ignaro " +
+  "ignorato ilare illeso illogico illudere imballo imbevuto imbocco imbuto immane immerso immolato " +
+  "impacco impeto impiego importo impronta inalare inarcare inattivo incanto incendio inchino " +
+  "incisivo incluso incontro incrocio incubo indagine india indole inedito infatti infilare " +
+  "inflitto ingaggio ingegno inglese ingordo ingrosso innesco inodore inoltrare inondato insano " +
+  "insetto insieme insonnia insulina intasato intero intonaco intuito inumidire invalido invece " +
+  "invito iperbole ipnotico ipotesi ippica iride irlanda ironico irrigato irrorare isolato isotopo " +
+  "isterico istituto istrice italia iterare labbro labirinto lacca lacerato lacrima lacuna laddove " +
+  "lago lampo lancetta lanterna lardoso larga laringe lastra latenza latino lattuga lavagna lavoro " +
+  "legale leggero lembo lentezza lenza leone lepre lesivo lessato lesto letterale leva levigato " +
+  "libero lido lievito lilla limatura limitare limpido lineare lingua liquido lira lirica lisca " +
+  "lite litigio livrea locanda lode logica lombare londra longevo loquace lorenzo loto lotteria " +
+  "luce lucidato lumaca luminoso lungo lupo luppolo lusinga lusso lutto macabro macchina macero " +
+  "macinato madama magico maglia magnete magro maiolica malafede malgrado malinteso malsano malto " +
+  "malumore mana mancia mandorla mangiare manifesto mannaro manovra mansarda mantide manubrio mappa " +
+  "maratona marcire maretta marmo marsupio maschera massaia mastino materasso matricola mattone " +
+  "maturo mazurca meandro meccanico mecenate medesimo meditare mega melassa melis melodia meninge " +
+  "meno mensola mercurio merenda merlo meschino mese messere mestolo metallo metodo mettere " +
+  "miagolare mica micelio michele microbo midollo miele migliore milano milite mimosa minerale mini " +
+  "minore mirino mirtillo miscela missiva misto misurare mitezza mitigare mitra mittente mnemonico " +
+  "modello modifica modulo mogano mogio mole molosso monastero monco mondina monetario monile " +
+  "monotono monsone montato monviso mora mordere morsicato mostro motivato motosega motto movenza " +
+  "movimento mozzo mucca mucosa muffa mughetto mugnaio mulatto mulinello multiplo mummia munto " +
+  "muovere murale musa muscolo musica mutevole muto nababbo nafta nanometro narciso narice narrato " +
+  "nascere nastrare naturale nautica naviglio nebulosa necrosi negativo negozio nemmeno neofita " +
+  "neretto nervo nessuno nettuno neutrale neve nevrotico nicchia ninfa nitido nobile nocivo nodo " +
+  "nome nomina nordico normale norvegese nostrano notare notizia notturno novella nucleo nulla " +
+  "numero nuovo nutrire nuvola nuziale oasi obbedire obbligo obelisco oblio obolo obsoleto " +
+  "occasione occhio occidente occorrere occultare ocra oculato odierno odorare offerta offrire " +
+  "offuscato oggetto oggi ognuno olandese olfatto oliato oliva ologramma oltre omaggio ombelico " +
+  "ombra omega omissione ondoso onere onice onnivoro onorevole onta operato opinione opposto " +
+  "oracolo orafo ordine orecchino orefice orfano organico origine orizzonte orma ormeggio ornativo " +
+  "orologio orrendo orribile ortensia ortica orzata orzo osare oscurare osmosi ospedale ospite ossa " +
+  "ossidare ostacolo oste otite otre ottagono ottimo ottobre ovale ovest ovino oviparo ovocito " +
+  "ovunque ovviare ozio pacchetto pace pacifico padella padrone paese paga pagina palazzina " +
+  "palesare pallido palo palude pandoro pannello paolo paonazzo paprica parabola parcella parere " +
+  "pargolo pari parlato parola partire parvenza parziale passivo pasticca patacca patologia pattume " +
+  "pavone peccato pedalare pedonale peggio peloso penare pendice penisola pennuto penombra pensare " +
+  "pentola pepe pepita perbene percorso perdonato perforare pergamena periodo permesso perno " +
+  "perplesso persuaso pertugio pervaso pesatore pesista peso pestifero petalo pettine petulante " +
+  "pezzo piacere pianta piattino piccino picozza piega pietra piffero pigiama pigolio pigro pila " +
+  "pilifero pillola pilota pimpante pineta pinna pinolo pioggia piombo piramide piretico pirite " +
+  "pirolisi pitone pizzico placebo planare plasma platano plenario pochezza poderoso podismo poesia " +
+  "poggiare polenta poligono pollice polmonite polpetta polso poltrona polvere pomice pomodoro " +
+  "ponte popoloso porfido poroso porpora porre portata posa positivo possesso postulato potassio " +
+  "potere pranzo prassi pratica precluso predica prefisso pregiato prelievo premere prenotare " +
+  "preparato presenza pretesto prevalso prima principe privato problema procura produrre profumo " +
+  "progetto prolunga promessa pronome proposta proroga proteso prova prudente prugna prurito psiche " +
+  "pubblico pudica pugilato pugno pulce pulito pulsante puntare pupazzo pupilla puro quadro " +
+  "qualcosa quasi querela quota raccolto raddoppio radicale radunato raffica ragazzo ragione ragno " +
+  "ramarro ramingo ramo randagio rantolare rapato rapina rappreso rasatura raschiato rasente " +
+  "rassegna rastrello rata ravveduto reale recepire recinto recluta recondito recupero reddito " +
+  "redimere regalato registro regola regresso relazione remare remoto renna replica reprimere " +
+  "reputare resa residente responso restauro rete retina retorica rettifica revocato riassunto " +
+  "ribadire ribelle ribrezzo ricarica ricco ricevere riciclato ricordo ricreduto ridicolo ridurre " +
+  "rifasare riflesso riforma rifugio rigare rigettato righello rilassato rilevato rimanere rimbalzo " +
+  "rimedio rimorchio rinascita rincaro rinforzo rinnovo rinomato rinsavito rintocco rinuncia " +
+  "rinvenire riparato ripetuto ripieno riportare ripresa ripulire risata rischio riserva risibile " +
+  "riso rispetto ristoro risultato risvolto ritardo ritegno ritmico ritrovo riunione riva riverso " +
+  "rivincita rivolto rizoma roba robotico robusto roccia roco rodaggio rodere roditore rogito " +
+  "rollio romantico rompere ronzio rosolare rospo rotante rotondo rotula rovescio rubizzo rubrica " +
+  "ruga rullino rumine rumoroso ruolo rupe russare rustico sabato sabbiare sabotato sagoma salasso " +
+  "saldatura salgemma salivare salmone salone saltare saluto salvo sapere sapido saporito saraceno " +
+  "sarcasmo sarto sassoso satellite satira satollo saturno savana savio saziato sbadiglio sbalzo " +
+  "sbancato sbarra sbattere sbavare sbendare sbirciare sbloccato sbocciato sbrinare sbruffone " +
+  "sbuffare scabroso scadenza scala scambiare scandalo scapola scarso scatenare scavato scelto " +
+  "scenico scettro scheda schiena sciarpa scienza scindere scippo sciroppo scivolo sclerare " +
+  "scodella scolpito scomparto sconforto scoprire scorta scossone scozzese scriba scrollare " +
+  "scrutinio scuderia scultore scuola scuro scusare sdebitare sdoganare seccatura secondo sedano " +
+  "seggiola segnalato segregato seguito selciato selettivo sella selvaggio semaforo sembrare seme " +
+  "seminato sempre senso sentire sepolto sequenza serata serbato sereno serio serpente serraglio " +
+  "servire sestina setola settimana sfacelo sfaldare sfamato sfarzoso sfaticato sfera sfida sfilato " +
+  "sfinge sfocato sfoderare sfogo sfoltire sforzato sfratto sfruttato sfuggito sfumare sfuso " +
+  "sgabello sgarbato sgonfiare sgorbio sgrassato sguardo sibilo siccome sierra sigla signore " +
+  "silenzio sillaba simbolo simpatico simulato sinfonia singolo sinistro sino sintesi sinusoide " +
+  "sipario sisma sistole situato slitta slogatura sloveno smarrito smemorato smentito smeraldo " +
+  "smilzo smontare smottato smussato snellire snervato snodo sobbalzo sobrio soccorso sociale " +
+  "sodale soffitto sogno soldato solenne solido sollazzo solo solubile solvente somatico somma " +
+  "sonda sonetto sonnifero sopire soppeso sopra sorgere sorpasso sorriso sorso sorteggio sorvolato " +
+  "sospiro sosta sottile spada spalla spargere spatola spavento spazzola specie spedire spegnere " +
+  "spelatura speranza spessore spettrale spezzato spia spigoloso spillato spinoso spirale splendido " +
+  "sportivo sposo spranga sprecare spronato spruzzo spuntino squillo sradicare srotolato stabile " +
+  "stacco staffa stagnare stampato stantio starnuto stasera statuto stelo steppa sterzo stiletto " +
+  "stima stirpe stivale stizzoso stonato storico strappo stregato stridulo strozzare strutto " +
+  "stuccare stufo stupendo subentro succoso sudore suggerito sugo sultano suonare superbo supporto " +
+  "surgelato surrogato sussurro sutura svagare svedese sveglio svelare svenuto svezia sviluppo " +
+  "svista svizzera svolta svuotare tabacco tabulato tacciare taciturno tale talismano tampone " +
+  "tannino tara tardivo targato tariffa tarpare tartaruga tasto tattico taverna tavolata tazza teca " +
+  "tecnico telefono temerario tempo temuto tendone tenero tensione tentacolo teorema terme terrazzo " +
+  "terzetto tesi tesserato testato tetro tettoia tifare tigella timbro tinto tipico tipografo " +
+  "tiraggio tiro titanio titolo titubante tizio tizzone toccare tollerare tolto tombola tomo tonfo " +
+  "tonsilla topazio topologia toppa torba tornare torrone tortora toscano tossire tostatura totano " +
+  "trabocco trachea trafila tragedia tralcio tramonto transito trapano trarre trasloco trattato " +
+  "trave treccia tremolio trespolo tributo tricheco trifoglio trillo trincea trio tristezza " +
+  "triturato trivella tromba trono troppo trottola trovare truccato tubatura tuffato tulipano " +
+  "tumulto tunisia turbare turchino tuta tutela ubicato uccello uccisore udire uditivo uffa ufficio " +
+  "uguale ulisse ultimato umano umile umorismo uncinetto ungere ungherese unicorno unificato " +
+  "unisono unitario unte uovo upupa uragano urgenza urlo usanza usato uscito usignolo usuraio " +
+  "utensile utilizzo utopia vacante vaccinato vagabondo vagliato valanga valgo valico valletta " +
+  "valoroso valutare valvola vampata vangare vanitoso vano vantaggio vanvera vapore varano varcato " +
+  "variante vasca vedetta vedova veduto vegetale veicolo velcro velina velluto veloce venato " +
+  "vendemmia vento verace verbale vergogna verifica vero verruca verticale vescica vessillo vestale " +
+  "veterano vetrina vetusto viandante vibrante vicenda vichingo vicinanza vidimare vigilia vigneto " +
+  "vigore vile villano vimini vincitore viola vipera virgola virologo virulento viscoso visione " +
+  "vispo vissuto visura vita vitello vittima vivanda vivido viziare voce voga volatile volere volpe " +
+  "voragine vulcano zampogna zanna zappato zattera zavorra zefiro zelante zelo zenzero zerbino " +
+  "zibetto zinco zircone zitto zolla zotico zucchero zufolo zulu zuppa " +
+  ""
+).trim().split(/\s+/);
+
+const PBKDF2_ITER = 250000;
+
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+
+function randomBytes(n){ const b = new Uint8Array(n); crypto.getRandomValues(b); return b; }
+function b64(u8){ let s = ""; for (let i=0;i<u8.length;i++) s += String.fromCharCode(u8[i]); return btoa(s); }
+function unb64(str){ const bin = atob(str); const u = new Uint8Array(bin.length); for (let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; }
+
+/* ---------- frase di recupero ---------- */
+async function generaFraseRecupero(){
+  const entropy = randomBytes(16);                    // 128 bit -> 12 parole
+  const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", entropy));
+  let bits = "";
+  entropy.forEach(b => bits += b.toString(2).padStart(8, "0"));
+  bits += hash[0].toString(2).padStart(8, "0").slice(0, 4);   // checksum
+  const out = [];
+  for (let i = 0; i < bits.length; i += 11) out.push(BIP39_IT[parseInt(bits.slice(i, i+11), 2)]);
+  return out.join(" ");
+}
+/* Verifica che la frase sia stata trascritta bene: se una parola e'
+   sbagliata il checksum non torna e lo diciamo subito, invece di
+   scoprirlo il giorno in cui serve davvero. */
+async function fraseValida(frase){
+  const w = normalizzaFrase(frase).split(" ");
+  if (w.length !== 12) return false;
+  let bits = "";
+  for (const p of w){
+    const i = BIP39_IT.indexOf(p);
+    if (i < 0) return false;
+    bits += i.toString(2).padStart(11, "0");
+  }
+  const entropy = new Uint8Array(16);
+  for (let i = 0; i < 16; i++) entropy[i] = parseInt(bits.slice(i*8, i*8+8), 2);
+  const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", entropy));
+  return bits.slice(128) === hash[0].toString(2).padStart(8, "0").slice(0, 4);
+}
+function normalizzaFrase(s){
+  return String(s || "").normalize("NFKD").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/* ---------- derivazione chiavi ---------- */
+async function kekDa(segreto, salt){
+  const base = await crypto.subtle.importKey("raw", enc.encode(segreto), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt, iterations: PBKDF2_ITER, hash: "SHA-256" },
+    base, { name: "AES-GCM", length: 256 }, false, ["wrapKey", "unwrapKey", "encrypt", "decrypt"]);
+}
+async function nuovaDek(){
+  return crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+}
+async function chiudiBusta(dek, kek){
+  const iv = randomBytes(12);
+  const wrapped = await crypto.subtle.wrapKey("raw", dek, kek, { name: "AES-GCM", iv });
+  return { iv: b64(iv), k: b64(new Uint8Array(wrapped)) };
+}
+async function apriBusta(busta, kek){
+  return crypto.subtle.unwrapKey("raw", unb64(busta.k), kek,
+    { name: "AES-GCM", iv: unb64(busta.iv) },
+    { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+}
+
+/* ---------- cassaforte ---------- */
+/* Crea le tre buste. Restituisce il descrittore da salvare e la frase
+   da mostrare UNA VOLTA SOLA all'utente. */
+async function creaCassaforte(password, chiavePubblicaSupporto){
+  const dek = await nuovaDek();
+  const frase = await generaFraseRecupero();
+  const saltPw = randomBytes(16), saltFr = randomBytes(16);
+  const vault = {
+    v: 1,
+    saltPw: b64(saltPw), saltFr: b64(saltFr),
+    bustaPw: await chiudiBusta(dek, await kekDa(password, saltPw)),
+    bustaFrase: await chiudiBusta(dek, await kekDa(normalizzaFrase(frase), saltFr)),
+    creata: new Date().toISOString(),
+  };
+  if (chiavePubblicaSupporto){
+    const pub = await importaChiavePubblica(chiavePubblicaSupporto);
+    const raw = new Uint8Array(await crypto.subtle.exportKey("raw", dek));
+    vault.bustaSupporto = b64(new Uint8Array(await crypto.subtle.encrypt({ name: "RSA-OAEP" }, pub, raw)));
+  }
+  return { vault, frase, dek };
+}
+async function apriConPassword(vault, password){
+  return apriBusta(vault.bustaPw, await kekDa(password, unb64(vault.saltPw)));
+}
+async function apriConFrase(vault, frase){
+  return apriBusta(vault.bustaFrase, await kekDa(normalizzaFrase(frase), unb64(vault.saltFr)));
+}
+/* Cambio password: la chiave resta la stessa, cambia solo la serratura.
+   L'archivio non va ricifrato. */
+async function rifaiBustaPassword(vault, dek, nuovaPassword){
+  const salt = randomBytes(16);
+  vault.saltPw = b64(salt);
+  vault.bustaPw = await chiudiBusta(dek, await kekDa(nuovaPassword, salt));
+  return vault;
+}
+
+/* ---------- cifratura dell'archivio ---------- */
+async function cifraConDek(dek, oggetto){
+  const iv = randomBytes(12);
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, dek, enc.encode(JSON.stringify(oggetto)));
+  return { iv: b64(iv), ct: b64(new Uint8Array(ct)) };
+}
+async function decifraConDek(dek, pacco){
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(pacco.iv) }, dek, unb64(pacco.ct));
+  return JSON.parse(dec.decode(pt));
+}
+
+/* ---------- chiavi assistenza ---------- */
+async function importaChiavePubblica(spkiB64){
+  return crypto.subtle.importKey("spki", unb64(spkiB64),
+    { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]);
 }
 
 /* ============================================================
@@ -791,7 +1240,11 @@ function idbReady(){
   });
   return _idbP;
 }
-async function idbGet(key){
+/* Quello che finisce su disco e' cifrato con la DEK: se qualcuno apre
+   IndexedDB dal telefono senza la password, trova solo rumore.
+   I valori vecchi in chiaro continuano a leggersi e vengono ricifrati
+   alla prima riscrittura. */
+async function idbGetRaw(key){
   const db = await idbReady();
   if (!db) return undefined;
   return new Promise((resolve) => {
@@ -802,12 +1255,26 @@ async function idbGet(key){
     } catch(e){ resolve(undefined); }
   });
 }
+async function idbGet(key){
+  const raw = await idbGetRaw(key);
+  if (raw && raw.__ic === 1){
+    if (!DEK) return undefined;                 // cassaforte chiusa: non si legge
+    try { return await decifraConDek(DEK, raw); }
+    catch(e){ console.warn("Voce non decifrabile:", key); return undefined; }
+  }
+  return raw;
+}
 async function idbSet(key, val){
   const db = await idbReady();
-  if (!db){ try { localStorage.setItem(key, JSON.stringify(val)); } catch(e){} return false; }
+  let payload = val;
+  if (DEK){
+    try { payload = { __ic: 1, ...(await cifraConDek(DEK, val)) }; }
+    catch(e){ console.warn("Cifratura fallita, salvo in chiaro:", key); }
+  }
+  if (!db){ try { localStorage.setItem(key, JSON.stringify(payload)); } catch(e){} return false; }
   return new Promise((resolve) => {
     try {
-      const r = db.transaction(IDB_STORE, "readwrite").objectStore(IDB_STORE).put(val, key);
+      const r = db.transaction(IDB_STORE, "readwrite").objectStore(IDB_STORE).put(payload, key);
       r.onsuccess = () => resolve(true);
       r.onerror   = () => resolve(false);
     } catch(e){ resolve(false); }
@@ -1119,7 +1586,52 @@ function isExpired(dateStr){
    (non in chiaro). Questo blocca l'accesso all'interfaccia; per
    rendere i DATI illeggibili serve il backup cifrato (sotto).
    ============================================================ */
-const AUTH_KEY = "inkconsent_auth_v1"; // { studioId, salt, hash }
+const AUTH_KEY = "inkconsent_auth_v1";   // { studioId, salt, hash }
+const VAULT_KEY = "inkconsent_vault_v1"; // le tre buste: password, frase, assistenza
+
+/* La chiave che cifra l'archivio. Vive solo in memoria: chiudi l'app
+   e sparisce. Finche' e' null l'archivio resta in chiaro (installazioni
+   vecchie, prima della migrazione). */
+let DEK = null;
+
+function loadVault(){ try { return JSON.parse(localStorage.getItem(VAULT_KEY)); } catch(e){ return null; } }
+function saveVault(v){ localStorage.setItem(VAULT_KEY, JSON.stringify(v)); }
+function vaultEsiste(){ const v = loadVault(); return !!(v && v.bustaPw); }
+
+/* Carica l'archivio da IndexedDB usando la chiave appena ottenuta.
+   Se la cassaforte non c'era ancora (utente della versione precedente)
+   la crea adesso, ricifra quello che c'e' e restituisce la frase da
+   mostrare una volta sola. */
+async function apriArchivio(dek){
+  DEK = dek || null;
+  try { await hydrateStores(); } catch(e){ console.warn("Archivio non caricato:", e); }
+}
+async function creaCassaforteEMigra(password){
+  await apriArchivio(null);                 // prima leggo quello che c'e' in chiaro
+  const r = await creaCassaforte(password, SUPPORT_PUBLIC_KEY || null);
+  saveVault(r.vault);
+  DEK = r.dek;
+  BIG_STORES.forEach(k => { if (_mem[k] !== undefined) writeStore(k, _mem[k]); });  // riscrive cifrato
+  flushStores();
+  return r.frase;
+}
+
+/* ---- scambio file con l'assistenza ---- */
+function scaricaFile(nome, testo, tipo){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([testo], { type: tipo || "application/json" }));
+  a.download = nome;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+function leggiFileTesto(file){
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result || ""));
+    r.onerror = () => rej(new Error("File illeggibile."));
+    r.readAsText(file);
+  });
+}
 async function sha256(text){
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
@@ -1209,10 +1721,41 @@ async function deriveKey(password, salt){
 function b64(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))); }
 function unb64(str){ return Uint8Array.from(atob(str), c => c.charCodeAt(0)); }
 
+/* Backup formato 2: dentro il file ci va anche una copia delle buste
+   della cassaforte. Cosi' un backup cifrato si riapre in tre modi —
+   password del backup, le 12 parole, oppure assistenza — invece che
+   in uno solo. Prima, password del backup dimenticata = backup perso. */
+/* Mese di competenza di un consenso: la data reale della seduta.
+   E' quella che pinzi col lotto e gli inchiostri, quindi e' quella
+   con cui il consenso va archiviato. Se manca, si ripiega su quando
+   e' stato aggiornato. */
+function meseSeduta(s){
+  const d = (s.seduta && s.seduta.dataApplicazione) || (s.updatedAt||"").slice(0,10) || (s.createdAt||"").slice(0,10);
+  return (d || "").slice(0,7);   // YYYY-MM
+}
+const MESI_IT = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
+function meseLabel(ym){
+  if (!ym) return "Senza data";
+  const [y,m] = ym.split("-");
+  return (MESI_IT[Number(m)-1] || "") + " " + y;
+}
+
 async function exportBackup(password){
   const payload = JSON.stringify(collectBackup());
   let out;
-  if (password){
+  if (DEK && vaultEsiste()){
+    const vaultCopia = { ...loadVault() };
+    delete vaultCopia.daRinnovare;
+    if (password){
+      const salt = randomBytes(16);
+      vaultCopia.saltBk = b64(salt);
+      vaultCopia.bustaBk = await chiudiBusta(DEK, await kekDa(password, salt));
+    }
+    const iv = randomBytes(12);
+    const ct = await crypto.subtle.encrypt({ name:"AES-GCM", iv }, DEK, new TextEncoder().encode(payload));
+    out = JSON.stringify({ _app:"InkConsent", _encrypted:true, _v:2,
+                           vault: vaultCopia, iv:b64(iv), data:b64(new Uint8Array(ct)) }, null, 2);
+  } else if (password){
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const key = await deriveKey(password, salt);
@@ -1229,11 +1772,28 @@ async function exportBackup(password){
   a.download = `inkconsent-backup-${stamp}${password ? "-cifrato" : ""}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  segnaBackupFatto();
 }
 
-async function importBackup(fileText, password){
+async function importBackup(fileText, password, frase){
   let obj = JSON.parse(fileText);
-  if (obj._encrypted){
+  if (obj._encrypted && obj._v === 2){
+    const v = obj.vault || {};
+    let dek = null;
+    if (frase && await fraseValida(frase)){
+      try { dek = await apriConFrase(v, frase); } catch(e){ throw new Error("WRONG_PHRASE"); }
+    } else if (password){
+      // prima la password specifica del backup, poi quella dello studio
+      try { dek = await apriBusta(v.bustaBk, await kekDa(password, unb64(v.saltBk))); }
+      catch(e){ try { dek = await apriConPassword(v, password); } catch(e2){ throw new Error("WRONG_PASSWORD"); } }
+    } else {
+      throw new Error("PASSWORD_REQUIRED");
+    }
+    const plain = await crypto.subtle.decrypt({ name:"AES-GCM", iv: unb64(obj.iv) }, dek, unb64(obj.data));
+    obj = JSON.parse(new TextDecoder().decode(plain));
+    saveVault(v);          // il dispositivo eredita la cassaforte del backup
+    DEK = dek;
+  } else if (obj._encrypted){
     if (!password) throw new Error("PASSWORD_REQUIRED");
     const key = await deriveKey(password, unb64(obj.salt));
     let plain;
@@ -1300,6 +1860,7 @@ const state = {
   step: 1,
   // passaggio consenso cliente -> studio (offline, via QR o codice)
   handoffCode: "",
+  showBackupPanel: false,
   scanning: false,
   importPaste: "",
   importError: "",
@@ -1383,18 +1944,126 @@ function render(){
   if (state.mode === "client") root.innerHTML = renderClientShell();
   else if (state.mode === "richiesta") root.innerHTML = renderLeadShell();
   else if (state.showTour) root.innerHTML = renderTour();
+  else if (state.needsTerms) root.innerHTML = renderTerms();
   else if (state.needsSetup) root.innerHTML = renderFirstRunSetup();
   else if (state.locked) root.innerHTML = renderLockScreen();
   else root.innerHTML = renderStudioShell();
   afterRender();
 }
+const BACKUP_META_KEY = "inkconsent_backup_meta_v1"; // { last: ISO, count }
+function backupMeta(){ try { return JSON.parse(localStorage.getItem(BACKUP_META_KEY)) || {}; } catch(e){ return {}; } }
+function segnaBackupFatto(){
+  const m = backupMeta();
+  localStorage.setItem(BACKUP_META_KEY, JSON.stringify({ last: new Date().toISOString(), count: (m.count||0)+1 }));
+}
+function giorniDaUltimoBackup(){
+  const m = backupMeta();
+  if (!m.last) return null;
+  return Math.floor((Date.now() - new Date(m.last).getTime()) / 86400000);
+}
+function backupFattoOggi(){
+  const m = backupMeta();
+  return m.last && m.last.slice(0,10) === new Date().toISOString().slice(0,10);
+}
+
+/* Chiede al browser di non buttare via i dati per far spazio. Non ferma
+   la cancellazione manuale, ma su Safari evita che un sito poco usato
+   venga svuotato da solo dopo giorni di inattivita'. Una riga, gratis. */
+async function chiediPersistenza(){
+  try {
+    if (navigator.storage && navigator.storage.persist){
+      if (!(await navigator.storage.persisted())) await navigator.storage.persist();
+    }
+  } catch(e){ /* non supportato: pazienza */ }
+}
+
+const TERMS_VERSION = 1;
+const TERMS_KEY = "inkconsent_terms_v1"; // { v, at }
+function termsAccepted(){
+  try { const o = JSON.parse(localStorage.getItem(TERMS_KEY)); return !!(o && o.v >= TERMS_VERSION); }
+  catch(e){ return false; }
+}
+function saveTermsAccepted(){
+  localStorage.setItem(TERMS_KEY, JSON.stringify({ v: TERMS_VERSION, at: new Date().toISOString() }));
+}
+
+/* Il testo mostrato all'avvio. Versione integrale in condizioni-uso.md,
+   da far rivedere a un legale prima di vendere l'app. */
+function renderTermsBody(){
+  return `
+  <h4>Dove stanno i dati</h4>
+  <p>I consensi, le firme e il magazzino restano <b>solo su questo dispositivo</b>, in forma cifrata.
+     Non vengono caricati su nessun server, né mio né di terzi. Nemmeno io posso vederli.</p>
+
+  <h4>Di chi è la responsabilità</h4>
+  <p>Dei dati dei tuoi clienti <b>il titolare sei tu</b>, o lo studio per cui lavori. InkConsent è
+     lo strumento con cui li raccogli, non il posto dove vivono.</p>
+  <p>Siccome i dati stanno qui e in nessun altro posto, <b>se perdi il dispositivo o cancelli i dati
+     del browser, l'archivio si perde</b>. Non esiste una copia da cui ripescarlo. Fare i backup, e
+     conservarli, è compito tuo: l'app te li rende facili ma non può farli al posto tuo.</p>
+
+  <h4>Le 12 parole</h4>
+  <p>Sono la chiave dell'archivio. <b>Se le perdi insieme alla password</b>, l'unica strada che resta
+     è la richiesta di assistenza; se perdi anche quella possibilità, i dati non si riaprono più.
+     Non è un difetto: è la conseguenza del fatto che nessun altro ha una copia.</p>
+
+  <h4>Se chiedi assistenza</h4>
+  <p>Solo se sei tu a chiederlo, puoi inviarmi un file di sblocco. <b>Quel file contiene soltanto
+     le serrature dell'archivio: nessun dato dei tuoi clienti.</b> Lo uso per rimetterti una password
+     provvisoria e lo <b>cancello entro 24 ore</b>. Non devi mandarmi altro, e se mi mandi altro
+     lo cancello senza aprirlo.</p>
+
+  <h4>I PDF che salvi fuori</h4>
+  <p>La cifratura protegge l'archivio dentro l'app. <b>I PDF che esporti sul telefono sono in chiaro</b>:
+     chi accede al dispositivo può aprirli. Trattali come tratteresti le fotocopie dei consensi cartacei.</p>
+
+  <h4>Cosa so io di te</h4>
+  <p>Per l'attivazione del piano tratto solo i dati dello studio: nome, email, licenza e dispositivi
+     collegati. Servono a far funzionare l'abbonamento e non vengono ceduti a nessuno.</p>`;
+}
+
+function renderTerms(){
+  const c = state.termsChecks || {};
+  const tutte = c.uso && c.dati && c.assistenza;
+  return `
+  <div class="lock-wrap">
+    <div class="lock-card" style="max-width:380px;">
+      <h2 class="lock-title">Prima di iniziare</h2>
+      <p class="lock-sub">Due minuti di lettura. Sono le regole di come funziona l'app — soprattutto la parte su cosa succede ai dati.</p>
+      <div class="terms-box">${renderTermsBody()}</div>
+      <label class="terms-check ${c.uso?'on':''}">
+        <input type="checkbox" data-action="terms-check" data-k="uso" ${c.uso?'checked':''}>
+        <span>Ho letto e accetto le condizioni d'uso e l'informativa privacy.</span>
+      </label>
+      <label class="terms-check ${c.dati?'on':''}">
+        <input type="checkbox" data-action="terms-check" data-k="dati" ${c.dati?'checked':''}>
+        <span>Ho capito che i dati stanno solo su questo dispositivo e che conservarli e farne copie è responsabilità mia.</span>
+      </label>
+      <label class="terms-check ${c.assistenza?'on':''}">
+        <input type="checkbox" data-action="terms-check" data-k="assistenza" ${c.assistenza?'checked':''}>
+        <span>Se chiederò assistenza per lo sblocco, autorizzo il trattamento temporaneo del file di sblocco, cancellato entro 24 ore.</span>
+      </label>
+      ${state.loginError ? `<p class="lock-err">${esc(state.loginError)}</p>` : ""}
+      <div class="btn-row" style="justify-content:center;">
+        <button class="btn ${tutte?'btn-accent':'btn-ghost'}" data-action="terms-accept">Accetto e continuo</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 const TOUR_KEY = "inkconsent_tour_v1"; // { dontShow: true }
 function tourDismissed(){ try { return !!(JSON.parse(localStorage.getItem(TOUR_KEY))||{}).dontShow; } catch(e){ return false; } }
 const TOUR_SLIDES = [
-  { ico: "pen", title: "Benvenuto in InkConsent", body: "Il consenso informato del tuo studio, digitale. Compila, firma e archivia in pochi minuti, anche offline." },
-  { ico: "clipboard", title: "Prima il cliente, poi tu", body: "Il cliente compila i suoi dati e firma (anche da casa col link). Tu completi i dati tecnici della seduta e controfirmi in studio." },
-  { ico: "chat", title: "Porta i clienti in studio", body: "Condividi il link pubblico: il cliente racconta il tatuaggio e segna la zona sul corpo. Tu lo ricontatti su WhatsApp con un tap e fissi la consulenza." },
-  { ico: "lock", title: "Tutto resta nel tuo dispositivo", body: "Niente cloud, niente dati sparsi. Proteggi l'accesso con una password e fai backup quando vuoi, anche cifrati." },
+  { ico: "pen", title: "Benvenuto in InkConsent",
+    body: "Il consenso informato del tuo studio, digitale. Si compila, si firma e si archivia in pochi minuti. Funziona senza connessione: puoi lavorare in un seminterrato senza campo." },
+  { ico: "clipboard", title: "Prima il cliente, poi tu",
+    body: "Il cliente compila i suoi dati e firma. Tu aggiungi dopo i dati della seduta — aghi, inchiostri, macchinetta — e controfirmi. Due mani, un documento solo." },
+  { ico: "restock", title: "Dal suo telefono al tuo",
+    body: "Gli passi un link: compila sul proprio telefono mentre aspetta, comodo. Alla fine il suo schermo mostra un codice, tu lo inquadri e il consenso entra nel tuo archivio. Senza passare da internet." },
+  { ico: "lock", title: "L'archivio è cifrato",
+    body: "I consensi sono chiusi a chiave sul tuo dispositivo: chi apre il telefono senza la tua password trova solo rumore. Al prossimo passo ti darò 12 parole: sono la chiave, e vanno scritte su carta." },
+  { ico: "box", title: "E il magazzino è tuo, gratis",
+    body: "Inchiostri, aghi e forniture con lotto, scadenza e spesa del mese. Questa parte resta gratuita e senza limiti, anche se non attivi nessun piano." },
 ];
 function renderTour(){
   const i = state.tourStep;
@@ -1429,13 +2098,16 @@ function renderFirstRunSetup(){
     <div class="lock-wrap">
       <div class="lock-card">
         <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
-        <h2 class="lock-title">Codice di recupero</h2>
-        <p class="lock-sub">Se dimentichi la password, questo codice è l'unico modo per rientrare senza un backup. Scrivilo e conservalo in un posto sicuro.</p>
-        <div class="recovery-code">${esc(state.recoveryCode)}</div>
-        <button class="btn btn-ghost btn-sm" data-action="copy-recovery" style="margin-bottom:18px;">${icon("copy",15)} Copia il codice</button>
+        <h2 class="lock-title">Le tue 12 parole</h2>
+        <p class="lock-sub">Questa è la chiave del tuo archivio. Scrivila su carta, nell'ordine, e tienila dove tieni i documenti dello studio. Non la rivedrai più: da qui in poi nessuno può mostrartela, nemmeno io.</p>
+        <div class="frase-grid">
+          ${(state.recoveryPhrase||"").split(" ").map((w,i) => `<span><i>${i+1}</i>${esc(w)}</span>`).join("")}
+        </div>
+        <button class="btn btn-ghost btn-sm" data-action="copy-recovery" style="margin-bottom:14px;">${icon("copy",15)} Copia le 12 parole</button>
+        <p class="lock-hint" style="margin-bottom:14px;">Se la perdi e dimentichi anche la password, resta solo la richiesta di assistenza. Se perdi tutto, l'archivio non si riapre più: è il prezzo del fatto che i dati non stanno da nessun'altra parte.</p>
         <label class="recovery-check">
           <input type="checkbox" data-action="toggle-recovery-saved" ${state.recoverySaved?"checked":""}>
-          <span>Ho annotato il codice in un posto sicuro</span>
+          <span>Le ho trascritte su carta, in ordine</span>
         </label>
         ${state.loginError ? `<p class="lock-err">${esc(state.loginError)}</p>` : ""}
         <div class="btn-row" style="justify-content:center;">
@@ -1474,7 +2146,7 @@ function renderLockScreen(){
         <div class="lock-card ${state.loginError ? 'shake' : ''}">
           <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
           <h2 class="lock-title">Nuova password</h2>
-          <p class="lock-sub">Codice verificato. Imposta una nuova password di accesso.</p>
+          <p class="lock-sub">Archivio riaperto. Scegli subito una password nuova: quella provvisoria smette di funzionare adesso.</p>
           ${state.loginError ? `<p class="lock-err">${esc(state.loginError)}</p>` : ""}
           <div class="login-fields">
             <input type="password" class="login-input" placeholder="Nuova password" value="${esc(state.recoveryNewPw||'')}" data-login-field="recoveryNewPw">
@@ -1491,13 +2163,22 @@ function renderLockScreen(){
       <div class="lock-card ${state.loginError ? 'shake' : ''}">
         <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
         <h2 class="lock-title">Recupero accesso</h2>
-        <p class="lock-sub">Inserisci il codice di recupero che hai salvato al primo avvio.</p>
+        <p class="lock-sub">Scrivi le 12 parole che hai annotato al primo avvio, separate da uno spazio. Maiuscole e a capo non contano.</p>
         ${state.loginError ? `<p class="lock-err">${esc(state.loginError)}</p>` : ""}
-        <div class="login-fields">
-          <input type="text" class="login-input" placeholder="INK-XXXX-XXXX-XXXX" value="${esc(state.recoveryInput||'')}" data-login-field="recoveryInput" autocomplete="off" style="text-transform:uppercase;letter-spacing:1px;">
+        ${state.recoveryOk ? `<p class="lock-ok">${esc(state.recoveryOk)}</p>` : ""}
+        <textarea class="frase-input" placeholder="abaco barile cedro..." data-login-field="recoveryInput" autocomplete="off" spellcheck="false">${esc(state.recoveryInput||'')}</textarea>
+        <div class="btn-row" style="justify-content:center;margin-top:12px;">
+          <button class="btn btn-accent" data-action="recovery-submit">Apri l'archivio</button>
         </div>
-        <div class="btn-row" style="justify-content:center;">
-          <button class="btn btn-accent" data-action="recovery-submit">Verifica codice</button>
+
+        <div class="lock-alt">
+          <h4>Hai perso anche le 12 parole?</h4>
+          <p>Scarica il file di richiesta e mandamelo. Contiene solo le serrature dell'archivio: i dati dei tuoi clienti restano sul tuo dispositivo e non mi arrivano. Ti rimando un file e una password provvisoria.</p>
+          <div class="btn-row">
+            <button class="btn btn-ghost btn-sm" data-action="ickey-export">${icon("download",15)} Scarica richiesta</button>
+            <button class="btn btn-ghost btn-sm" data-action="ickey-import-pick">${icon("upload",15)} Carica risposta</button>
+          </div>
+          <input type="file" id="ickey-file" accept=".ickey,application/json" style="display:none;">
         </div>
         <p class="lock-hint"><a href="#" data-action="cancel-recovery">${icon("arrowLeft",14)} Torna all'accesso</a></p>
       </div>
@@ -1519,7 +2200,7 @@ function renderLockScreen(){
       <div class="btn-row" style="justify-content:center;">
         <button class="btn btn-accent" data-action="login-submit">Accedi</button>
       </div>
-      <p class="lock-hint">Password dimenticata? <a href="#" data-action="show-recovery">Usa il codice di recupero</a> oppure <a href="#" data-action="login-restore-pick">ripristina da un backup</a>.</p>
+      <p class="lock-hint">Password dimenticata? <a href="#" data-action="show-recovery">Usa le 12 parole</a> oppure <a href="#" data-action="login-restore-pick">ripristina da un backup</a>.</p>
       <input type="file" id="login-restore-file" accept="application/json,.json" style="display:none;">
     </div>
   </div>`;
@@ -1708,6 +2389,22 @@ function renderPremiumGate(){
   </div>`;
 }
 
+function renderBackupBar(){
+  if (backupFattoOggi()) return "";
+  const g = giorniDaUltimoBackup();
+  const vecchio = g === null || g >= 7;
+  const testo = g === null
+    ? "Non hai ancora salvato un backup. I consensi vivono solo su questo dispositivo: senza una copia, un telefono perso è un archivio perso."
+    : (vecchio ? `L'ultimo backup risale a ${g} giorni fa. Salvane uno nuovo prima che l'archivio cambi troppo.`
+               : "Backup di oggi non ancora fatto.");
+  return `
+  <div class="bkbar ${vecchio?'old':'due'}">
+    ${icon(vecchio?"alert":"shield",18)}
+    <span>${testo}</span>
+    <button class="btn ${vecchio?'btn-accent':'btn-ghost'} btn-sm" data-action="backup-now">${icon("download",15)} Salva backup di oggi</button>
+  </div>`;
+}
+
 function renderArchive(){
   const sessions = loadSessions();
   const notice = state.pdfWarning ? `<div class="callout warn" style="margin-bottom:14px;">Il consenso è stato salvato, ma il PDF non è stato generato (serve connessione internet per la libreria di export). Apri il record e usa "Scarica di nuovo il PDF".</div>` : "";
@@ -1717,12 +2414,58 @@ function renderArchive(){
     <button class="btn btn-accent" data-action="new-session">+ Nuovo consenso</button>
   </div>
   <div class="main-inner">
+    ${renderBackupBar()}
     ${notice}
-    <div class="field" style="max-width:320px;">
-      <input type="text" placeholder="Cerca per nome…" value="${esc(state.archiveQuery||"")}" data-action="search-archive">
+    <div class="arch-toolbar">
+      <div class="field">
+        <input type="text" placeholder="Cerca per nome…" value="${esc(state.archiveQuery||"")}" data-action="search-archive">
+      </div>
+      <button class="btn btn-ghost btn-sm" data-action="archive-backup-panel">${icon("box",15)} Backup e archiviazione</button>
     </div>
+    ${state.showBackupPanel ? renderBackupPanel() : ""}
     <div id="archive-results">${renderArchiveResults(sessions)}</div>
   </div>`;
+}
+
+/* Pannello backup, ora qui in Archivio invece che nelle impostazioni:
+   e' il posto dove uno ragiona in termini di "metto via i consensi". */
+function renderBackupPanel(){
+  const g = giorniDaUltimoBackup();
+  const mesi = raggruppaPerMese(loadSessions());
+  return `
+  <div class="card" style="margin:4px 0 14px;">
+    <h3 class="section-title">Backup e archiviazione</h3>
+    <p class="section-desc">Un backup mette al sicuro tutto l'archivio in un unico file. ${g===null?"Non ne hai ancora fatto uno.":"Ultimo: "+g+" giorn"+(g===1?"o":"i")+" fa."} Salvalo dove vuoi — Drive, un'altra cartella, un secondo telefono: il file è cifrato, quindi resta illeggibile a chi non ha la tua chiave.</p>
+    <div class="check-row">
+      <input type="checkbox" id="cifra-backup" data-action="toggle-cifra-backup" ${state.cifraBackup?"checked":""}>
+      <label for="cifra-backup" class="ct">Proteggi con una password aggiuntiva<small>Il backup si apre comunque anche con le tue 12 parole</small></label>
+    </div>
+    ${state.cifraBackup ? `<div class="field"><label>Password del backup</label><input type="password" data-field-backup="password" placeholder="Scegli una password robusta"></div>` : ""}
+    <div class="btn-row">
+      <button class="btn btn-primary" data-action="do-export">${icon("download",16)} Esporta backup completo</button>
+      <button class="btn btn-ghost" data-action="do-import-pick">${icon("upload",16)} Ripristina da file</button>
+    </div>
+    <input type="file" id="import-file" accept="application/json,.json" style="display:none;">
+    ${state.backupMsg ? `<div class="callout ${state.backupMsgType||'info'}" style="margin-top:12px;">${state.backupMsg}</div>` : ""}
+
+    <div class="subhead" style="margin-top:20px;">Esporta i PDF per mese</div>
+    <p class="section-desc">Ogni consenso archiviato finisce nel mese della sua seduta. Scarica un mese intero: i PDF escono nominati <span class="mono">AAAA-MM-GG_cognome-nome.pdf</span>, pronti da mettere in cartella.</p>
+    ${mesi.length === 0 ? `<p class="hint">Nessun consenso archiviato ancora.</p>` : mesi.map(([ym, arr]) => `
+      <div class="arch-month">
+        <h4>${meseLabel(ym)}</h4><span class="cnt">${arr.length} consens${arr.length===1?"o":"i"}</span>
+        <span class="line"></span>
+        <button class="btn btn-ghost btn-sm" data-action="export-month" data-ym="${ym}">${icon("download",14)} PDF del mese</button>
+      </div>`).join("")}
+    <div class="callout warn" style="margin-top:14px;"><b>I PDF non sono cifrati.</b> Una volta salvati sul telefono, chi vi accede può aprirli: trattali come le fotocopie dei consensi cartacei. La cifratura protegge l'archivio dentro l'app, non i file che ne escono.</div>
+  </div>`;
+}
+
+/* consensi archiviati, in gruppi mensili ordinati dal più recente */
+function raggruppaPerMese(sessions){
+  const arch = (sessions||[]).filter(s => s.status === "archiviato");
+  const map = {};
+  arch.forEach(s => { const k = meseSeduta(s); (map[k] = map[k] || []).push(s); });
+  return Object.keys(map).sort((a,b) => b.localeCompare(a)).map(k => [k, map[k]]);
 }
 function renderRegistro(){
   const archived = loadSessions()
@@ -2587,7 +3330,11 @@ function buildPdf(s){
   }
 
   footer();
-  doc.save(`consenso-${s.anagrafica.cognome || "cliente"}-${s.progressivo || s.id.slice(-6)}.pdf`);
+  const dataFile = (s.seduta && s.seduta.dataApplicazione) || (s.updatedAt||"").slice(0,10) || new Date().toISOString().slice(0,10);
+  const slug = (x) => String(x||"").toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+  const nome = `${dataFile}_${slug(s.anagrafica.cognome)}-${slug(s.anagrafica.nome)}.pdf`.replace(/_-/,"_");
+  if (window.__pdfBatch){ window.__pdfBatch.push({ doc, nome }); return; }   // in batch non salva, accumula
+  doc.save(nome);
   delete s._diagImgs; // transiente: non salvare le immagini pesanti in localStorage
 }
 
@@ -2855,9 +3602,26 @@ document.addEventListener("click", (e) => {
   else if (action === "tour-skip" || action === "tour-finish"){
     if (state.tourDontShow) localStorage.setItem(TOUR_KEY, JSON.stringify({ dontShow: true }));
     state.showTour = false; state.tourStep = 0;
-    // dopo il tour: se non c'è accesso, vai al setup; altrimenti blocca/entra
-    if (!authIsSet()) state.needsSetup = true;
+    // dopo il tour: condizioni, poi accesso
+    if (!termsAccepted()) state.needsTerms = true;
+    else if (!authIsSet()) state.needsSetup = true;
     else state.locked = true;
+    render(); return;
+  }
+  else if (action === "terms-check"){
+    const k = btn.dataset.k || (e.target && e.target.dataset.k);
+    if (k){ state.termsChecks = { ...(state.termsChecks||{}), [k]: !(state.termsChecks||{})[k] }; state.loginError = null; render(); }
+    return;
+  }
+  else if (action === "terms-accept"){
+    const c = state.termsChecks || {};
+    if (!(c.uso && c.dati && c.assistenza)){
+      state.loginError = "Servono tutte e tre le spunte per continuare.";
+      render(); return;
+    }
+    saveTermsAccepted();
+    state.needsTerms = false; state.loginError = null;
+    if (!authIsSet()) state.needsSetup = true; else state.locked = true;
     render(); return;
   }
 
@@ -2868,56 +3632,133 @@ document.addEventListener("click", (e) => {
     if (id.length < 3){ state.loginError = "L'ID studio deve avere almeno 3 caratteri."; render(); return; }
     if (pw.length < 4){ state.loginError = "La password deve avere almeno 4 caratteri."; render(); return; }
     if (pw !== pw2){ state.loginError = "Le due password non coincidono."; render(); return; }
-    // genera il codice di recupero e passa alla fase 2
-    state.recoveryCode = generateRecoveryCode();
-    setAuth(id, pw, state.recoveryCode).then(() => {
-      state.setupPhase = "recovery"; state.recoverySaved = false; state.loginError = null;
+    // crea la cassaforte e passa alla fase 2: le 12 parole
+    state.loginError = null;
+    (async () => {
+      try {
+        await setAuth(id, pw, null);
+        state.recoveryPhrase = await creaCassaforteEMigra(pw);
+        chiediPersistenza();
+        state.setupPhase = "recovery"; state.recoverySaved = false;
+      } catch(e){
+        console.error(e);
+        state.loginError = "Non sono riuscito a creare la cassaforte su questo browser.";
+      }
       render();
-    });
+    })();
     return;
   }
   if (action === "copy-recovery"){
-    if (navigator.clipboard) navigator.clipboard.writeText(state.recoveryCode||"").catch(()=>{});
+    if (navigator.clipboard) navigator.clipboard.writeText(state.recoveryPhrase||"").catch(()=>{});
     return;
   }
   if (action === "toggle-recovery-saved"){ state.recoverySaved = !state.recoverySaved; renderLockOnly(); return; }
   if (action === "setup-finish"){
-    if (!state.recoverySaved){ state.loginError = "Conferma di aver annotato il codice prima di procedere."; render(); return; }
+    if (!state.recoverySaved){ state.loginError = "Conferma di aver trascritto le 12 parole prima di procedere."; render(); return; }
     state.needsSetup = false; state.setupPhase = null; state.locked = false;
-    state.loginError = null; state.setupBuffer = {}; state.recoveryCode = null;
+    state.loginError = null; state.setupBuffer = {}; state.recoveryPhrase = null;
     render();
     return;
   }
 
   // --- login ID + password ---
   if (action === "login-submit"){
-    checkCredentials(state.loginId, state.loginPw).then(ok => {
-      if (ok){ state.locked = false; state.loginId = ""; state.loginPw = ""; state.loginError = null; render(); }
-      else { state.loginError = "ID o password errati."; state.loginPw = ""; render(); }
-    });
+    const pw = state.loginPw;
+    (async () => {
+      const a = loadAuth() || {};
+      const idOk = !a.studioId || (state.loginId||"").trim().toLowerCase() === (a.studioId||"").trim().toLowerCase();
+      if (!idOk){ state.loginError = "ID o password errati."; state.loginPw = ""; render(); return; }
+      try {
+        if (vaultEsiste()){
+          /* La verita' e' una sola: la password buona e' quella che apre la
+             cassaforte. L'hash salvato non decide piu' niente, altrimenti dopo
+             uno sblocco dell'assistenza le due cose si contraddicono e non
+             entri piu' con nessuna delle due password. */
+          const vault = loadVault();
+          let dek;
+          try { dek = await apriConPassword(vault, pw); }
+          catch(e){ state.loginError = "ID o password errati."; state.loginPw = ""; render(); return; }
+          await apriArchivio(dek);
+          await setAuth(a.studioId || state.loginId || "studio", pw, null);  // riallinea l'hash
+          if (vault.daRinnovare){                          // rientro con password provvisoria
+            state.recoveryMode = true; state.recoveryReset = true;
+            state.loginId = ""; state.loginPw = ""; state.loginError = null;
+            render(); return;
+          }
+        } else {
+          const ok = await checkCredentials(state.loginId, pw);
+          if (!ok){ state.loginError = "ID o password errati."; state.loginPw = ""; render(); return; }
+          // installazione precedente: creo ora la cassaforte e ricifro
+          state.recoveryPhrase = await creaCassaforteEMigra(pw);
+          state.setupPhase = "recovery"; state.recoverySaved = false; state.needsSetup = true;
+          state.loginId = ""; state.loginPw = ""; state.loginError = null;
+          render(); return;
+        }
+      } catch(e){
+        console.error(e);
+        state.loginError = "Password corretta ma l'archivio non si apre. Usa le 12 parole.";
+        state.loginPw = ""; render(); return;
+      }
+      state.locked = false; state.loginId = ""; state.loginPw = ""; state.loginError = null;
+      render();
+    })();
     return;
   }
   // --- recupero: mostra la schermata per inserire il codice ---
-  if (action === "show-recovery"){ state.recoveryMode = true; state.loginError = null; state.recoveryInput = ""; render(); return; }
-  if (action === "cancel-recovery"){ state.recoveryMode = false; state.recoveryReset = false; state.loginError = null; render(); return; }
+  if (action === "show-recovery"){ state.recoveryMode = true; state.loginError = null; state.recoveryOk = null; state.recoveryInput = ""; render(); return; }
+  if (action === "cancel-recovery"){ state.recoveryMode = false; state.recoveryReset = false; state.loginError = null; state.recoveryOk = null; render(); return; }
+
   if (action === "recovery-submit"){
-    checkRecoveryCode(state.recoveryInput).then(ok => {
-      if (ok){ state.recoveryReset = true; state.loginError = null; render(); }
-      else { state.loginError = "Codice di recupero non valido."; render(); }
-    });
+    (async () => {
+      const vault = loadVault();
+      if (!vault){ state.loginError = "Su questo dispositivo non c'è nessuna cassaforte."; render(); return; }
+      const frase = state.recoveryInput || "";
+      if (!(await fraseValida(frase))){
+        state.loginError = "Le parole non tornano: controlla l'ordine e che siano esattamente 12.";
+        render(); return;
+      }
+      try {
+        const dek = await apriConFrase(vault, frase);
+        await apriArchivio(dek);
+        state.recoveryReset = true; state.loginError = null; state.recoveryInput = "";
+      } catch(e){
+        state.loginError = "La frase è scritta bene ma non apre questo archivio.";
+      }
+      render();
+    })();
     return;
   }
+
   if (action === "recovery-reset-pw"){
     const pw = state.recoveryNewPw||"", pw2 = state.recoveryNewPw2||"";
     if (pw.length < 4){ state.loginError = "La password deve avere almeno 4 caratteri."; render(); return; }
     if (pw !== pw2){ state.loginError = "Le due password non coincidono."; render(); return; }
-    resetPasswordKeepingRecovery(pw).then(() => {
+    if (!DEK){ state.loginError = "Chiave non disponibile: rifai il recupero."; render(); return; }
+    (async () => {
+      const a = loadAuth() || {};
+      const vault = loadVault();
+      await rifaiBustaPassword(vault, DEK, pw);   // cambia la serratura, non ricifra l'archivio
+      delete vault.daRinnovare;
+      saveVault(vault);
+      await setAuth(a.studioId || "studio", pw, null);
       state.recoveryMode = false; state.recoveryReset = false; state.locked = false;
-      state.loginError = null; state.recoveryInput = ""; state.recoveryNewPw = ""; state.recoveryNewPw2 = "";
+      state.loginError = null; state.recoveryNewPw = ""; state.recoveryNewPw2 = "";
       render();
-    });
+    })();
     return;
   }
+
+  /* ---- scambio file con l'assistenza ---- */
+  if (action === "ickey-export"){
+    const vault = loadVault();
+    if (!vault){ state.loginError = "Non c'è nessuna cassaforte da recuperare."; render(); return; }
+    const a = loadAuth() || {};
+    if (!confirm("Sto per creare il file di sblocco.\n\nContiene SOLO le serrature dell'archivio: nessun dato dei tuoi clienti.\nMandami solo questo file, nient'altro. Verrà cancellato entro 24 ore.\n\nProcedo?")) return;
+    scaricaFile("recupero-" + (a.studioId || "studio") + ".ickey", JSON.stringify(vault, null, 2));
+    state.recoveryOk = "File scaricato. Mandami solo questo: non serve altro, e altro non devi mandarmelo.";
+    state.loginError = null; render(); return;
+  }
+  if (action === "ickey-import-pick"){ const i = qs("#ickey-file"); if (i) i.click(); return; }
   // --- ripristino da backup dalla schermata di login ---
   if (action === "login-restore-pick"){ const inp = qs("#login-restore-file"); if (inp) inp.click(); return; }
 
@@ -3011,6 +3852,30 @@ document.addEventListener("click", (e) => {
   else if (action === "save-draft"){ upsertSession(draft); state.savedFlash = true; renderStepOnly(); }
   else if (action === "download-pdf"){
     attachDiagrams(draft).then(() => { try { buildPdf(draft); } catch(err){ alert("Impossibile generare il PDF: serve connessione per la libreria la prima volta."); } });
+  }
+  else if (action === "backup-now"){
+    const pw = state.cifraBackup ? ((state.backupBuffer||{}).password || "").trim() : "";
+    exportBackup(pw).then(() => { state.backupMsg = "Backup di oggi salvato."; state.backupMsgType = "info"; render(); })
+      .catch(() => { state.backupMsg = "Backup non riuscito, riprova."; state.backupMsgType = "warn"; render(); });
+  }
+  else if (action === "archive-backup-panel"){ state.showBackupPanel = !state.showBackupPanel; state.backupMsg = null; render(); }
+  else if (action === "export-month"){
+    const ym = btn.dataset.ym;
+    const arr = loadSessions().filter(s => s.status === "archiviato" && meseSeduta(s) === ym)
+      .sort((a,b) => ((a.seduta&&a.seduta.dataApplicazione)||"").localeCompare((b.seduta&&b.seduta.dataApplicazione)||""));
+    if (!arr.length){ return; }
+    state.backupMsg = `Preparo ${arr.length} PDF di ${meseLabel(ym)}…`; state.backupMsgType = "info"; render();
+    (async () => {
+      window.__pdfBatch = [];
+      try {
+        for (const s of arr){ await attachDiagrams(s); buildPdf(s); }
+        for (const { doc, nome } of window.__pdfBatch){ doc.save(nome); await new Promise(r => setTimeout(r, 350)); }
+        state.backupMsg = `${window.__pdfBatch.length} PDF di ${meseLabel(ym)} scaricati.`; state.backupMsgType = "info";
+      } catch(e){
+        state.backupMsg = "Qualche PDF non è stato generato: serve connessione per la libreria la prima volta."; state.backupMsgType = "warn";
+      }
+      window.__pdfBatch = null; render();
+    })();
   }
   else if (action === "print-registro"){ window.print(); }
   else if (action === "ink-new"){ state.showInkForm = true; state.showNeedleForm = false; state.editBuffer = {}; render(); }
@@ -3300,12 +4165,33 @@ document.addEventListener("change", (e) => {
     reader.readAsDataURL(file);
     return;
   }
+  /* risposta dell'assistenza: sostituisce solo la busta della password.
+     Le altre due (frase e assistenza) restano quelle di prima. */
+  if (e.target.id === "ickey-file" && e.target.files && e.target.files[0]){
+    const file = e.target.files[0];
+    (async () => {
+      try {
+        const blocco = JSON.parse(await leggiFileTesto(file));
+        if (!blocco.bustaPw || !blocco.saltPw) throw new Error("formato");
+        const vault = loadVault() || {};
+        saveVault({ ...vault, saltPw: blocco.saltPw, bustaPw: blocco.bustaPw, daRinnovare: true });
+        state.recoveryMode = false; state.recoveryReset = false;
+        state.loginError = null;
+        state.backupMsg = "Sbloccato. Entra con l'ID studio e la password provvisoria che ti ho dato.";
+      } catch(err){
+        state.loginError = "Questo non è il file che ti ho rimandato io. Controlla di aver scelto quello giusto.";
+      }
+      e.target.value = "";
+      render();
+    })();
+    return;
+  }
   if (e.target.id === "login-restore-file" && e.target.files && e.target.files[0]){
     const file = e.target.files[0];
     const reader = new FileReader();
     reader.onload = async () => {
-      const doRestore = async (pw) => {
-        const res = await importBackup(reader.result, pw);
+      const doRestore = async (pw, frase) => {
+        const res = await importBackup(reader.result, pw, frase);
         applyStudioConfig();
         state.locked = false; state.needsSetup = false; state.recoveryMode = false;
         state.loginError = null;
@@ -3315,10 +4201,23 @@ document.addEventListener("change", (e) => {
       try { await doRestore(""); }
       catch(err){
         if (err.message === "PASSWORD_REQUIRED" || err.message === "WRONG_PASSWORD"){
-          const pw = prompt("Questo backup è cifrato. Inserisci la password del backup:");
+          const pw = prompt("Questo backup è cifrato. Inserisci la password del backup.\n\nSe non la ricordi lascia vuoto e premi OK: ti chiedo le 12 parole.");
           if (pw == null) return;
-          try { await doRestore(pw); }
-          catch(e2){ state.loginError = e2.message === "WRONG_PASSWORD" ? "Password del backup errata." : "File non valido."; render(); }
+          if (pw.trim()){
+            try { await doRestore(pw); return; }
+            catch(e2){
+              if (e2.message !== "WRONG_PASSWORD"){ state.loginError = "File non valido."; render(); return; }
+            }
+          }
+          const frase = prompt("Scrivi le 12 parole di recupero, separate da uno spazio:");
+          if (frase == null) return;
+          try { await doRestore("", frase); }
+          catch(e3){
+            state.loginError = (e3.message === "WRONG_PHRASE" || e3.message === "PASSWORD_REQUIRED")
+              ? "Né la password né le 12 parole aprono questo backup."
+              : "File non valido.";
+            render();
+          }
         } else {
           state.loginError = err.message === "NOT_A_BACKUP" ? "Questo file non è un backup InkConsent." : "File non valido."; render();
         }
@@ -3390,9 +4289,7 @@ function initRichiestaMode(){
    siano spariti.                                                   */
 (async function boot(){
   applyStudioConfig();
-  try { await hydrateStores(); }
-  catch(e){ console.warn("Idratazione archivio fallita, uso quel che c'è in locale:", e); }
-
+  await caricaModuliEsterni();   // testi aggiornabili senza ripubblicare l'app
   if (state.mode === "studio"){
     if (authIsSet()){
       // sicurezza prima di tutto: se c'è un accesso, l'app parte bloccata.
@@ -3403,7 +4300,19 @@ function initRichiestaMode(){
     } else {
       state.needsSetup = true;
     }
+    /* Condizioni: se non sono ancora accettate (primo avvio o versione nuova)
+       si chiedono prima di tutto. Il tour, quando parte, le presenta lui alla
+       fine; il blocco resta attivo perché il render le mostra comunque prima
+       della schermata di accesso. */
+    if (!termsAccepted() && !state.showTour) state.needsTerms = true;
   }
+  // con il blocco attivo l'archivio si carica solo dopo l'accesso:
+  // prima di allora la chiave non c'e' e i dati restano cifrati
+  if (!state.locked){
+    try { await hydrateStores(); }
+    catch(e){ console.warn("Idratazione archivio fallita:", e); }
+  }
+
   if (state.mode === "client") await initClientMode();
   else if (state.mode === "richiesta") initRichiestaMode();
   else render();
@@ -3473,8 +4382,27 @@ function renderSettings(){
       ${state.studioSaved ? `<div class="callout ok" style="margin-top:12px;">Impostazioni salvate e applicate.</div>` : ""}
     </div>
     <div class="card">
+      <h3 class="section-title">Modulo di consenso</h3>
+      <p class="section-desc">Scegli la Regione in cui lavori: al modulo base si aggiunge quello che quella Regione richiede. Le voci ancora senza testo usano il modulo base.</p>
+      <div class="field">
+        <label>Regione</label>
+        <select data-field-studio="regione">
+          <option value="">Nessuna · solo modulo base</option>
+          ${REGIONI_IT.map(([k,n]) => `<option value="${k}" ${STUDIO_CONFIG.regione===k?"selected":""}>${esc(n)}${(MODULI_REGIONALI[k] || k === MODULO_BASE.origine) ? "" : " — testo da verificare"}</option>`).join("")}
+        </select>
+      </div>
+      <div class="field">
+        <label>Note e clausole dello studio</label>
+        <textarea data-field-studio="noteConsenso" rows="4" placeholder="Righe che vuoi aggiungere in coda alla dichiarazione del consenso.">${esc(STUDIO_CONFIG.noteConsenso||"")}</textarea>
+        <div class="hint">Finiscono in fondo alla dichiarazione che il cliente firma, e nel PDF.</div>
+      </div>
+      <div class="kv"><span>Testo che verrà firmato</span><b class="mono">${esc(moduloAttivo().etichetta)}</b></div>
+      ${!moduloAttivo().verificato ? `<div class="callout warn" style="margin-top:12px;"><b>Testo non ancora verificato per questa Regione.</b> Il modulo base è trascritto da quello in uso in ${esc(MODULO_BASE.nome_origine)}. Prima di usarlo altrove fallo controllare, e aggiungi il testo regionale in <span class="mono">consensi.json</span>.</div>` : ""}
+      <div class="callout info" style="margin-top:12px;">Ogni consenso registra la versione del testo con cui è stato firmato: aggiornare il modulo non cambia quelli già archiviati.</div>
+    </div>
+    <div class="card">
       <h3 class="section-title">Stato</h3>
-      <div class="kv"><span>Versione informativa attiva</span><b class="mono">${esc(STUDIO_CONFIG.informativaVersion)}</b></div>
+      <div class="kv"><span>Versione informativa attiva</span><b class="mono">${esc(moduloAttivo().etichetta)}</b></div>
       <div class="kv"><span>Conservazione consensi</span><b>Almeno ${STUDIO_CONFIG.retentionYears} anni</b></div>
       <div class="kv"><span>Sync remota</span><b>${SUPABASE_CONFIG.url ? "Supabase collegato" : "Solo locale (offline-first)"}</b></div>
     </div>
@@ -3526,18 +4454,10 @@ function renderSettings(){
 
     <div class="card">
       <h3 class="section-title">Backup e ripristino</h3>
-      <p class="section-desc">Esporta tutto — impostazioni, consensi e richieste — in un unico file. Fallo con regolarità: è la tua rete di sicurezza se cambi o perdi il dispositivo.</p>
-      <div class="check-row">
-        <input type="checkbox" id="cifra-backup" data-action="toggle-cifra-backup" ${state.cifraBackup?"checked":""}>
-        <label for="cifra-backup" class="ct">Cifra il backup con una password<small>Consigliato: il file sarà illeggibile senza password</small></label>
-      </div>
-      ${state.cifraBackup ? `<div class="field"><label>Password del backup</label><input type="password" data-field-backup="password" placeholder="Scegli una password robusta"></div>` : ""}
+      <p class="section-desc">La gestione dei backup e l'esportazione dei PDF per mese sono state spostate dove servono davvero: in <b>Archivio</b>, sotto "Backup e archiviazione".</p>
       <div class="btn-row">
-        <button class="btn btn-primary" data-action="do-export">${icon("download",16)} Esporta backup</button>
-        <button class="btn btn-ghost" data-action="do-import-pick">${icon("upload",16)} Ripristina da file</button>
+        <button class="btn btn-ghost" data-action="nav" data-view="archive">${icon("box",16)} Vai all'archivio</button>
       </div>
-      <input type="file" id="import-file" accept="application/json,.json" style="display:none;">
-      ${state.backupMsg ? `<div class="callout ${state.backupMsgType||'info'}" style="margin-top:12px;">${state.backupMsg}</div>` : ""}
     </div>
 
     <div class="card">
@@ -3886,24 +4806,31 @@ function renderConsensoBodyFrame(view){
 }
 
 function renderStepInformativa(ctx){
+  const m = moduloAttivo();
   return `
   ${renderErrors(4)}
   <h3 class="section-title">Rischi e consenso</h3>
-  <p class="section-desc mono" style="font-size:12px;">${esc(draft.informativaVersion)} · aggiornata ${fmtDate(STUDIO_CONFIG.informativaUpdated)}</p>
+  <p class="section-desc mono" style="font-size:12px;">${esc(draft.informativaVersion)}${m.riferimento ? " · " + esc(m.riferimento) : ""}</p>
 
   <div class="subhead">Effetti collaterali frequenti</div>
   <div class="callout info" style="font-size:13px;line-height:1.7;">
     Dopo il tatuaggio è possibile avere (non sempre):
-    <ul style="margin:8px 0 0;padding-left:18px;">${EFFETTI_FREQUENTI.map(e => `<li>${esc(e)}</li>`).join("")}</ul>
+    <ul style="margin:8px 0 0;padding-left:18px;">${m.effettiFrequenti.map(e => `<li>${esc(e)}</li>`).join("")}</ul>
   </div>
 
   <div class="subhead">Effetti collaterali rari</div>
   <div class="callout warn" style="font-size:13px;line-height:1.7;">
-    <ul style="margin:0;padding-left:18px;">${EFFETTI_RARI.map(e => `<li>${esc(e)}</li>`).join("")}</ul>
+    <ul style="margin:0;padding-left:18px;">${m.effettiRari.map(e => `<li>${esc(e)}</li>`).join("")}</ul>
   </div>
 
+  ${m.avvertenze.length ? `
+    <div class="subhead">Avvertenze${m.nomeRegione ? " · " + esc(m.nomeRegione) : ""}</div>
+    <div class="callout info" style="font-size:13px;line-height:1.7;">
+      <ul style="margin:0;padding-left:18px;">${m.avvertenze.map(e => `<li>${esc(e)}</li>`).join("")}</ul>
+    </div>` : ""}
+
   <div class="subhead">Dichiarazione</div>
-  <div class="callout info" style="white-space:pre-line;font-size:13px;line-height:1.7;">${esc(STUDIO_CONFIG.dichiarazioneConsenso)}</div>
+  <div class="callout info" style="white-space:pre-line;font-size:13px;line-height:1.7;">${esc(m.dichiarazione)}</div>
   <div class="check-row" style="margin-top:16px;">
     <input type="checkbox" id="letta" data-action="toggle-informativa" ${draft.informativaLetta?"checked":""}>
     <label for="letta" class="ct">Ho letto e compreso il Modulo di Consenso Informato e confermo quanto sopra dichiarato.</label>
