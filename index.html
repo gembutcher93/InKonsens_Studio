@@ -470,6 +470,26 @@ select{
 .arch-month .btn{flex:none;}
 .arch-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:4px;}
 .arch-toolbar .field{margin:0;flex:1;min-width:180px;}
+/* interruttore stile iOS per il questionario sanitario */
+.eta-bar{display:flex;align-items:center;gap:11px;padding:11px 14px;border-radius:var(--radius-md);
+  margin:2px 0 16px;font-size:13px;line-height:1.42;border:1px solid;}
+.eta-bar span{flex:1;}
+.eta-bar.ok{background:#E4EDE4;border-color:#BFD4BF;color:#274935;}
+.eta-bar.warn{background:var(--stencil-tint);border-color:#CBB9CF;color:var(--stencil-deep);}
+.eta-bar.stop{background:var(--warn-tint);border-color:#DEBBAF;color:#6B2113;font-weight:500;}
+.hq{display:flex;align-items:center;gap:14px;padding:12px 4px;border-bottom:1px solid var(--line-soft);}
+.hq:last-of-type{border-bottom:none;}
+.hq-label{flex:1;font-size:13.5px;line-height:1.45;color:var(--ink);}
+.sw{position:relative;flex:none;width:50px;height:30px;border-radius:999px;background:#cfc7bb;
+  transition:background .18s;cursor:pointer;border:none;padding:0;}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.28);transition:transform .18s;}
+.sw.on{background:var(--warn);}
+.sw.on::after{transform:translateX(20px);}
+.sw.unset{background:#e7e0d5;box-shadow:inset 0 0 0 2px #cbb9cf;}
+.hq-block{margin-top:18px;padding:15px 16px;border-radius:var(--radius-md);
+  background:var(--warn-tint);border:1px solid #DEBBAF;color:#6B2113;font-size:13px;line-height:1.55;}
+.hq-block b{color:#5a1a0f;}
 .terms-box{max-height:38vh;overflow-y:auto;text-align:left;background:rgba(255,255,255,.05);
   border:1px solid #4a443e;border-radius:10px;padding:14px 15px;margin:6px 0 14px;
   font-size:12.5px;line-height:1.62;color:#c9c1b7;-webkit-overflow-scrolling:touch;}
@@ -705,6 +725,75 @@ const REGIONI_IT = [
   ["valle-aosta","Valle d'Aosta"],["veneto","Veneto"],
 ];
 
+/* ============================================================
+   MOTORE ETA' — soglie per regione, separate per tatuaggio/piercing/lobo
+   Struttura per ogni regione:
+     tat:  eta minima per il tatuaggio (sotto = vietato)
+     pier: eta minima per il piercing
+     lobo: eta minima per il piercing al lobo (eccezione)
+     genitori: 1 o 2 (firme genitoriali richieste per il minore)
+     presenza: true se serve la presenza fisica del genitore
+     fonte: riferimento normativo, per trasparenza
+   maggiore: da tat/pier fino a 18 e' consentito col consenso genitoriale.
+   SOLO le regioni con fonte verificata hanno un valore acceso. Le altre
+   ereditano DEFAULT_ETA (prudente), e l'app lo dichiara come "da verificare".
+   Sotto i 14 il divieto e' netto in tutta Italia: e' il floor assoluto.
+   ============================================================ */
+const FLOOR_ASSOLUTO = 14;         // sotto questa eta, mai, ovunque (salvo lobo dove ammesso)
+const DEFAULT_ETA = { tat: 16, pier: 16, lobo: 14, genitori: 1, presenza: false, sediVietate: [], fonte: "", verificata: false };
+const SOGLIE_ETA = {
+  lazio:    { tat: 14, pier: 14, lobo: 0,  genitori: 1, presenza: false, fonte: "L.R. Lazio 2/2021, art. 3", verificata: true },
+  toscana:  { tat: 14, pier: 14, lobo: 0,  genitori: 1, presenza: false, fonte: "L.R. Toscana 28/2004 e R.R. 47/R/2007", verificata: true },
+  // Sardegna: il documento regionale NON fissa un'età minima numerica.
+  // Vieta i minori di 18 ma li ammette col consenso di UN genitore. Quindi
+  // soglia 0 = nessun blocco per età, solo consenso genitoriale sotto i 18.
+  // Nota: Gem in studio applica per prudenza presenza + dati di entrambi;
+  // qui restiamo alla norma (uno), la prassi più severa resta una sua scelta.
+  sardegna: { tat: 0, pier: 0, lobo: 0, genitori: 1, presenza: false,
+              sediVietate: ["palpebre","labbra","lingua","seno","apparato genitale maschile e femminile"],
+              fonte: "Assessorato Igiene e Sanità Sardegna, All. 3 (divieto <18 salvo consenso genitoriale; sedi vietate ex art. 5 c.c.)", verificata: true },
+  liguria:  { tat: 16, pier: 16, lobo: 0, genitori: 2, presenza: true,
+              sediVietate: ["viso","labbra","palpebre","seno","apparato genitale"],
+              fonte: "DGR Liguria 593/2023", verificata: true },
+  lombardia:{ tat: 16, pier: 14, lobo: 0, genitori: 1, presenza: false, fonte: "L.R. Lombardia 13/2021 e DGR XI/5796/2021", verificata: true },
+  piemonte: { tat: 16, pier: 16, lobo: 0, genitori: 1, presenza: false, fonte: "L.R. Piemonte 2/2023", verificata: true },
+  friuli:   { tat: 14, pier: 14, lobo: 0, genitori: 1, presenza: false, fonte: "L.R. FVG 7/2012 e reg. attuativo", verificata: true },
+  marche:   { tat: 14, pier: 14, lobo: 0, genitori: 2, presenza: false, fonte: "L.R. Marche 38/2013 (consenso di tutti gli esercenti la responsabilità)", verificata: true },
+};
+function sogliaRegione(reg){ return SOGLIE_ETA[reg] || DEFAULT_ETA; }
+
+function calcolaEta(nascita, aData){
+  if (!nascita) return null;
+  const n = new Date(nascita), oggi = aData ? new Date(aData) : new Date();
+  if (isNaN(n)) return null;
+  let e = oggi.getFullYear() - n.getFullYear();
+  const m = oggi.getMonth() - n.getMonth();
+  if (m < 0 || (m === 0 && oggi.getDate() < n.getDate())) e--;
+  return e;
+}
+
+/* Verdetto per la coppia (eta, tipo, regione). Restituisce livello
+   (ok / minore / vietato / incerto) e il messaggio da mostrare. */
+function verdettoEta(eta, tipo, reg){
+  if (eta === null) return null;
+  const s = sogliaRegione(reg);
+  const soglia = tipo === "piercing" ? s.pier : s.tat;
+  const nomeReg = (REGIONI_IT.find(x => x[0] === reg) || [])[1] || "";
+  if (eta >= 18) return { livello: "ok", minore: false };
+  // soglia 0 = la Regione non fissa un minimo: consentito a qualunque età
+  // col consenso genitoriale (es. Sardegna). Nessun blocco per età.
+  if (soglia > 0 && eta < soglia){
+    return { livello: "vietato", minore: true,
+      msg: `${eta} anni. ${nomeReg ? "In " + nomeReg + " il" : "Il"} ${tipo} è vietato sotto i ${soglia} anni`
+         + (s.verificata ? "" : " (soglia predefinita, da verificare per la Regione)") + "." };
+  }
+  // fascia minore autorizzabile
+  return { livello: "minore", minore: true, genitori: s.genitori, presenza: s.presenza, verificata: s.verificata,
+    msg: `${eta} anni: minorenne. Serve il consenso ${s.genitori === 2 ? "di entrambi i genitori" : "di un genitore/tutore"}`
+       + (s.presenza ? " e la presenza di almeno un genitore durante la seduta" : "")
+       + (s.verificata ? "" : " (regole predefinite, da verificare per la Regione)") + "." };
+}
+
 /* Integrazioni regionali. Vuote finche' non ci metti il testo verificato:
    una regione senza contenuti usa semplicemente il modulo base.
    Si aggiornano anche da fuori, con consensi.json, senza toccare l'app. */
@@ -895,6 +984,7 @@ function blankSession(){
     documento: { intestatario:"padre", tipo:"", numero:"", dataRilascio:"", autorita:"", dataScadenza:"" },
     sanitario: {}, // { questionId: "si"|"no" }
     sanitarioNote: "",
+    sanitarioOverride: false, // il tatuatore ha valutato e procede nonostante una segnalazione
     tipoApplicazione: "tatuaggio", // "tatuaggio" | "piercing"
     // --- ZONA (parte cliente) ---
     zonaMode: "semplice", // "semplice" (chip) | "sagoma" (body diagram)
@@ -1943,6 +2033,11 @@ function validateStep(step){
   const errs = [];
   if (step === 1){
     if (!draft.anagrafica.nome.trim()) errs.push("Inserisci il nome.");
+    const etaCli = calcolaEta(draft.anagrafica.nascita, draft.seduta && draft.seduta.dataApplicazione);
+    if (etaCli !== null){
+      const vEta = verdettoEta(etaCli, draft.tipoApplicazione || "tatuaggio", STUDIO_CONFIG.regione || "");
+      if (vEta && vEta.livello === "vietato") errs.push(vEta.msg + " Non è possibile procedere.");
+    }
     if (!draft.anagrafica.cognome.trim()) errs.push("Inserisci il cognome.");
     if (!draft.anagrafica.nascita) errs.push("Inserisci la data di nascita.");
     if (draft.minorenne){
@@ -2955,7 +3050,7 @@ function packSession(s){
     t1: s.minorenne ? s.tutore1 : null,
     t2: (s.minorenne && s.richiedeSecondaFirma) ? s.tutore2 : null,
     dc: s.minorenne ? s.documento : null,
-    sa: s.sanitario, sn: s.sanitarioNote,
+    sa: s.sanitario, sn: s.sanitarioNote, so: s.sanitarioOverride ? 1 : 0,
     ta: s.tipoApplicazione,
     zm: s.zonaMode, z: s.zone, zl: s.zonaLibera, ge: s.genere, zs: s.zonaSegnaMode,
     mk: (s.markers||[]).map(m => [m.view === "retro" ? 1 : 0, Math.round(m.xPct*10), Math.round(m.yPct*10)]),
@@ -2980,6 +3075,7 @@ function unpackSession(p){
   if (p.dc) s.documento = { ...s.documento, ...p.dc };
   s.sanitario = p.sa || {};
   s.sanitarioNote = p.sn || "";
+  s.sanitarioOverride = !!p.so;
   s.tipoApplicazione = p.ta || s.tipoApplicazione;
   s.zonaMode = p.zm || s.zonaMode;
   s.zone = p.z || [];
@@ -3306,6 +3402,12 @@ function buildPdf(s){
   });
   y = startY + half*15 + 6;
   if (s.sanitarioNote){ setText(SOFT); doc.setFont("helvetica","italic"); doc.setFontSize(9); para(`Note: ${s.sanitarioNote}`); doc.setFont("helvetica","normal"); }
+  const nSi = HEALTH_QUESTIONS.filter(q => s.sanitario[q.id] === "si").length;
+  if (nSi > 0 && s.sanitarioOverride){
+    setText(ACCENT); doc.setFont("helvetica","bold"); doc.setFontSize(8.5);
+    para(`${nSi} condizione/i segnalata/e: il tatuatore ha valutato e proceduto sotto la propria responsabilità.`);
+    doc.setFont("helvetica","normal"); setText(FAINT);
+  }
   y += 8;
 
   // ---- ZONA E DISEGNO ----
@@ -3835,6 +3937,14 @@ document.addEventListener("click", (e) => {
   else if (action === "toggle-disegno"){ draft.disegnoConfermato = !draft.disegnoConfermato; renderStepOnly(); }
   else if (action === "toggle-schedatecnica"){ draft.seduta.schedaTecnicaAllegata = !draft.seduta.schedaTecnicaAllegata; renderStepOnly(); }
   else if (action === "set-sanitario"){ draft.sanitario[btn.dataset.q] = btn.dataset.v; renderStepOnly(); }
+  else if (action === "toggle-sanitario"){
+    const q = btn.dataset.q, cur = draft.sanitario[q];
+    // primo tocco = "sì" (segnala la condizione), secondo = "no", poi alterna
+    draft.sanitario[q] = cur === "si" ? "no" : "si";
+    if (draft.sanitario[q] !== "si" && !HEALTH_QUESTIONS.some(x => draft.sanitario[x.id] === "si")) draft.sanitarioOverride = false;
+    renderStepOnly();
+  }
+  else if (action === "sanitario-override"){ draft.sanitarioOverride = true; renderStepOnly(); }
   else if (action === "set-zonamode"){ draft.zonaMode = btn.dataset.v; renderStepOnly(); }
   else if (action === "set-genere-consenso"){ draft.genere = btn.dataset.g; draft.markers = []; draft.strokes = []; renderStepOnly(); }
   else if (action === "set-segnamode-consenso"){ draft.zonaSegnaMode = btn.dataset.m; renderStepOnly(); }
@@ -4154,6 +4264,20 @@ document.addEventListener("input", (e) => {
 document.addEventListener("change", (e) => {
   const field = e.target.dataset.field;
   if (field && draft) setField(field, e.target.value);
+  if (field === "anagrafica.nascita" && draft){
+    const eta = calcolaEta(e.target.value, draft.seduta && draft.seduta.dataApplicazione);
+    if (eta !== null){
+      const v = verdettoEta(eta, draft.tipoApplicazione || "tatuaggio", STUDIO_CONFIG.regione || "");
+      if (v && v.minore){
+        draft.minorenne = true;
+        if (v.genitori === 2) draft.richiedeSecondaFirma = true;
+      } else if (v && v.livello === "ok"){
+        draft.minorenne = false;
+      }
+    }
+    renderStepOnly();
+    return;
+  }
   const leadField = e.target.dataset.fieldLead;
   if (leadField && leadDraft) setLeadField(leadField, e.target.value);
   const studioField = e.target.dataset.fieldStudio;
@@ -4706,6 +4830,16 @@ function renderErrors(step){
   return `<div class="callout warn" style="margin-bottom:18px;">${errs.map(esc).join("<br>")}</div>`;
 }
 
+function renderAvvisoEta(){
+  const eta = calcolaEta(draft.anagrafica.nascita, draft.seduta && draft.seduta.dataApplicazione);
+  if (eta === null) return "";
+  const v = verdettoEta(eta, draft.tipoApplicazione || "tatuaggio", STUDIO_CONFIG.regione || "");
+  if (!v) return "";
+  if (v.livello === "ok") return `<div class="eta-bar ok">${icon("check",16)} <span>${eta} anni: maggiorenne. Firma in autonomia.</span></div>`;
+  if (v.livello === "vietato") return `<div class="eta-bar stop">${icon("alert",18)} <span>${esc(v.msg)}${draft.tipoApplicazione==="piercing" ? " Il lobo dell'orecchio può fare eccezione: verifica." : ""}</span></div>`;
+  return `<div class="eta-bar warn">${icon("alert",18)} <span>${esc(v.msg)}</span></div>`;
+}
+
 function renderStepAnagrafica(ctx){
   const a = draft.anagrafica;
   return `
@@ -4720,6 +4854,7 @@ function renderStepAnagrafica(ctx){
     <div class="field"><label>Data di nascita</label><input type="date" data-field="anagrafica.nascita" value="${esc(a.nascita)}"></div>
     <div class="field"><label>Codice fiscale</label><input type="text" data-field="anagrafica.cf" value="${esc(a.cf)}" style="text-transform:uppercase;"></div>
   </div>
+  ${renderAvvisoEta()}
   <div class="grid-2">
     <div class="field"><label>Comune di residenza</label><input type="text" data-field="anagrafica.comuneResidenza" value="${esc(a.comuneResidenza)}"></div>
     <div class="field"><label>Provincia</label><input type="text" data-field="anagrafica.provinciaResidenza" value="${esc(a.provinciaResidenza)}" maxlength="2" style="text-transform:uppercase;"></div>
@@ -4801,27 +4936,54 @@ function renderTutoreFields(prefix, t){
 }
 
 function renderStepSanitario(ctx){
+  const risposte = HEALTH_QUESTIONS.filter(q => draft.sanitario[q.id]);
   const siCount = HEALTH_QUESTIONS.filter(q => draft.sanitario[q.id] === 'si').length;
+  const tutteRisposte = risposte.length === HEALTH_QUESTIONS.length;
+  const bloccato = siCount > 0;   // anche una sola positiva ferma il flusso
   return `
   ${renderErrors(2)}
   <h3 class="section-title">Questionario sanitario</h3>
-  <p class="section-desc">Nelle condizioni sotto riportate non è possibile eseguire alcun tatuaggio. Rispondi con sincerità.</p>
+  <p class="section-desc">Sposta l'interruttore su ogni voce. Se una condizione è presente, il tatuaggio potrebbe non essere eseguibile: se ne parla con il tatuatore prima di proseguire.</p>
   ${HEALTH_QUESTIONS.map(q => {
     const val = draft.sanitario[q.id];
-    return `<div class="check-row" style="align-items:center;">
-      <div class="ct" style="flex:1;">${esc(q.label)}</div>
-      <div style="display:flex;gap:6px;">
-        <button class="chip ${val==='si'?'on':''}" data-action="set-sanitario" data-q="${q.id}" data-v="si" style="min-width:52px;">Sì</button>
-        <button class="chip ${val==='no'?'on':''}" data-action="set-sanitario" data-q="${q.id}" data-v="no" style="min-width:52px;">No</button>
-      </div>
+    const cls = val === 'si' ? 'on' : (val === 'no' ? '' : 'unset');
+    return `<div class="hq">
+      <div class="hq-label">${esc(q.label)}</div>
+      <button class="sw ${cls}" role="switch" aria-checked="${val==='si'}" data-action="toggle-sanitario" data-q="${q.id}" title="${val==='si'?'Sì':val==='no'?'No':'Da rispondere'}"></button>
     </div>`;
   }).join("")}
-  ${siCount > 0 ? `<div class="callout warn" style="margin-top:16px;">${siCount} risposta/e affermativa/e: secondo il modulo dello studio, in queste condizioni non è possibile eseguire il tatuaggio. Valutare con il cliente prima di proseguire.</div>` : ""}
+  ${bloccato ? `<div class="hq-block">
+    ${icon("alert",18)} <b>${siCount === 1 ? "Una condizione risulta presente" : siCount + " condizioni risultano presenti"}.</b>
+    In presenza di quanto indicato non si procede in autonomia: <b>parla con il tatuatore prima di continuare col consenso.</b>
+    Sarà lui a valutare se e come procedere.
+  </div>` : ""}
   <div class="field" style="margin-top:16px;">
-    <label>Note aggiuntive (facoltativo)</label>
-    <textarea data-field="sanitarioNote" placeholder="Dettagli su eventuali risposte affermative…">${esc(draft.sanitarioNote)}</textarea>
+    <label>Note del tatuatore (facoltativo)</label>
+    <textarea data-field="sanitarioNote" placeholder="Annotazioni su eventuali condizioni segnalate…">${esc(draft.sanitarioNote)}</textarea>
   </div>
-  ${renderFormNav(2, ctx)}`;
+  ${renderSanitarioNav(2, ctx, bloccato, tutteRisposte)}`;
+}
+
+/* Nav dello step sanitario: se c'e' una condizione positiva, Avanti e'
+   sostituito da un pulsante di conferma esplicita del tatuatore. Il cliente
+   da solo non supera il blocco; il tatuatore, in studio, puo' procedere
+   consapevolmente. Non e' un divieto di legge: e' una valutazione medica
+   che l'app rimette a chi la deve fare. */
+function renderSanitarioNav(step, ctx, bloccato, tutteRisposte){
+  if (!bloccato){
+    return `<div class="btn-row">
+      <button class="btn btn-ghost" data-action="prev-step">${icon("arrowLeft",15)} Indietro</button>
+      <button class="btn btn-primary" data-action="next-step" ${tutteRisposte?"":"disabled"}>Avanti ${icon("arrowRight",15)}</button>
+    </div>`;
+  }
+  const confermato = draft.sanitarioOverride;
+  return `<div class="btn-row" style="flex-wrap:wrap;gap:10px;">
+    <button class="btn btn-ghost" data-action="prev-step">${icon("arrowLeft",15)} Indietro</button>
+    ${confermato
+      ? `<button class="btn btn-primary" data-action="next-step">Avanti ${icon("arrowRight",15)}</button>`
+      : `<button class="btn btn-accent" data-action="sanitario-override">Ho valutato, procedo io (tatuatore)</button>`}
+  </div>
+  ${confermato ? `<p class="lock-hint" style="margin-top:8px;">Hai confermato la valutazione. La segnalazione resta registrata nel consenso.</p>` : ""}`;
 }
 
 function renderStepZona(ctx){
