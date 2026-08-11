@@ -780,6 +780,14 @@ function verdettoEta(eta, tipo, reg){
   const soglia = tipo === "piercing" ? s.pier : s.tat;
   const nomeReg = (REGIONI_IT.find(x => x[0] === reg) || [])[1] || "";
   if (eta >= 18) return { livello: "ok", minore: false };
+  // FLOOR DI BUON SENSO: sotto i 14 si blocca sempre, in ogni regione.
+  // La norma di qualche regione (es. Sardegna) sarebbe più permissiva, ma
+  // qui vince il buon senso. Il piercing al lobo, dove ammesso, fa eccezione.
+  const lobo = tipo === "piercing" && s.lobo === 0;   // lobo esplicitamente ammesso senza minimo
+  if (eta < 14 && !lobo){
+    return { livello: "vietato", minore: true, buonsenso: true,
+      msg: `${eta} anni. A quest'età non si esegue: prima ancora della legge, non hai ancora la testa per una scelta che ti porti addosso per sempre. Il tatuatore serio ti dirà la stessa cosa — e proverà a convincere te e i tuoi genitori ad aspettare.` };
+  }
   // soglia 0 = la Regione non fissa un minimo: consentito a qualunque età
   // col consenso genitoriale (es. Sardegna). Nessun blocco per età.
   if (soglia > 0 && eta < soglia){
