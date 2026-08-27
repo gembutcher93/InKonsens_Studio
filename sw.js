@@ -5,11 +5,15 @@
    • precache completo di sagome e icone categoria.
    • navigate: network-first con fallback all'index in cache, così
      un aggiornamento arriva subito ma offline l'app si apre lo stesso.
+   v24: consensi.json aggiornato (ingestione dati regionali da
+   tabella-comparativa-requisiti-regionali.xlsx) — versione bump solo
+   per far scaricare ai device già installati il nuovo consensi.json,
+   che qui è in precache "cache-first" e altrimenti resterebbe quello vecchio.
 
    Nota: i dati (consensi, magazzino) NON passano da qui. Stanno in
    IndexedDB sul dispositivo e il service worker non li tocca mai.   */
 
-const CACHE = "inkconsent-v23";
+const CACHE = "inkconsent-v24";
 
 const PRECACHE = [
   "./",

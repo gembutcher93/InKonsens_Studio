@@ -46,6 +46,89 @@
       "effettiRari": [],
       "dichiarazioneExtra": "Dichiaro di essere stato informato sui rischi derivanti dalla procedura di tatuaggio/piercing e sulle precauzioni da osservare dopo il trattamento, tramite consegna di informativa scritta, e mi impegno a eseguire tutte le istruzioni concernenti il trattamento nel periodo di guarigione, consapevole delle conseguenze dovute a mia negligenza. I dati sono trattati nel rispetto del GDPR (Reg. UE 2016/679) esclusivamente per lo scopo per cui sono richiesti; gli Organismi di vigilanza possono effettuare verifiche e accertamenti d'ufficio. Le informazioni fornite e il consenso vanno conservati per almeno 10 anni."
     },
+    "abruzzo": {
+      "_nota": "Fonte: tabella-comparativa-requisiti-regionali.xlsx (v1.0), riga Abruzzo. Citazione regionale generica (L.R. Abruzzo), senza estremi atto: da precisare quando disponibile un riferimento puntuale. Obblighi informativi generici (rischi + precauzioni post-trattamento) gia' coperti dal modulo base, non ripetuti qui.",
+      "versione": "1.0",
+      "riferimento": "L.R. Abruzzo (rif. generico da tabella comparativa regionale, estremi atto da verificare)",
+      "avvertenze": [
+        "È vietato eseguire tatuaggi o piercing in sedi anatomiche che possano comportare conseguenze invalidanti permanenti o difficoltà di cicatrizzazione, quali palpebre, bulbo oculare e mucose genitali."
+      ],
+      "effettiFrequenti": [],
+      "effettiRari": [],
+      "dichiarazioneExtra": ""
+    },
+    "calabria": {
+      "_nota": "Fonte: tabella-comparativa-requisiti-regionali.xlsx (v1.0), riga Calabria.",
+      "versione": "1.0",
+      "riferimento": "D.G.R. Calabria 228/2012 e SCIA, Allegato 4",
+      "avvertenze": [
+        "Non si eseguono trattamenti in presenza di lesioni della pelle, delle mucose o ustioni.",
+        "Rischi da segnalare: epatite B/C, HIV, reazioni allergiche, cheloidi e granulomi."
+      ],
+      "effettiFrequenti": [],
+      "effettiRari": [],
+      "dichiarazioneExtra": ""
+    },
+    "campania": {
+      "_nota": "Fonte: tabella-comparativa-requisiti-regionali.xlsx (v1.0), riga Campania. Sedi 'sconsigliate' (non vietate per legge) riportate come nella fonte.",
+      "versione": "1.0",
+      "riferimento": "Delib. Regione Campania 157/2010, Allegati 1b e 1c",
+      "avvertenze": [
+        "Sconsigliato praticare trattamenti sul viso e nelle seguenti sedi: labbra, palpebre, seno, lingua, apparato genitale.",
+        "La scheda di attestazione richiede di dichiarare la presenza di: malattie della pelle, disturbi della coagulazione o tendenza alle emorragie, tendenza ai cheloidi, e malattie che predispongono a infezioni (diabete, immunodeficienze, uso di cortisonici ad alte dosi)."
+      ],
+      "effettiFrequenti": [],
+      "effettiRari": [],
+      "dichiarazioneExtra": ""
+    },
+    "emilia-romagna": {
+      "_nota": "Fonte: tabella-comparativa-requisiti-regionali.xlsx (v1.0), riga Emilia-Romagna.",
+      "versione": "1.0",
+      "riferimento": "Linee Guida Regione Emilia-Romagna 2007",
+      "avvertenze": [
+        "Informazioni tossicologiche sui materiali e prodotti utilizzati: assenza di sostanze tossiche o cancerogene, possibili effetti allergizzanti precoci e tardivi.",
+        "Fattori di rischio da dichiarare: malattie della pelle, tendenza ai cheloidi, disturbi della coagulazione, immunodeficienze, uso di cortisonici ad alte dosi."
+      ],
+      "effettiFrequenti": [],
+      "effettiRari": [],
+      "dichiarazioneExtra": ""
+    },
+    "lombardia": {
+      "_nota": "Fonte: tabella-comparativa-requisiti-regionali.xlsx (v1.0), riga Lombardia. Soglie eta' (tat16/pier14) gia' verificate in SOGLIE_ETA e non toccate qui: questa voce copre solo il testo del consenso.",
+      "versione": "1.0",
+      "riferimento": "L.R. Lombardia 13/2021, Dgr XI/5796/2021",
+      "avvertenze": [
+        "Rischi di infezione da segnalare: HIV, epatite B/C.",
+        "Scheda cliente da compilare su condizioni della cute, cicatrici, allergie, malattie dermatologiche e interazione con farmaci; particolare attenzione per soggetti cardiopatici, diabetici o con disturbi della coagulazione."
+      ],
+      "effettiFrequenti": [],
+      "effettiRari": [],
+      "dichiarazioneExtra": ""
+    },
+    "sicilia": {
+      "_nota": "Fonte: tabella-comparativa-requisiti-regionali.xlsx (v1.0), riga Sicilia. Soglia eta' (18/18, lobo su consenso genitoriale) aggiunta anche in SOGLIE_ETA.",
+      "versione": "1.0",
+      "riferimento": "Decreto Regione Sicilia 31 luglio 2003, Allegato C",
+      "avvertenze": [
+        "Sconsigliato il tatuaggio sul viso e il piercing in sedi con funzionalità compromessa.",
+        "Rischi da segnalare: epatite e AIDS.",
+        "Il modulo richiede di dichiarare se si è portatori di malattie della pelle e se si è vaccinati contro l'epatite B."
+      ],
+      "effettiFrequenti": [],
+      "effettiRari": [],
+      "dichiarazioneExtra": ""
+    },
+    "toscana": {
+      "_nota": "Fonte: tabella-comparativa-requisiti-regionali.xlsx (v1.0), riga Toscana. Soglia eta' (14/14) gia' verificata in SOGLIE_ETA e non toccata qui: questa voce copre solo il testo del consenso.",
+      "versione": "1.0",
+      "riferimento": "Reg. Toscana 47/R/2007 e modifiche, L.R. 28/2004",
+      "avvertenze": [
+        "Rischi da segnalare: HIV, epatite B/C, allergia a pigmenti o metalli."
+      ],
+      "effettiFrequenti": [],
+      "effettiRari": [],
+      "dichiarazioneExtra": ""
+    },
     "_esempio": {
       "_nota": "Modello di voce. Togli l'underscore dal nome quando il testo e' verificato.",
       "versione": "1.0",

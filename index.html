@@ -711,9 +711,26 @@ const GRUPPO_STANDARD = {
      Le altre restano "da verificare" finche' non si controlla se la loro
      peculiarita' tocca DAVVERO il testo del consenso o solo aspetti
      amministrativi (eta' minima, conservazione, formazione) che non
-     cambiano cosa il cliente firma. */
-  regioni: ["abruzzo", "basilicata", "calabria", "molise",
-            "umbria", "valle-aosta", "trentino"],
+     cambiano cosa il cliente firma.
+     Verificate su tabella-comparativa-requisiti-regionali.xlsx (v1.0):
+     nessuna delle regioni sotto ha un requisito informativo o sanitario
+     diverso dal modulo base — restano quindi qui e non in MODULI_REGIONALI.
+       - basilicata: nessun PDF regionale ufficiale, si usano fac-simile ISS/GDPR.
+       - molise: chiede solo "informazioni utili" generiche, nessuna lista propria.
+       - trentino: normativa igienico-sanitaria generica (DPR 37/2007 Bolzano,
+         direttive Trento), stessi contenuti del modulo base.
+       - lazio, friuli, marche, veneto: soglie eta' (dove presenti) gia'
+         verificate in SOGLIE_ETA, ma obblighi informativi/sanitari
+         "non dettagliati" o generici negli estratti regionali: nessun
+         testo proprio da aggiungere.
+       - puglia, umbria, valle-aosta: nessuna legge regionale propria
+         (Puglia: DGR 983/2016 non tocca testo/soglie; Umbria: solo linee
+         guida USL; Valle d'Aosta: solo proposta in discussione, mai
+         approvata). Confermate "nessuna norma regionale specifica"
+         anziche' "da verificare": vedi SOGLIE_ETA. */
+  regioni: ["basilicata", "molise", "trentino",
+            "lazio", "friuli", "marche", "veneto",
+            "puglia", "umbria", "valle-aosta"],
 };
 
 const REGIONI_IT = [
@@ -759,6 +776,20 @@ const SOGLIE_ETA = {
   piemonte: { tat: 16, pier: 16, lobo: 0, genitori: 1, presenza: false, fonte: "L.R. Piemonte 2/2023", verificata: true },
   friuli:   { tat: 14, pier: 14, lobo: 0, genitori: 1, presenza: false, fonte: "L.R. FVG 7/2012 e reg. attuativo", verificata: true },
   marche:   { tat: 14, pier: 14, lobo: 0, genitori: 2, presenza: false, fonte: "L.R. Marche 38/2013 (consenso di tutti gli esercenti la responsabilità)", verificata: true },
+  // --- aggiunte da tabella-comparativa-requisiti-regionali.xlsx (v1.0) ---
+  abruzzo:  { tat: 16, pier: 14, lobo: 0, genitori: 2, presenza: true,
+              sediVietate: ["palpebre","bulbo oculare","mucose genitali"],
+              fonte: "L.R. Abruzzo (rif. generico da tabella comparativa regionale, estremi atto da verificare): vietato tat/PMU <16, piercing <14 salvo lobo, consenso di tutti i soggetti con potestà genitoriale reso di persona", verificata: true },
+  sicilia:  { tat: 18, pier: 18, lobo: 0, genitori: 1, presenza: false,
+              sediVietate: ["viso"],
+              fonte: "Decreto Regione Sicilia 31 luglio 2003: vietato tatuaggio/piercing <18, piercing al lobo ammesso su consenso di chi esercita la potestà genitoriale", verificata: true },
+  // Puglia, Umbria, Valle d'Aosta: quadro completato e verificato (era "da
+  // verificare"). Nessuna legge regionale propria tocca soglie età o testo
+  // del consenso: restano sul default prudente, marcate "nessuna norma
+  // regionale specifica" cosi' il dato e' distinto da chi va ancora controllato.
+  puglia:      { ...DEFAULT_ETA, fonte: "Nessuna norma regionale specifica: DGR Puglia 983/2016 non fissa soglie età né testo di consenso proprio", verificata: true },
+  umbria:      { ...DEFAULT_ETA, fonte: "Nessuna norma regionale specifica: solo linee guida USL, nessuna legge regionale propria", verificata: true },
+  "valle-aosta": { ...DEFAULT_ETA, fonte: "Nessuna norma regionale specifica: nessuna legge propria, solo proposta mai approvata in discussione", verificata: true },
 };
 function sogliaRegione(reg){ return SOGLIE_ETA[reg] || DEFAULT_ETA; }
 
