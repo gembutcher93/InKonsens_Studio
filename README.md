@@ -6,7 +6,31 @@ zero dipendenze runtime pesanti — stessa filosofia di InkAnimus.
 Testato end-to-end con browser headless (flusso completo: nuova sessione →
 6 step → doppia firma → archiviazione → ricerca in archivio) prima della consegna.
 
-## Novità dell'ultimo giro (quinto giro)
+## Fix urgente (sesto giro): due sistemi di licenza scollegati
+
+Bug architetturale reale su Supabase, trovato testando l'attivazione
+manuale: `register_consenso_firmato`/`get_stato_licenza` (le funzioni
+più vecchie, da prima che esistesse un vero account Supabase Auth) si
+fidavano di uno `studio_id` passato dal client, mai legato all'utente
+Auth vero (`auth.uid()`) usato invece da `avvia_trial` e dalle funzioni
+più recenti — due sistemi paralleli sulla stessa tabella `licenza_studi`,
+per questo il trial non risultava mai attivo e l'attivazione manuale
+via SQL non trovava la riga giusta.
+
+**Fix**: `auth.uid()` è ora l'unica fonte di verità per lo studio_id.
+`licenza_studi.id` ha un vincolo (foreign key) vero verso `auth.users`:
+non è più possibile creare una riga con un UUID inventato dal client.
+Le due funzioni vecchie sono state riscritte per usare `auth.uid()`
+esattamente come le altre, e richiedono ora una sessione autenticata
+(non più l'anon key). **Conseguenza**: uno studio senza account Supabase
+funziona come uno studio senza Supabase configurato — gate solo
+locale, nessuna sync, mai un blocco per questo (offline-first
+invariato). SQL in
+**[`supabase-consolidamento-licenza.sql`](./prompt%20e%20sql/supabase-consolidamento-licenza.sql)**,
+da eseguire dopo gli altri tre file — contiene anche, commentata di
+default, la pulizia dei dati di test.
+
+## Novità del quinto giro
 
 Giro ampio: correzioni a bug reali del giro precedente (attivazione
 prova gratuita, conteggio consensi gratuiti) più diverse funzionalità

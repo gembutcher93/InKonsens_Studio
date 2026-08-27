@@ -2220,23 +2220,32 @@ function licenseState(){
   };
 }
 
-/* Riscontro server-side (no-op se Supabase non configurato): registra il
+/* Riscontro server-side (no-op se Supabase non configurato O se lo
+   studio non ha un account autenticato — vedi prompt7.md/
+   supabase-consolidamento-licenza.sql: da questo giro register_
+   consenso_firmato/get_stato_licenza richiedono una sessione vera,
+   auth.uid() è l'UNICA fonte di verità per lo studio_id, non più un id
+   passato dal client. Uno studio senza account funziona come uno
+   studio senza Supabase configurato: gate solo locale, nessuna sync —
+   coerente con l'offline-first, mai un blocco per questo). Registra il
    consenso appena archiviato tramite la funzione SQL register_consenso_
-   firmato (vedi README.md), che fa da gate "vero" lato database e
-   restituisce lo stato reale dell'abbonamento. Non blocca mai l'archiviazione
-   locale, gia' avvenuta: aggiorna solo lo stato abbonamento per la prossima volta. */
+   firmato, che fa da gate "vero" lato database e restituisce lo stato
+   reale dell'abbonamento. Non blocca mai l'archiviazione locale, gia'
+   avvenuta: aggiorna solo lo stato abbonamento per la prossima volta. */
 async function syncLicenseOnFinalize(){
-  if (!SUPABASE_CONFIG.url || !SUPABASE_CONFIG.anonKey) return;
-  const { studioId, deviceId } = licenseIds();
+  if (!SUPABASE_CONFIG.url) return;
+  const token = await validStudioAccessToken();
+  if (!token) return;
+  const { deviceId } = licenseIds();
   try {
     const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/register_consenso_firmato`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "apikey": SUPABASE_CONFIG.anonKey,
-        "Authorization": `Bearer ${SUPABASE_CONFIG.anonKey}`,
+        "Authorization": `Bearer ${token}`,
       },
-      body: JSON.stringify({ p_studio_id: studioId, p_device_id: deviceId }),
+      body: JSON.stringify({ p_device_id: deviceId }),
     });
     if (!res.ok) return;
     const rows = await res.json();
@@ -2246,19 +2255,22 @@ async function syncLicenseOnFinalize(){
   } catch(e){ console.warn("Sync licenza fallita, resta valido il conteggio locale:", e); }
 }
 /* Richiama lo stato abbonamento da Supabase senza registrare nulla:
-   usata dalle Impostazioni per un refresh manuale ("Verifica abbonamento"). */
+   usata dalle Impostazioni per un refresh manuale ("Verifica abbonamento").
+   No-op (torna null) senza un account autenticato, stesso motivo sopra. */
 async function refreshLicenseFromSupabase(){
-  if (!SUPABASE_CONFIG.url || !SUPABASE_CONFIG.anonKey) return null;
-  const { studioId, deviceId } = licenseIds();
+  if (!SUPABASE_CONFIG.url) return null;
+  const token = await validStudioAccessToken();
+  if (!token) return null;
+  const { deviceId } = licenseIds();
   try {
     const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/get_stato_licenza`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "apikey": SUPABASE_CONFIG.anonKey,
-        "Authorization": `Bearer ${SUPABASE_CONFIG.anonKey}`,
+        "Authorization": `Bearer ${token}`,
       },
-      body: JSON.stringify({ p_studio_id: studioId, p_device_id: deviceId }),
+      body: JSON.stringify({ p_device_id: deviceId }),
     });
     if (!res.ok) return null;
     const rows = await res.json();

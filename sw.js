@@ -48,11 +48,20 @@
    tatuatore, confermata alla chiusura dell'appuntamento); footer
    "Engine vX" letto da manifest.json invece di un testo fisso; doppio
    menu bottom bar (4 sezioni) + tendina contestuale per le sotto-voci.
+   v30: FIX ARCHITETTURALE — register_consenso_firmato/get_stato_licenza
+   si fidavano di un studio_id passato dal client, scollegato dal vero
+   utente Supabase Auth (auth.uid()) usato da avvia_trial e dalle
+   funzioni più recenti: due sistemi di licenza paralleli sulla stessa
+   tabella, per questo il trial non risultava mai attivo e l'attivazione
+   manuale via SQL non trovava la riga giusta. Ora auth.uid() è l'unica
+   fonte di verità (licenza_studi.id ha un vincolo FK vero verso
+   auth.users), le due funzioni richiedono una sessione autenticata
+   invece dell'anon key — vedi supabase-consolidamento-licenza.sql.
 
    Nota: i dati (consensi, magazzino) NON passano da qui. Stanno in
    IndexedDB sul dispositivo e il service worker non li tocca mai.   */
 
-const CACHE = "inkconsent-v29";
+const CACHE = "inkconsent-v30";
 
 const PRECACHE = [
   "./",
