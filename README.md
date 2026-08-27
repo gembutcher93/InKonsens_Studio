@@ -81,6 +81,66 @@ I contrasti colore del nuovo tema scuro sono stati verificati a mano
 (calcolo WCAG 2.1) prima di fissare i valori finali in `:root`, non solo
 a occhio — cerca "contrast" nei commenti di `index.html` se li rivedi.
 
+## Moduli nuovi (agenda, contabilità, guest artist)
+
+Cinque moduli operativi in più, costruiti sopra il motore esistente.
+**Tutto locale, IndexedDB su questo dispositivo — niente di questo passa
+da Supabase, nemmeno in forma aggregata.** L'unico contatto con Supabase
+resta la licenza/abbonamento (vedi sezione dedicata più sotto), esattamente
+come prima: nessuna riga di questi moduli tocca quella parte di codice.
+
+- **Agenda** (nav "Agenda"): appuntamenti con data/ora, cliente (collegato
+  a una richiesta preventivo o a un consenso esistente, oppure inserito a
+  mano), tatuatore assegnato (solo se ce n'è più di uno in Impostazioni),
+  stato (da confermare/confermato/saltato). Vista giorno e vista
+  settimana, si passa da un giorno/settimana all'altro con le frecce.
+  Toccare un appuntamento collegato apre la scheda del cliente
+  (richiesta o consenso); la matita apre invece la modifica
+  dell'appuntamento stesso.
+- **Promemoria WhatsApp**: quando un appuntamento è a esattamente 2 giorni
+  di distanza, compare un banner in cima all'Agenda con un pulsante che
+  apre WhatsApp già precompilato per quel cliente. Nessun invio
+  automatico reale (servirebbe un backend WhatsApp Business a pagamento,
+  fuori scopo): è un promemoria, parte con un tap, e si segna da solo
+  come "inviato" quando lo tocchi.
+- **Lista d'attesa** (raggiungibile dall'Agenda): clienti da ricontattare
+  se si libera un posto prima del previsto. Quando segni un appuntamento
+  come "saltato", l'Agenda mostra subito la lista con un tap per
+  contattare ciascuno via WhatsApp — la compatibilità con lo slot libero
+  la valuti tu, l'app non prova a indovinarla.
+- **Contabilità** (nav "Contabilità"): sul preventivo trovi ora caparra
+  richiesta/versata, metodo (contanti/bonifico/Satispay) e stato
+  (da saldare/pagata) — attenzione, sono riferiti alla **caparra**, non
+  a un prezzo totale del tatuaggio: quel campo non esiste da nessuna
+  parte nell'app, non l'ho inventato. La sezione Contabilità mostra per
+  mese: entrate (caparre versate + movimenti manuali), uscite (spese
+  materiali già tracciate in Magazzino + movimenti manuali), percentuali
+  di split per artista (impostabili lì), e una ripartizione automatica —
+  **solo sulle caparre collegate a un appuntamento con un tatuatore
+  assegnato**: caparre senza collegamento e movimenti manuali restano
+  interamente allo studio, per scelta, per non spartire soldi a caso su
+  dati che non li descrivono bene.
+- **Guest artist** (Impostazioni → "Guest artist"): generi un codice/link
+  a tempo per un artista ospite, con un limite annuo di inviti legato al
+  piano (SoloPro 4, StudioPro 10, AtelierPro 20 — vedi `GUEST_LIMITI` in
+  `index.html`). Durante la validità il dispositivo passa in "modalità
+  guest": rail ridotta ad Agenda/Magazzino/Nuovo consenso/Importa
+  consenso + una vista "I miei consensi" per esportare in PDF solo quelli
+  firmati a suo nome (con l'avviso esplicito richiesto sul rischio di
+  tenerli sul proprio telefono). Alla scadenza, schermata di blocco
+  "È finita la tua sessione di guest" finché il titolare non esce dalla
+  modalità guest.
+  **Limite onesto da sapere**: non è un vero multi-utente con login
+  separato — per scelta, per restare un'app a dispositivo singolo come
+  tutto il resto. "Modalità guest" è solo un livello di interfaccia che
+  restringe cosa si vede *dopo* essere entrati, non un vero confine di
+  sicurezza: se lo studio ha il blocco d'accesso con password attivo,
+  quello resta l'unica vera protezione dei dati, e il guest deve comunque
+  riuscire a sbloccare il dispositivo (di norma perché il titolare
+  glielo consegna già sbloccato per la giornata). Il codice/link serve a
+  limitare cosa vede la persona, non a dargli un accesso indipendente
+  cifrato con una password diversa dalla tua.
+
 ## Cosa fa
 
 L'app fa **una sola cosa e la fa bene: il consenso informato**, in due fasi che
@@ -172,8 +232,10 @@ Il pannello preventivo NON dà un prezzo automatico: raccoglie una richiesta di
 consulenza. Il preventivo vero lo dai tu di persona, in studio. Il giro è:
 cliente compila il link pubblico → ti arriva la richiesta (+ notifica push) →
 apri, tocca "Scrivi su WhatsApp" (numero già formattato con prefisso 39) →
-fissi la consulenza → in studio dai il preventivo, chiudi con caparra, e con un
-click trasformi la richiesta in un consenso già intestato a quel cliente.
+fissi la consulenza → in studio dai il preventivo, chiudi con caparra (importo
+richiesto/versato, metodo, stato — si registrano nella scheda della richiesta
+stessa, vedi "Moduli nuovi" sotto), e con un click trasformi la richiesta in un
+consenso già intestato a quel cliente.
 
 ### Notifiche push gratis (ntfy.sh)
 

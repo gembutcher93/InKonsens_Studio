@@ -14,11 +14,14 @@
    aftercare con barra di guarigione, sigillo QR sul PDF — index.html
    e' cambiato parecchio, bump per far arrivare tutto ai device già
    installati.
+   v26: agenda appuntamenti, promemoria WhatsApp, waitlist disdette,
+   contabilità (caparre/movimenti/chiusura periodica), guest artist —
+   moduli nuovi, tutti locali. Bump per lo stesso motivo di sempre.
 
    Nota: i dati (consensi, magazzino) NON passano da qui. Stanno in
    IndexedDB sul dispositivo e il service worker non li tocca mai.   */
 
-const CACHE = "inkconsent-v25";
+const CACHE = "inkconsent-v26";
 
 const PRECACHE = [
   "./",

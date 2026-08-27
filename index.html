@@ -384,6 +384,23 @@ select{
 .lead-status.contattato{color:var(--stencil);}
 .lead-status.fissato{color:var(--ok);}
 .lead-status.chiusa{color:var(--ink-faint);}
+.lead-status.appt-da_confermare{color:var(--flesh);}
+.lead-status.appt-confermato{color:var(--ok);}
+.lead-status.appt-saltato{color:var(--warn);}
+
+/* ---------- agenda ---------- */
+.agenda-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+.agenda-vista-toggle{grid-template-columns:1fr 1fr;max-width:220px;flex:none;}
+.agenda-week{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
+@media (max-width:860px){.agenda-week{grid-template-columns:repeat(7,minmax(96px,1fr));overflow-x:auto;padding-bottom:6px;}}
+.agenda-day{border:1px solid var(--line-soft);border-radius:var(--radius);background:var(--paper-raised);padding:10px;min-height:120px;}
+.agenda-day.is-today{border-color:var(--stencil);}
+.agenda-day-head{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-faint);text-align:center;margin-bottom:8px;line-height:1.3;}
+.agenda-day.is-today .agenda-day-head{color:var(--stencil);}
+.agenda-day-list{display:flex;flex-direction:column;gap:5px;}
+.agenda-chip{font-size:11px;background:var(--stencil-tint);color:var(--stencil);padding:4px 6px;border-radius:5px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.agenda-chip:hover{background:var(--stencil);color:#fff;}
+.agenda-day-empty{font-size:11px;color:var(--ink-ghost);text-align:center;padding:6px 0;}
 
 /* ---------- registro ---------- */
 .reg-table{width:100%;border-collapse:collapse;font-size:13px;}
@@ -1118,7 +1135,9 @@ const ICON_PATHS = {
   search:    '<circle cx="10.6" cy="10.6" r="6.6"/><path d="m15.4 15.4 5 5"/>',
   shield:    '<path d="M12 3 20 6v5.8c0 4.6-3.3 8.2-8 9.7-4.7-1.5-8-5.1-8-9.7V6z"/>',
   eyeOff:    '<path d="M3.5 3.5l17 17M9.9 9.9a3 3 0 0 0 4.2 4.2M6.2 6.4C4 8 2.5 10 2 12c1.6 4 6 8 10 8 1.7 0 3.4-.5 5-1.4M12.4 5.1c4.7.2 8.5 3.5 9.9 6.9-.4 1-1 2-1.8 3"/>',
-  chartBar:  '<path d="M4 20V10M11 20V4M18 20v-7"/><path d="M2.5 20h19"/>'
+  chartBar:  '<path d="M4 20V10M11 20V4M18 20v-7"/><path d="M2.5 20h19"/>',
+  calendar:  '<rect x="3.5" y="5" width="17" height="16" rx="2.5"/><path d="M8 3v4M16 3v4M3.5 10h17"/>',
+  wallet:    '<path d="M3.5 7.5A2.5 2.5 0 0 1 6 5h12a2.5 2.5 0 0 1 2.5 2.5v9A2.5 2.5 0 0 1 18 19H6a2.5 2.5 0 0 1-2.5-2.5z"/><path d="M15.5 13a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4z"/>'
 };
 function icon(name, size){
   const p = ICON_PATHS[name];
@@ -1875,6 +1894,10 @@ function blankRichiesta(){
     markers: [], // { view: 'fronte'|'retro', xPct, yPct }
     dataConsulenza: "",
     noteStudio: "",
+    caparraRichiesta: "", // importo richiesto come caparra (facoltativo)
+    caparraVersata: "",   // importo effettivamente incassato
+    metodoPagamento: "",  // contanti | bonifico | satispay
+    statoPagamento: "",   // da_saldare | pagata (riferito alla caparra, non a un prezzo totale che qui non esiste)
   };
 }
 const RICHIESTE_KEY = "inkconsent_richieste_v1";
@@ -1932,7 +1955,7 @@ function newId(){ return "x" + Math.random().toString(36).slice(2, 9); }
 // Per cambiarla: calcola lo sha256 della nuova password e incolla qui l'hash.
 const PREMIUM_MASTER_HASH = "71d256a21f66e37d9847b59e9b1c688c169ca0e98178a9376348eb864adec4cf";
 const PREMIUM_KEY = "inkconsent_premium_v1";
-const PREMIUM_VIEWS = ["form", "archive", "registro", "leads", "lead-detail", "import"];
+const PREMIUM_VIEWS = ["form", "archive", "registro", "leads", "lead-detail", "import", "agenda", "waitlist", "contabilita"];
 function premiumUnlocked(){ try { return localStorage.getItem(PREMIUM_KEY) === "1"; } catch(e){ return false; } }
 function setPremiumUnlocked(v){ if (v) localStorage.setItem(PREMIUM_KEY, "1"); else localStorage.removeItem(PREMIUM_KEY); }
 async function checkMasterPassword(pw){
@@ -2007,6 +2030,240 @@ function isExpiringSoon(dateStr){
 function isExpired(dateStr){
   if (!dateStr) return false;
   return new Date(dateStr) < new Date();
+}
+
+/* ============================================================
+   AGENDA — appuntamenti minimi: data/ora, cliente collegato (da
+   richiesta o consenso esistenti, o inserito a mano), tatuatore
+   assegnato (se più di uno in STUDIO_CONFIG), stato. Locale/
+   offline-first come tutto il resto (IndexedDB su questo dispositivo),
+   nessun dato verso Supabase — vale qui come per il resto dell'app.
+   ============================================================ */
+const APPT_KEY = "inkconsent_appuntamenti_v1";
+BIG_STORES.push(APPT_KEY);
+function loadAppuntamenti(){ return readStore(APPT_KEY, []); }
+function saveAppuntamenti(list){ writeStore(APPT_KEY, list); }
+function upsertAppuntamento(a){
+  const list = loadAppuntamenti();
+  const i = list.findIndex(x => x.id === a.id);
+  a.updatedAt = new Date().toISOString();
+  if (i >= 0) list[i] = a; else list.unshift(a);
+  saveAppuntamenti(list);
+  return a;
+}
+function deleteAppuntamento(id){ saveAppuntamenti(loadAppuntamenti().filter(x => x.id !== id)); }
+function getAppuntamento(id){ return loadAppuntamenti().find(x => x.id === id) || null; }
+function blankAppuntamento(dataISO){
+  return {
+    id: newId(),
+    createdAt: new Date().toISOString(),
+    data: dataISO || new Date().toISOString().slice(0,10),
+    ora: "10:00",
+    clienteNome: "", clienteCognome: "", clienteTelefono: "",
+    origine: { tipo: "manuale", id: null }, // 'manuale' | 'richiesta' | 'consenso'
+    artista: STUDIO_CONFIG.artists[0] || "",
+    stato: "da_confermare", // da_confermare | confermato | saltato
+    note: "",
+    promemoriaInviato: false,
+  };
+}
+const STATO_APPT = {
+  da_confermare: { label: "Da confermare", cls: "flesh" },
+  confermato:    { label: "Confermato",    cls: "ok" },
+  saltato:       { label: "Saltato",       cls: "warn" },
+};
+function appuntamentiDelGiorno(dataISO){
+  return loadAppuntamenti().filter(a => a.data === dataISO).sort((a,b) => (a.ora||"").localeCompare(b.ora||""));
+}
+/* lunedì-domenica della settimana che contiene dataISO */
+function settimanaDi(dataISO){
+  const d = new Date(dataISO + "T00:00:00");
+  const dow = (d.getDay() + 6) % 7; // lunedì = 0
+  const monday = new Date(d); monday.setDate(d.getDate() - dow);
+  return Array.from({length:7}, (_,i) => { const x = new Date(monday); x.setDate(monday.getDate()+i); return x.toISOString().slice(0,10); });
+}
+function addGiorni(dataISO, n){
+  const d = new Date(dataISO + "T00:00:00"); d.setDate(d.getDate()+n);
+  return d.toISOString().slice(0,10);
+}
+const GIORNI_SETTIMANA = ["Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato","Domenica"];
+
+/* ---------- promemoria WhatsApp pre-appuntamento (Task 2) ----------
+   Nessun invio automatico reale: impossibile senza un backend WhatsApp
+   Business a pagamento. L'app segnala chiaramente quali appuntamenti
+   sono a 2 giorni di distanza e prepara il messaggio, un tap e parte. */
+function promemoriaDaInviare(){
+  const oggi = new Date(); oggi.setHours(0,0,0,0);
+  return loadAppuntamenti().filter(a => {
+    if (a.promemoriaInviato || a.stato === "saltato") return false;
+    const d = new Date(a.data + "T00:00:00");
+    const giorni = Math.round((d - oggi) / 86400000);
+    return giorni === 2;
+  }).sort((a,b) => (a.ora||"").localeCompare(b.ora||""));
+}
+function waMessageAppuntamento(a){
+  return `Ciao ${a.clienteNome}! Ti ricordiamo il tuo appuntamento da ${STUDIO_CONFIG.studioName} per ${fmtDate(a.data)} alle ${a.ora}. A presto!`;
+}
+
+/* ---------- waitlist per disdette (Task 3) ----------
+   Quando un appuntamento viene segnato "saltato", l'agenda mostra questa
+   lista con un tap per contattare via WhatsApp: la "compatibilità" con
+   lo slot libero la valuta il tatuatore, l'app non prova a indovinarla. */
+const WAITLIST_KEY = "inkconsent_waitlist_v1";
+BIG_STORES.push(WAITLIST_KEY);
+function loadWaitlist(){ return readStore(WAITLIST_KEY, []); }
+function saveWaitlist(list){ writeStore(WAITLIST_KEY, list); }
+function upsertWaitlist(w){
+  const list = loadWaitlist();
+  const i = list.findIndex(x => x.id === w.id);
+  w.updatedAt = new Date().toISOString();
+  if (i >= 0) list[i] = w; else list.unshift(w);
+  saveWaitlist(list);
+  return w;
+}
+function deleteWaitlist(id){ saveWaitlist(loadWaitlist().filter(x => x.id !== id)); }
+function blankWaitlist(){
+  return { id: newId(), createdAt: new Date().toISOString(), nome:"", cognome:"", telefono:"", note:"", dataPreferita:"" };
+}
+function waMessageWaitlist(w){
+  return `Ciao ${w.nome}! Si è liberato un posto prima del previsto da ${STUDIO_CONFIG.studioName}: ti va di fissarlo? Fammi sapere appena puoi.`;
+}
+
+/* ============================================================
+   CONTABILITÀ — caparre sul preventivo, movimenti manuali
+   (entrate/uscite), percentuali per artista, chiusura periodica.
+   Tutto locale: nessuna di queste cifre passa da Supabase, nemmeno
+   in forma aggregata — vedi README.
+   ============================================================ */
+const METODI_PAGAMENTO = ["contanti","bonifico","satispay"];
+const MOVIMENTI_KEY = "inkconsent_movimenti_v1";
+BIG_STORES.push(MOVIMENTI_KEY);
+function loadMovimenti(){ return readStore(MOVIMENTI_KEY, []); }
+function saveMovimenti(list){ writeStore(MOVIMENTI_KEY, list); }
+function upsertMovimento(m){
+  const list = loadMovimenti();
+  const i = list.findIndex(x => x.id === m.id);
+  if (i >= 0) list[i] = m; else list.unshift(m);
+  saveMovimenti(list);
+  return m;
+}
+function deleteMovimento(id){ saveMovimenti(loadMovimenti().filter(x => x.id !== id)); }
+function blankMovimento(){
+  return { id: newId(), data: new Date().toISOString().slice(0,10), tipo: "uscita", descrizione: "", importo: 0 };
+}
+/* percentuale di split per artista (titolare vs resident/guest): vive
+   negli stessi overrides dello studio (localStorage), come mappa
+   nome->percentuale (0-100). Chi non è ancora impostato resta al 50%. */
+function percentualiArtisti(){ return loadStudioOverrides().percentuali || {}; }
+function percentualeArtista(nome){
+  const p = percentualiArtisti();
+  return (nome in p) ? p[nome] : 50;
+}
+function setPercentualeArtista(nome, pct){
+  const o = loadStudioOverrides();
+  const percentuali = { ...(o.percentuali||{}), [nome]: Math.max(0, Math.min(100, pct)) };
+  saveStudioOverrides({ ...o, percentuali });
+}
+/* Caparre versate nel mese (YYYY-MM), con l'artista dell'eventuale
+   appuntamento collegato alla richiesta. Senza un appuntamento con
+   artista assegnato la caparra resta "non attribuita": conta per
+   intero allo studio nella chiusura, non viene spartita a caso. */
+function caparreVersateNelMese(ym){
+  const appts = loadAppuntamenti();
+  return loadRichieste()
+    .filter(r => (r.caparraVersata||0) > 0 && (r.updatedAt||r.createdAt||"").slice(0,7) === ym)
+    .map(r => {
+      const appt = appts.find(a => a.origine && a.origine.tipo === "richiesta" && a.origine.id === r.id);
+      return { richiesta: r, importo: Number(r.caparraVersata)||0, artista: appt ? appt.artista : "" };
+    });
+}
+function chiusuraPeriodica(ym){
+  const caparre = caparreVersateNelMese(ym);
+  const entrateCaparre = caparre.reduce((s,c) => s + c.importo, 0);
+  const movimenti = loadMovimenti().filter(m => (m.data||"").slice(0,7) === ym);
+  const entrateManuali = movimenti.filter(m => m.tipo === "entrata").reduce((s,m) => s + (Number(m.importo)||0), 0);
+  const usciteManuali = movimenti.filter(m => m.tipo === "uscita").reduce((s,m) => s + (Number(m.importo)||0), 0);
+  const speseMateriali = spesaMese(ym);
+  const entrateTotali = entrateCaparre + entrateManuali;
+  const usciteTotali = usciteManuali + speseMateriali;
+  const perArtista = {};
+  caparre.forEach(c => {
+    if (!c.artista) return;
+    const pct = percentualeArtista(c.artista) / 100;
+    perArtista[c.artista] = (perArtista[c.artista]||0) + c.importo * pct;
+    perArtista["__studio__" + c.artista] = (perArtista["__studio__" + c.artista]||0) + c.importo * (1 - pct);
+  });
+  const nonAttribuito = caparre.filter(c => !c.artista).reduce((s,c) => s + c.importo, 0);
+  return { ym, entrateCaparre, entrateManuali, usciteManuali, speseMateriali, entrateTotali, usciteTotali,
+    netto: entrateTotali - usciteTotali, perArtista, nonAttribuito, movimenti, caparre };
+}
+
+/* ============================================================
+   GUEST ARTIST — invito a tempo per un artista ospite (Task 4).
+   Nessun vero multi-utente/login: stesso dispositivo, stesso account,
+   solo un livello di UI che restringe la navigazione fino alla
+   scadenza. NON è un confine di sicurezza: se lo studio ha il blocco
+   d'accesso attivo (password), quello resta l'unica vera protezione
+   dei dati — il guest deve comunque riuscire a sbloccare il
+   dispositivo (di norma perché il titolare glielo consegna già
+   sbloccato). Qui si limita solo cosa vede DOPO, non come entra.
+   ============================================================ */
+const GUEST_KEY = "inkconsent_guest_invites_v1";
+BIG_STORES.push(GUEST_KEY);
+function loadGuestInvites(){ return readStore(GUEST_KEY, []); }
+function saveGuestInvites(list){ writeStore(GUEST_KEY, list); }
+function upsertGuestInvite(g){
+  const list = loadGuestInvites();
+  const i = list.findIndex(x => x.id === g.id);
+  if (i >= 0) list[i] = g; else list.unshift(g);
+  saveGuestInvites(list);
+  return g;
+}
+/* limiti annui di generazione inviti, per piano — vedi PIANI più sopra.
+   'multi-studio' non è self-service: qui prendiamo comunque il tetto
+   più alto come riferimento, il resto si decide via contatto diretto. */
+const GUEST_LIMITI = { solopro: 4, studiopro: 10, atelierpro: 20, "multi-studio": 20 };
+function guestLimiteAnnuo(){ return GUEST_LIMITI[pianoConsigliato().id] ?? 4; }
+function invitiGeneratiQuestAnno(){
+  const anno = String(new Date().getFullYear());
+  return loadGuestInvites().filter(g => (g.createdAt||"").slice(0,4) === anno).length;
+}
+function generaCodiceInvito(){
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // niente 0/O/1/I ambigui
+  return Array.from({length:8}, () => chars[Math.floor(Math.random()*chars.length)]).join("");
+}
+function blankGuestInvite(){
+  const oggi = new Date().toISOString().slice(0,10);
+  return { id: newId(), createdAt: new Date().toISOString(), codice: generaCodiceInvito(), nomeGuest: "", dataInizio: oggi, dataFine: oggi };
+}
+function buildGuestLink(codice){
+  return `${STUDIO_CONFIG.publicUrl}/?guest=1&codice=${encodeURIComponent(codice)}`;
+}
+function trovaInvitoValido(codice){
+  const oggi = new Date().toISOString().slice(0,10);
+  return loadGuestInvites().find(g => g.codice === codice && oggi >= g.dataInizio && oggi <= g.dataFine) || null;
+}
+/* stato guest attivo su QUESTO dispositivo/browser: puramente locale,
+   non cifrato (e' solo un promemoria "sono in modalita' guest fino a
+   X", non un segreto). */
+const GUEST_ACTIVE_KEY = "inkconsent_guest_active_v1";
+function loadGuestActive(){
+  try { return JSON.parse(localStorage.getItem(GUEST_ACTIVE_KEY)); } catch(e){ return null; }
+}
+function setGuestActive(g){ localStorage.setItem(GUEST_ACTIVE_KEY, JSON.stringify(g)); }
+function clearGuestActive(){ localStorage.removeItem(GUEST_ACTIVE_KEY); }
+/* null = nessuna sessione guest; altrimenti { codice, nomeGuest, dataFine, scaduto } */
+function guestSessionState(){
+  const g = loadGuestActive();
+  if (!g) return null;
+  const oggi = new Date().toISOString().slice(0,10);
+  return { ...g, scaduto: oggi > g.dataFine };
+}
+function attivaGuestDaCodice(codice){
+  const invito = trovaInvitoValido(codice);
+  if (!invito) return false;
+  setGuestActive({ codice: invito.codice, nomeGuest: invito.nomeGuest || "Guest", dataFine: invito.dataFine });
+  return true;
 }
 
 /* ============================================================
@@ -2396,6 +2653,7 @@ function render(){
   else if (state.needsTerms) root.innerHTML = renderTerms();
   else if (state.needsSetup) root.innerHTML = renderFirstRunSetup();
   else if (state.locked) root.innerHTML = renderLockScreen();
+  else if ((guestSessionState()||{}).scaduto) root.innerHTML = renderGuestGate();
   else root.innerHTML = renderStudioShell();
   afterRender();
 }
@@ -2758,6 +3016,9 @@ function buildLeadLink(){
    ============================================================ */
 function renderStudioShell(){
   const nuoveLeads = loadRichieste().filter(l => l.status === "nuova").length;
+  const guest = guestSessionState();
+  const isGuest = !!(guest && !guest.scaduto);
+  const promemoriaN = promemoriaDaInviare().length;
   return `
   <div class="shell">
     <div class="rail-backdrop ${state.railOpen ? "show" : ""}" data-action="toggle-rail"></div>
@@ -2766,21 +3027,25 @@ function renderStudioShell(){
         <div class="rail-mark">${markHtml()}</div>
         <div>
           <div class="rail-brand-name">${esc(STUDIO_CONFIG.studioName)}</div>
-          <div class="rail-brand-sub">${esc(STUDIO_CONFIG.studioCity)}</div>
+          <div class="rail-brand-sub">${isGuest ? "Modalità guest · " + esc(guest.nomeGuest) : esc(STUDIO_CONFIG.studioCity)}</div>
         </div>
         <button class="rail-close" data-action="toggle-rail">${icon("close",15)} Chiudi</button>
       </div>
+      ${isGuest ? `<div class="callout warn" style="margin-bottom:14px;font-size:12px;">Accesso guest fino al ${fmtDate(guest.dataFine)}. <button class="btn btn-ghost btn-sm" data-action="exit-guest-mode" style="margin-top:6px;">Esci</button></div>` : ""}
       <div class="rail-nav">
+        <button class="rail-btn rail-btn-consenso ${state.view==='agenda'?'active':''}" data-action="nav" data-view="agenda">${icon("calendar",17)} Agenda${promemoriaN ? `<span class="nav-badge">${promemoriaN}</span>` : ""}</button>
         <button class="rail-btn rail-btn-consenso ${state.view==='archive'?'active':''}" data-action="nav" data-view="archive">${icon("clipboard",17)} Archivio consensi</button>
-        <button class="rail-btn ${state.view==='registro'?'active':''}" data-action="nav" data-view="registro">${icon("book",17)} Registro</button>
-        <button class="rail-btn ${state.view==='magazzino'?'active':''}" data-action="nav" data-view="magazzino">${icon("box",17)} Magazzino</button>
         <button class="rail-btn rail-btn-consenso ${state.view==='form'?'active':''}" data-action="new-session">${icon("pen",17)} Nuovo consenso</button>
         <button class="rail-btn rail-btn-consenso ${state.view==='import'?'active':''}" data-action="nav" data-view="import">${icon("restock",17)} Importa consenso</button>
-        ${FEATURES.richieste ? `<button class="rail-btn rail-btn-preventivo ${state.view==='leads'||state.view==='lead-detail'?'active':''}" data-action="nav" data-view="leads">${icon("chat",17)} Richieste preventivo${nuoveLeads ? `<span class="nav-badge">${nuoveLeads}</span>` : ""}</button>` : ""}
-        <button class="rail-btn ${state.view==='statistiche'?'active':''}" data-action="nav" data-view="statistiche">${icon("chartBar",17)} Statistiche</button>
-        <button class="rail-btn ${state.view==='settings'?'active':''}" data-action="nav" data-view="settings">${icon("gear",17)} Impostazioni studio</button>
+        <button class="rail-btn ${state.view==='magazzino'?'active':''}" data-action="nav" data-view="magazzino">${icon("box",17)} Magazzino</button>
+        ${isGuest ? `<button class="rail-btn ${state.view==='guest-consensi'?'active':''}" data-action="nav" data-view="guest-consensi">${icon("download",17)} I miei consensi</button>` : ""}
+        ${!isGuest ? `<button class="rail-btn ${state.view==='registro'?'active':''}" data-action="nav" data-view="registro">${icon("book",17)} Registro</button>` : ""}
+        ${!isGuest && FEATURES.richieste ? `<button class="rail-btn rail-btn-preventivo ${state.view==='leads'||state.view==='lead-detail'?'active':''}" data-action="nav" data-view="leads">${icon("chat",17)} Richieste preventivo${nuoveLeads ? `<span class="nav-badge">${nuoveLeads}</span>` : ""}</button>` : ""}
+        ${!isGuest ? `<button class="rail-btn ${state.view==='contabilita'?'active':''}" data-action="nav" data-view="contabilita">${icon("wallet",17)} Contabilità</button>` : ""}
+        ${!isGuest ? `<button class="rail-btn ${state.view==='statistiche'?'active':''}" data-action="nav" data-view="statistiche">${icon("chartBar",17)} Statistiche</button>` : ""}
+        ${!isGuest ? `<button class="rail-btn ${state.view==='settings'?'active':''}" data-action="nav" data-view="settings">${icon("gear",17)} Impostazioni studio</button>` : ""}
       </div>
-      <button class="rail-btn privacy-toggle" data-action="toggle-privacy-blur" title="Oscura i dati a schermo">${icon("eyeOff",17)} ${state.privacyBlur ? "Mostra i dati" : "Vetrina spenta"}</button>
+      ${!isGuest ? `<button class="rail-btn privacy-toggle" data-action="toggle-privacy-blur" title="Oscura i dati a schermo">${icon("eyeOff",17)} ${state.privacyBlur ? "Mostra i dati" : "Vetrina spenta"}</button>` : ""}
       <div class="rail-foot">InkConsent · engine v1.0<br>Motore condiviso, personalizzabile per studio.</div>
     </nav>
     <div class="main">
@@ -2793,10 +3058,20 @@ function renderStudioShell(){
     </div>
   </div>`;
 }
+/* Viste fuori portata per un guest attivo: se lo stato punta lì
+   comunque (link vecchio, stato residuo), si ricade sull'agenda. */
+const GUEST_VIEW_ALLOWLIST = ["agenda", "archive", "form", "import", "magazzino", "guest-consensi"];
 function renderStudioView(){
+  const guest = guestSessionState();
+  const isGuest = !!(guest && !guest.scaduto);
+  if (isGuest && !GUEST_VIEW_ALLOWLIST.includes(state.view)) state.view = "agenda";
   if (state.view === "settings") return renderSettings();
   if (state.view === "magazzino") return renderMagazzino();
   if (state.view === "statistiche") return renderStatistiche();
+  if (state.view === "agenda") return renderAgenda();
+  if (state.view === "waitlist") return renderWaitlist();
+  if (state.view === "contabilita") return renderContabilita();
+  if (state.view === "guest-consensi") return renderGuestConsensi();
   // sezione consensi: in vetrina Premium finché non sbloccata
   if (isPremiumView(state.view) && !premiumUnlocked()) return renderPremiumGate();
   if (state.view === "paywall") return renderPaywall();
@@ -2978,6 +3253,404 @@ function renderStatistiche(){
           </div>`).join("")}
       </div>
     </div>` : `<div class="arch-empty"><b>Ancora nessun dato</b><p>Le statistiche si popolano da sole man mano che archivi consensi e ricevi richieste di preventivo.</p></div>`}
+  </div>`;
+}
+
+/* ============================================================
+   AGENDA — vista giorno/settimana, promemoria WhatsApp a 2 giorni,
+   suggerimenti waitlist quando si libera uno slot.
+   ============================================================ */
+function renderAgenda(){
+  if (state.apptBuffer) return renderAppuntamentoFormPage();
+  const vista = state.agendaVista || "giorno";
+  const dataSel = state.agendaData || new Date().toISOString().slice(0,10);
+  const promemoria = promemoriaDaInviare();
+  const waitlistN = loadWaitlist().length;
+  return `
+  <div class="topbar">
+    <div><h1>Agenda</h1><p>Appuntamenti dello studio</p></div>
+    <button class="btn btn-accent" data-action="new-appuntamento">+ Nuovo appuntamento</button>
+  </div>
+  <div class="main-inner">
+    ${promemoria.length ? renderPromemoriaBanner(promemoria) : ""}
+    ${state.waitlistSuggestFor ? renderWaitlistSuggerimenti(state.waitlistSuggestFor) : ""}
+    <div class="agenda-toolbar">
+      <div class="chip-grid agenda-vista-toggle">
+        <button class="chip ${vista==='giorno'?'on':''}" data-action="set-agenda-vista" data-v="giorno">Giorno</button>
+        <button class="chip ${vista==='settimana'?'on':''}" data-action="set-agenda-vista" data-v="settimana">Settimana</button>
+      </div>
+      <div class="btn-row" style="margin:0;">
+        <button class="btn btn-ghost btn-sm" data-action="agenda-prev">${icon("arrowLeft",14)}</button>
+        <button class="btn btn-ghost btn-sm" data-action="agenda-oggi">Oggi</button>
+        <button class="btn btn-ghost btn-sm" data-action="agenda-next">${icon("arrowRight",14)}</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" data-action="nav" data-view="waitlist">${icon("chat",14)} Lista d'attesa${waitlistN ? ` (${waitlistN})` : ""}</button>
+    </div>
+    ${vista === "giorno" ? renderAgendaGiorno(dataSel) : renderAgendaSettimana(dataSel)}
+  </div>`;
+}
+function renderAgendaGiorno(dataISO){
+  const list = appuntamentiDelGiorno(dataISO);
+  const d = new Date(dataISO+"T00:00:00");
+  const label = `${GIORNI_SETTIMANA[(d.getDay()+6)%7]} ${d.getDate()} ${d.toLocaleDateString("it-IT",{month:"long",year:"numeric"})}`;
+  return `
+  <h3 class="section-title" style="text-transform:capitalize;">${esc(label)}</h3>
+  ${!list.length ? `<div class="arch-empty"><b>Nessun appuntamento</b><p>Aggiungine uno con "+ Nuovo appuntamento".</p></div>`
+    : `<div class="inv-list">${list.map(renderAppuntamentoRow).join("")}</div>`}`;
+}
+function renderAgendaSettimana(dataISO){
+  const giorni = settimanaDi(dataISO);
+  const oggi = new Date().toISOString().slice(0,10);
+  return `
+  <div class="agenda-week">
+    ${giorni.map(g => {
+      const list = appuntamentiDelGiorno(g);
+      const d = new Date(g+"T00:00:00");
+      return `
+      <div class="agenda-day ${g===oggi?'is-today':''}">
+        <div class="agenda-day-head">${GIORNI_SETTIMANA[(d.getDay()+6)%7].slice(0,3)}<br><b>${d.getDate()}</b></div>
+        <div class="agenda-day-list">
+          ${list.length ? list.map(a => `<div class="agenda-chip" data-action="open-appuntamento" data-id="${a.id}" title="${esc(a.clienteNome)} ${esc(a.clienteCognome)}">${esc(a.ora)} ${esc(a.clienteNome)}</div>`).join("") : `<div class="agenda-day-empty">—</div>`}
+        </div>
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+function renderAppuntamentoRow(a){
+  const st = STATO_APPT[a.stato] || STATO_APPT.da_confermare;
+  return `
+  <div class="lead-row" data-action="open-appuntamento" data-id="${a.id}">
+    <div class="arch-idx mono">${esc(a.ora||"—")}</div>
+    <div class="lead-main">
+      <b>${esc(a.clienteNome)} ${esc(a.clienteCognome)}</b>
+      <span>${STUDIO_CONFIG.artists.length > 1 && a.artista ? esc(a.artista) + (a.note ? " · " : "") : ""}${esc(a.note||"")}</span>
+    </div>
+    <span class="lead-status appt-${a.stato}">${st.label}</span>
+    <button class="disp-icon-btn" data-action="edit-appuntamento" data-id="${a.id}" title="Modifica">${icon("pen",14)}</button>
+  </div>`;
+}
+function renderPromemoriaBanner(list){
+  return `
+  <div class="trial-bar trial-low" style="margin-bottom:14px;">
+    <div class="trial-bar-top"><span>Promemoria da inviare — appuntamenti tra 2 giorni</span><b>${list.length}</b></div>
+    ${list.map(a => `
+      <div class="btn-row" style="margin-top:8px;align-items:center;flex-wrap:wrap;">
+        <span style="flex:1;font-size:13px;min-width:160px;">${esc(a.clienteNome)} ${esc(a.clienteCognome)} · ${fmtDate(a.data)} ${esc(a.ora)}</span>
+        ${a.clienteTelefono
+          ? `<a class="wa-btn" href="${waLink(a.clienteTelefono, waMessageAppuntamento(a))}" target="_blank" rel="noopener" data-action="mark-promemoria-inviato" data-id="${a.id}">Scrivi su WhatsApp</a>`
+          : `<span class="field hint" style="margin:0;">Nessun telefono salvato</span>`}
+      </div>`).join("")}
+  </div>`;
+}
+function renderWaitlistSuggerimenti(apptId){
+  const appt = getAppuntamento(apptId);
+  const list = loadWaitlist();
+  if (!appt) return "";
+  return `
+  <div class="card" style="background:var(--stencil-tint);border-color:rgba(150,101,154,.35);margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h3 class="section-title" style="margin:0;">Slot libero: ${fmtDate(appt.data)} ${esc(appt.ora)}</h3>
+      <button class="btn btn-ghost btn-sm" data-action="dismiss-waitlist-suggest">${icon("close",14)}</button>
+    </div>
+    ${!list.length ? `<p class="section-desc">Nessuno in lista d'attesa al momento.</p>` : `
+    <p class="section-desc">Clienti in lista d'attesa che potresti contattare per questo posto — valuti tu se è compatibile:</p>
+    <div class="inv-list">
+      ${list.map(w => `
+        <div class="inv-row">
+          <div class="inv-main"><b>${esc(w.nome)} ${esc(w.cognome)}</b>${w.note ? `<span class="inv-sub">${esc(w.note)}</span>` : ""}</div>
+          <div class="inv-actions">
+            ${w.telefono ? `<a class="wa-btn" href="${waLink(w.telefono, waMessageWaitlist(w))}" target="_blank" rel="noopener">Contatta</a>` : ""}
+            <button class="btn btn-ghost btn-sm" data-action="waitlist-book" data-id="${w.id}" data-appt="${appt.id}">Ha preso lo slot</button>
+          </div>
+        </div>`).join("")}
+    </div>`}
+  </div>`;
+}
+function renderAppuntamentoFormPage(){
+  const a = state.apptBuffer;
+  const esiste = !!getAppuntamento(a.id);
+  const richieste = loadRichieste().slice(0,30);
+  const sessioni = loadSessions().slice(0,30);
+  return `
+  <div class="topbar">
+    <div><h1>${esiste ? "Modifica appuntamento" : "Nuovo appuntamento"}</h1><p>${esiste ? fmtDate(a.data) + " · " + a.ora : "Compila e salva"}</p></div>
+    <button class="btn btn-ghost btn-sm" data-action="cancel-appuntamento">${icon("arrowLeft",15)} Agenda</button>
+  </div>
+  <div class="main-inner">
+    <div class="card">
+      <div class="grid-2">
+        <div class="field"><label>Data</label><input type="date" data-field-appt="data" value="${esc(a.data)}"></div>
+        <div class="field"><label>Ora</label><input type="time" data-field-appt="ora" value="${esc(a.ora)}"></div>
+      </div>
+      <div class="field">
+        <label>Collega a richiesta/consenso esistente (facoltativo)</label>
+        <select data-action="link-appuntamento-cliente">
+          <option value="">— nessuno, inserisci a mano —</option>
+          ${richieste.length ? `<optgroup label="Richieste preventivo">${richieste.map(r => `<option value="richiesta:${r.id}" ${a.origine.tipo==='richiesta'&&a.origine.id===r.id?'selected':''}>${esc(r.cliente.nome)} ${esc(r.cliente.cognome)}</option>`).join("")}</optgroup>` : ""}
+          ${sessioni.length ? `<optgroup label="Consensi">${sessioni.map(s => `<option value="consenso:${s.id}" ${a.origine.tipo==='consenso'&&a.origine.id===s.id?'selected':''}>${esc(s.anagrafica.nome)} ${esc(s.anagrafica.cognome)}</option>`).join("")}</optgroup>` : ""}
+        </select>
+        ${a.origine.tipo !== "manuale" ? `<div class="hint">Nome/cognome/telefono presi dal collegamento: modificarli qui sotto non li cambia lì.</div>` : ""}
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Nome</label><input type="text" data-field-appt="clienteNome" value="${esc(a.clienteNome)}"></div>
+        <div class="field"><label>Cognome</label><input type="text" data-field-appt="clienteCognome" value="${esc(a.clienteCognome)}"></div>
+      </div>
+      <div class="field"><label>Telefono (WhatsApp)</label><input type="tel" data-field-appt="clienteTelefono" value="${esc(a.clienteTelefono)}" placeholder="333 1234567"></div>
+      ${STUDIO_CONFIG.artists.length > 1 ? `
+      <div class="field">
+        <label>Tatuatore</label>
+        <select data-field-appt="artista">
+          ${STUDIO_CONFIG.artists.map(art => `<option value="${esc(art)}" ${a.artista===art?"selected":""}>${esc(art)}</option>`).join("")}
+        </select>
+      </div>` : ""}
+      <div class="field">
+        <label>Stato</label>
+        <div class="chip-grid">
+          ${Object.keys(STATO_APPT).map(k => `<button class="chip ${a.stato===k?'on':''}" data-action="set-appt-stato" data-v="${k}">${STATO_APPT[k].label}</button>`).join("")}
+        </div>
+      </div>
+      <div class="field"><label>Note</label><textarea data-field-appt="note" placeholder="Note…">${esc(a.note)}</textarea></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" data-action="save-appuntamento">Salva</button>
+        <button class="btn btn-ghost" data-action="cancel-appuntamento">Annulla</button>
+        ${esiste ? `<button class="btn btn-ghost" data-action="delete-appuntamento" data-id="${a.id}">Elimina</button>` : ""}
+      </div>
+      ${esiste && a.origine.tipo !== "manuale" ? `<div class="btn-row"><button class="btn btn-ghost btn-sm" data-action="open-appuntamento-cliente" data-id="${a.id}">${icon("clipboard",14)} Apri scheda cliente</button></div>` : ""}
+    </div>
+  </div>`;
+}
+
+/* ---------- lista d'attesa ---------- */
+function renderWaitlist(){
+  const list = loadWaitlist();
+  const buf = state.waitlistBuffer;
+  return `
+  <div class="topbar">
+    <div><h1>Lista d'attesa</h1><p>Clienti da ricontattare se si libera un posto prima</p></div>
+    <button class="btn btn-accent" data-action="new-waitlist">+ Aggiungi</button>
+  </div>
+  <div class="main-inner">
+    ${buf ? `
+    <div class="card">
+      <h3 class="section-title">${buf.id && list.find(w=>w.id===buf.id) ? "Modifica" : "Nuovo"}</h3>
+      <div class="grid-2">
+        <div class="field"><label>Nome</label><input type="text" data-field-wl="nome" value="${esc(buf.nome)}"></div>
+        <div class="field"><label>Cognome</label><input type="text" data-field-wl="cognome" value="${esc(buf.cognome)}"></div>
+      </div>
+      <div class="field"><label>Telefono (WhatsApp)</label><input type="tel" data-field-wl="telefono" value="${esc(buf.telefono)}"></div>
+      <div class="field"><label>Data preferita (facoltativa)</label><input type="date" data-field-wl="dataPreferita" value="${esc(buf.dataPreferita)}"></div>
+      <div class="field"><label>Note</label><textarea data-field-wl="note" placeholder="Cosa vuole, disponibilità…">${esc(buf.note)}</textarea></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" data-action="save-waitlist">Salva</button>
+        <button class="btn btn-ghost" data-action="cancel-waitlist">Annulla</button>
+      </div>
+    </div>` : ""}
+    ${!list.length ? `<div class="arch-empty"><b>Lista vuota</b><p>Aggiungi un cliente quando vuole essere ricontattato per una data prima.</p></div>` : `
+    <div class="inv-list">
+      ${list.map(w => `
+        <div class="inv-row">
+          <div class="inv-main"><b>${esc(w.nome)} ${esc(w.cognome)}</b>
+            <span class="inv-sub">${w.dataPreferita ? "Preferita: " + fmtDate(w.dataPreferita) + " · " : ""}${esc(w.note||"")}</span>
+          </div>
+          <div class="inv-actions">
+            ${w.telefono ? `<a class="wa-btn" href="${waLink(w.telefono, waMessageWaitlist(w))}" target="_blank" rel="noopener">Contatta</a>` : ""}
+            <button class="btn btn-ghost btn-sm" data-action="edit-waitlist" data-id="${w.id}">Modifica</button>
+            <button class="btn btn-ghost btn-sm" data-action="delete-waitlist" data-id="${w.id}">Rimuovi</button>
+          </div>
+        </div>`).join("")}
+    </div>`}
+  </div>`;
+}
+
+/* ============================================================
+   CONTABILITÀ — caparre (dal preventivo), movimenti manuali, spese
+   materiali (già in Magazzino), percentuali per artista, chiusura
+   periodica. Tutto locale, niente su Supabase — vedi README.
+   ============================================================ */
+function renderContabilita(){
+  const ym = state.contabYm || new Date().toISOString().slice(0,7);
+  const buf = state.movBuffer;
+  const chiusura = chiusuraPeriodica(ym);
+  const [anno, mese] = ym.split("-").map(Number);
+  const meseLabel = new Date(anno, mese-1, 1).toLocaleDateString("it-IT", { month: "long", year: "numeric" });
+  return `
+  <div class="topbar">
+    <div><h1>Contabilità</h1><p>Caparre, movimenti e chiusura periodica — tutto locale</p></div>
+    <button class="btn btn-accent" data-action="new-movimento">+ Movimento</button>
+  </div>
+  <div class="main-inner">
+    <div class="btn-row" style="margin-bottom:14px;align-items:center;">
+      <button class="btn btn-ghost btn-sm" data-action="contab-prev-mese">${icon("arrowLeft",14)}</button>
+      <b class="mono" style="text-transform:capitalize;">${esc(meseLabel)}</b>
+      <button class="btn btn-ghost btn-sm" data-action="contab-next-mese">${icon("arrowRight",14)}</button>
+    </div>
+
+    ${buf ? `
+    <div class="card">
+      <h3 class="section-title">Nuovo movimento</h3>
+      <div class="field">
+        <label>Tipo</label>
+        <div class="chip-grid" style="grid-template-columns:1fr 1fr;">
+          <button class="chip ${buf.tipo==='entrata'?'on':''}" data-action="set-mov-tipo" data-v="entrata">Entrata</button>
+          <button class="chip ${buf.tipo==='uscita'?'on':''}" data-action="set-mov-tipo" data-v="uscita">Uscita</button>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Data</label><input type="date" data-field-mov="data" value="${esc(buf.data)}"></div>
+        <div class="field"><label>Importo (€)</label><input type="number" min="0" step="0.01" data-field-mov="importo" value="${esc(String(buf.importo||""))}"></div>
+      </div>
+      <div class="field"><label>Descrizione</label><input type="text" data-field-mov="descrizione" placeholder="Es. Affitto, bolletta, materiale non da magazzino…" value="${esc(buf.descrizione)}"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" data-action="save-movimento">Salva</button>
+        <button class="btn btn-ghost" data-action="cancel-movimento">Annulla</button>
+      </div>
+    </div>` : ""}
+
+    <div class="disp-summary">
+      <div class="disp-stat"><span>Entrate</span><b>€ ${chiusura.entrateTotali.toFixed(2)}</b><small>caparre € ${chiusura.entrateCaparre.toFixed(2)} + manuali € ${chiusura.entrateManuali.toFixed(2)}</small></div>
+      <div class="disp-stat"><span>Uscite</span><b>€ ${chiusura.usciteTotali.toFixed(2)}</b><small>materiali € ${chiusura.speseMateriali.toFixed(2)} + manuali € ${chiusura.usciteManuali.toFixed(2)}</small></div>
+      <div class="disp-stat"><span>Netto studio</span><b class="${chiusura.netto<0?'warn-num':''}">€ ${chiusura.netto.toFixed(2)}</b><small>entrate − uscite</small></div>
+    </div>
+
+    ${Object.keys(chiusura.perArtista).filter(k => !k.startsWith("__studio__")).length ? `
+    <div class="card">
+      <h3 class="section-title">Ripartizione per artista</h3>
+      <p class="section-desc">Solo sulle caparre versate collegate a un appuntamento con tatuatore assegnato (vedi Agenda). Caparre senza appuntamento collegato e movimenti manuali restano allo studio, non vengono ripartiti a caso.</p>
+      ${Object.keys(chiusura.perArtista).filter(k => !k.startsWith("__studio__")).map(art => `
+        <div class="kv"><span>${esc(art)} (${percentualeArtista(art)}%)</span><b>€ ${chiusura.perArtista[art].toFixed(2)}</b></div>
+      `).join("")}
+      ${chiusura.nonAttribuito > 0 ? `<div class="kv"><span>Non attribuito (resta allo studio)</span><b>€ ${chiusura.nonAttribuito.toFixed(2)}</b></div>` : ""}
+    </div>` : ""}
+
+    <div class="card">
+      <h3 class="section-title">Movimenti manuali del mese</h3>
+      ${!chiusura.movimenti.length ? `<p class="section-desc">Nessun movimento manuale in ${esc(meseLabel)}.</p>` : `
+      <div class="inv-list">
+        ${chiusura.movimenti.map(m => `
+          <div class="inv-row">
+            <div class="inv-main"><b>${m.tipo==='entrata'?'+':'−'} € ${(Number(m.importo)||0).toFixed(2)}</b>
+              <span class="inv-sub">${fmtDate(m.data)} · ${esc(m.descrizione||"—")}</span>
+            </div>
+            <div class="inv-actions"><button class="btn btn-ghost btn-sm" data-action="delete-movimento" data-id="${m.id}">Elimina</button></div>
+          </div>`).join("")}
+      </div>`}
+    </div>
+
+    ${chiusura.caparre.length ? `
+    <div class="card">
+      <h3 class="section-title">Caparre versate nel mese</h3>
+      <div class="inv-list">
+        ${chiusura.caparre.map(c => `
+          <div class="inv-row">
+            <div class="inv-main"><b>€ ${c.importo.toFixed(2)}</b>
+              <span class="inv-sub">${esc(c.richiesta.cliente.nome)} ${esc(c.richiesta.cliente.cognome)}${c.richiesta.metodoPagamento ? " · " + esc(c.richiesta.metodoPagamento) : ""}${c.artista ? " · " + esc(c.artista) : " · non attribuita"}</span>
+            </div>
+            <div class="inv-actions"><button class="btn btn-ghost btn-sm" data-action="open-richiesta-da-contab" data-id="${c.richiesta.id}">Apri</button></div>
+          </div>`).join("")}
+      </div>
+    </div>` : ""}
+
+    <div class="card">
+      <h3 class="section-title">Percentuali per artista</h3>
+      <p class="section-desc">Quota che spetta a ciascun tatuatore sulle caparre a lui collegate (il resto resta allo studio). Serve solo per la ripartizione qui sopra.</p>
+      ${STUDIO_CONFIG.artists.map(art => `
+        <div class="field" style="max-width:220px;">
+          <label>${esc(art)}</label>
+          <input type="number" min="0" max="100" data-action="input-percentuale" data-artista="${esc(art)}" value="${percentualeArtista(art)}">
+        </div>`).join("")}
+    </div>
+  </div>`;
+}
+
+/* ============================================================
+   GUEST ARTIST — inviti a tempo, limitati per piano.
+   ============================================================ */
+function renderGuestSettingsCard(){
+  const inviti = loadGuestInvites();
+  const usati = invitiGeneratiQuestAnno();
+  const limite = guestLimiteAnnuo();
+  const buf = state.guestBuffer;
+  const guest = guestSessionState();
+  return `
+    <div class="card">
+      <h3 class="section-title">Guest artist</h3>
+      <p class="section-desc">Codice/link a tempo per un artista ospite: durante la validità vede agenda e magazzino come voi, e i consensi che firma restano archiviati qui, normalmente. Non è un vero account separato — resta comunque un'app a dispositivo singolo, vedi il commento nel codice per i limiti di questo approccio.</p>
+      <div class="kv"><span>Inviti generati quest'anno</span><b>${usati} di ${limite}</b> (piano ${esc(pianoConsigliato().nome)})</div>
+      ${guest && !guest.scaduto ? `<div class="callout ok" style="margin-top:10px;">Guest attivo su questo dispositivo: <b>${esc(guest.nomeGuest)}</b>, fino al ${fmtDate(guest.dataFine)}. <button class="btn btn-ghost btn-sm" data-action="exit-guest-mode" style="margin-left:8px;">Esci dalla modalità guest</button></div>` : ""}
+      ${buf ? `
+      <div class="inv-form">
+        <div class="field"><label>Nome guest</label><input type="text" data-field-guest="nomeGuest" value="${esc(buf.nomeGuest)}" placeholder="Nome dell'artista ospite"></div>
+        <div class="grid-2">
+          <div class="field"><label>Dal</label><input type="date" data-field-guest="dataInizio" value="${esc(buf.dataInizio)}"></div>
+          <div class="field"><label>Al</label><input type="date" data-field-guest="dataFine" value="${esc(buf.dataFine)}"></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-sm" data-action="save-guest-invite" ${usati >= limite ? "disabled" : ""}>Genera invito</button>
+          <button class="btn btn-ghost btn-sm" data-action="cancel-guest-invite">Annulla</button>
+        </div>
+        ${usati >= limite ? `<p class="field hint" style="color:var(--warn);">Limite annuo raggiunto per il piano ${esc(pianoConsigliato().nome)}.</p>` : ""}
+      </div>` : `<button class="btn btn-ghost btn-sm" style="margin-top:10px;" data-action="new-guest-invite" ${usati >= limite ? "disabled" : ""}>+ Genera invito</button>`}
+
+      ${inviti.length ? `
+      <div class="inv-list" style="margin-top:14px;">
+        ${inviti.slice(0,10).map(g => `
+          <div class="inv-row">
+            <div class="inv-main"><b>${esc(g.nomeGuest||"Guest")}</b>
+              <span class="inv-sub mono">${esc(g.codice)} · ${fmtDate(g.dataInizio)} → ${fmtDate(g.dataFine)}</span>
+            </div>
+            <div class="inv-actions"><button class="btn btn-ghost btn-sm" data-action="copy-guest-link" data-codice="${esc(g.codice)}">Copia link</button></div>
+          </div>`).join("")}
+      </div>` : ""}
+
+      <div class="field" style="margin-top:14px;">
+        <label>Attiva un codice ricevuto</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="guest-code-input" placeholder="Codice invito" style="max-width:180px;text-transform:uppercase;">
+          <button class="btn btn-ghost btn-sm" data-action="attiva-guest-code">Attiva</button>
+        </div>
+        ${state.guestActivateError ? `<p class="field hint" style="color:var(--warn);">${esc(state.guestActivateError)}</p>` : ""}
+      </div>
+    </div>`;
+}
+
+/* Vista ristretta per il guest: agenda + magazzino + nuovo consenso +
+   i propri consensi da esportare. Nessuna impostazione, licenza,
+   statistiche o richieste preventivo — vedi commento più sopra sul
+   perché questo è un livello di UI e non un vero confine di sicurezza. */
+function renderGuestGate(){
+  return `
+  <div class="topbar"><div><h1>Sessione guest scaduta</h1><p>La modalità guest non è più attiva</p></div></div>
+  <div class="main-inner">
+    <div class="premium-card">
+      <div class="premium-lock">${icon("lock",26)}</div>
+      <h2 class="premium-title">È finita la tua sessione di guest</h2>
+      <p class="premium-desc">L'accesso come artista ospite è scaduto. Se devi ancora lavorare qui, chiedi al titolare dello studio un nuovo invito.</p>
+      <div class="btn-row" style="justify-content:center;">
+        <button class="btn btn-ghost btn-sm" data-action="exit-guest-mode">Esci</button>
+      </div>
+    </div>
+  </div>`;
+}
+function renderGuestConsensi(){
+  const guest = guestSessionState();
+  const nome = guest ? guest.nomeGuest : "";
+  const miei = loadSessions().filter(s => s.status === "archiviato" && (s.artista||"").trim().toLowerCase() === nome.trim().toLowerCase());
+  return `
+  <div class="topbar">
+    <div><h1>I miei consensi</h1><p>Solo quelli firmati con il tuo nome come tatuatore</p></div>
+  </div>
+  <div class="main-inner">
+    <div class="callout warn">Non avendo più l'app attiva dopo la scadenza dell'accesso guest, i PDF che scarichi qui sul tuo telefono restano a tuo rischio in caso di smarrimento o hacking del dispositivo: scaricali solo se ti servono davvero, e proteggili come faresti con qualsiasi documento con dati sanitari di un'altra persona.</div>
+    ${!miei.length ? `<div class="arch-empty"><b>Nessun consenso trovato</b><p>Cerca sotto il nome "${esc(nome)}" come tatuatore assegnato: se non corrisponde, chiedi al titolare di controllare.</p></div>` : `
+    <div class="inv-list">
+      ${miei.map(s => `
+        <div class="inv-row">
+          <div class="inv-main"><b>${esc(s.anagrafica.cognome)} ${esc(s.anagrafica.nome)}</b>
+            <span class="inv-sub">${s.progressivo ? "N. " + esc(s.progressivo) + " · " : ""}${fmtDate(s.seduta && s.seduta.dataApplicazione || s.createdAt)}</span>
+          </div>
+          <div class="inv-actions"><button class="btn btn-ghost btn-sm" data-action="download-pdf-guest" data-id="${s.id}">Scarica PDF</button></div>
+        </div>`).join("")}
+    </div>`}
   </div>`;
 }
 
@@ -4270,6 +4943,26 @@ function renderLeadDetail(){
       <div class="body-pair">${renderBodyFrame("fronte")}${renderBodyFrame("retro")}</div>
     </div>
     <div class="card">
+      <h3 class="section-title">Caparra</h3>
+      <div class="grid-2">
+        <div class="field"><label>Richiesta (€)</label><input type="number" min="0" step="0.01" data-field-lead="caparraRichiesta" value="${esc(String(l.caparraRichiesta||""))}"></div>
+        <div class="field"><label>Versata (€)</label><input type="number" min="0" step="0.01" data-field-lead="caparraVersata" value="${esc(String(l.caparraVersata||""))}"></div>
+      </div>
+      <div class="field">
+        <label>Metodo di pagamento</label>
+        <div class="chip-grid" style="grid-template-columns:repeat(3,1fr);">
+          ${METODI_PAGAMENTO.map(m => `<button class="chip ${l.metodoPagamento===m?'on':''}" data-action="set-lead-metodo" data-v="${m}">${m[0].toUpperCase()+m.slice(1)}</button>`).join("")}
+        </div>
+      </div>
+      <div class="field">
+        <label>Stato caparra</label>
+        <div class="chip-grid" style="grid-template-columns:1fr 1fr;">
+          <button class="chip ${l.statoPagamento==='da_saldare'?'on':''}" data-action="set-lead-pagamento" data-v="da_saldare">Da saldare</button>
+          <button class="chip ${l.statoPagamento==='pagata'?'on':''}" data-action="set-lead-pagamento" data-v="pagata">Pagata</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
       <div class="field">
         <label>Stato</label>
         <div class="chip-grid">
@@ -4640,6 +5333,120 @@ document.addEventListener("click", (e) => {
   }
   else if (action === "premium-relock"){ setPremiumUnlocked(false); render(); }
   else if (action === "toggle-privacy-blur"){ state.privacyBlur = !state.privacyBlur; render(); }
+
+  /* ---------- AGENDA ---------- */
+  else if (action === "new-appuntamento"){ state.apptBuffer = blankAppuntamento(state.agendaData); render(); }
+  else if (action === "edit-appuntamento"){ const a = getAppuntamento(btn.dataset.id); if (a) { state.apptBuffer = { ...a, origine: { ...a.origine } }; render(); } }
+  else if (action === "cancel-appuntamento"){ state.apptBuffer = null; render(); }
+  else if (action === "save-appuntamento"){
+    const a = state.apptBuffer;
+    if (!a.clienteNome.trim()){ alert("Inserisci almeno il nome del cliente."); return; }
+    const esistente = getAppuntamento(a.id);
+    const eraSaltato = esistente && esistente.stato === "saltato";
+    upsertAppuntamento(a);
+    if (a.stato === "saltato" && !eraSaltato) state.waitlistSuggestFor = a.id;
+    state.apptBuffer = null; state.view = "agenda"; state.agendaData = a.data;
+    render();
+  }
+  else if (action === "delete-appuntamento"){
+    if (confirm("Eliminare questo appuntamento?")){ deleteAppuntamento(btn.dataset.id); state.apptBuffer = null; state.view = "agenda"; render(); }
+  }
+  else if (action === "open-appuntamento"){
+    const a = getAppuntamento(btn.dataset.id);
+    if (!a) return;
+    if (a.origine.tipo === "richiesta" && getRichiesta(a.origine.id)){ leadDraft = getRichiesta(a.origine.id); state.view = "lead-detail"; render(); }
+    else if (a.origine.tipo === "consenso" && getSession(a.origine.id)){ draft = getSession(a.origine.id); state.view = "form"; state.step = resumeStep(draft); render(); }
+    else { state.apptBuffer = { ...a, origine: { ...a.origine } }; render(); }
+  }
+  else if (action === "open-appuntamento-cliente"){
+    const a = getAppuntamento(btn.dataset.id);
+    if (!a) return;
+    if (a.origine.tipo === "richiesta" && getRichiesta(a.origine.id)){ leadDraft = getRichiesta(a.origine.id); state.apptBuffer = null; state.view = "lead-detail"; render(); }
+    else if (a.origine.tipo === "consenso" && getSession(a.origine.id)){ draft = getSession(a.origine.id); state.apptBuffer = null; state.view = "form"; state.step = resumeStep(draft); render(); }
+  }
+  else if (action === "set-appt-stato"){ state.apptBuffer.stato = btn.dataset.v; render(); }
+  else if (action === "set-agenda-vista"){ state.agendaVista = btn.dataset.v; render(); }
+  else if (action === "agenda-prev"){ state.agendaData = (state.agendaVista === "settimana") ? addGiorni(state.agendaData || new Date().toISOString().slice(0,10), -7) : addGiorni(state.agendaData || new Date().toISOString().slice(0,10), -1); render(); }
+  else if (action === "agenda-next"){ state.agendaData = (state.agendaVista === "settimana") ? addGiorni(state.agendaData || new Date().toISOString().slice(0,10), 7) : addGiorni(state.agendaData || new Date().toISOString().slice(0,10), 1); render(); }
+  else if (action === "agenda-oggi"){ state.agendaData = new Date().toISOString().slice(0,10); render(); }
+  else if (action === "mark-promemoria-inviato"){
+    const a = getAppuntamento(btn.dataset.id);
+    if (a){ a.promemoriaInviato = true; upsertAppuntamento(a); setTimeout(render, 50); }
+  }
+  else if (action === "dismiss-waitlist-suggest"){ state.waitlistSuggestFor = null; render(); }
+  else if (action === "waitlist-book"){
+    const w = loadWaitlist().find(x => x.id === btn.dataset.id);
+    const a = getAppuntamento(btn.dataset.appt);
+    if (w && a){
+      a.clienteNome = w.nome; a.clienteCognome = w.cognome; a.clienteTelefono = w.telefono;
+      a.stato = "confermato"; a.origine = { tipo: "manuale", id: null };
+      upsertAppuntamento(a);
+      deleteWaitlist(w.id);
+      state.waitlistSuggestFor = null;
+      render();
+    }
+  }
+
+  /* ---------- WAITLIST ---------- */
+  else if (action === "new-waitlist"){ state.waitlistBuffer = blankWaitlist(); render(); }
+  else if (action === "edit-waitlist"){ const w = loadWaitlist().find(x => x.id === btn.dataset.id); if (w) { state.waitlistBuffer = { ...w }; render(); } }
+  else if (action === "cancel-waitlist"){ state.waitlistBuffer = null; render(); }
+  else if (action === "save-waitlist"){
+    const w = state.waitlistBuffer;
+    if (!w.nome.trim()){ alert("Inserisci almeno il nome."); return; }
+    upsertWaitlist(w); state.waitlistBuffer = null; render();
+  }
+  else if (action === "delete-waitlist"){ if (confirm("Rimuovere dalla lista d'attesa?")){ deleteWaitlist(btn.dataset.id); render(); } }
+
+  /* ---------- CONTABILITÀ ---------- */
+  else if (action === "new-movimento"){ state.movBuffer = blankMovimento(); render(); }
+  else if (action === "cancel-movimento"){ state.movBuffer = null; render(); }
+  else if (action === "set-mov-tipo"){ state.movBuffer.tipo = btn.dataset.v; render(); }
+  else if (action === "save-movimento"){
+    const m = state.movBuffer;
+    if (!(Number(m.importo) > 0)){ alert("Inserisci un importo maggiore di zero."); return; }
+    upsertMovimento(m); state.movBuffer = null; render();
+  }
+  else if (action === "delete-movimento"){ if (confirm("Eliminare questo movimento?")){ deleteMovimento(btn.dataset.id); render(); } }
+  else if (action === "contab-prev-mese"){
+    const [y,m] = (state.contabYm || new Date().toISOString().slice(0,7)).split("-").map(Number);
+    const d = new Date(y, m-2, 1); state.contabYm = d.toISOString().slice(0,7); render();
+  }
+  else if (action === "contab-next-mese"){
+    const [y,m] = (state.contabYm || new Date().toISOString().slice(0,7)).split("-").map(Number);
+    const d = new Date(y, m, 1); state.contabYm = d.toISOString().slice(0,7); render();
+  }
+  else if (action === "open-richiesta-da-contab"){ const r = getRichiesta(btn.dataset.id); if (r){ leadDraft = r; state.view = "lead-detail"; render(); } }
+  else if (action === "set-lead-metodo"){ leadDraft.metodoPagamento = btn.dataset.v; render(); }
+  else if (action === "set-lead-pagamento"){ leadDraft.statoPagamento = btn.dataset.v; render(); }
+
+  /* ---------- GUEST ARTIST ---------- */
+  else if (action === "new-guest-invite"){ state.guestBuffer = blankGuestInvite(); render(); }
+  else if (action === "cancel-guest-invite"){ state.guestBuffer = null; render(); }
+  else if (action === "save-guest-invite"){
+    if (invitiGeneratiQuestAnno() >= guestLimiteAnnuo()){ alert("Limite annuo di inviti raggiunto per il piano attuale."); return; }
+    const g = state.guestBuffer;
+    if (!g.dataFine || g.dataFine < g.dataInizio){ alert("Controlla le date: la fine non può essere prima dell'inizio."); return; }
+    upsertGuestInvite(g);
+    state.guestBuffer = null; render();
+  }
+  else if (action === "copy-guest-link"){
+    const link = buildGuestLink(btn.dataset.codice);
+    (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(() => {
+      const old = btn.innerHTML; btn.innerHTML = icon("check",14) + " Copiato"; setTimeout(()=>{ btn.innerHTML = old; }, 1800);
+    }).catch(() => { prompt("Copia il link:", link); });
+  }
+  else if (action === "attiva-guest-code"){
+    const input = qs("#guest-code-input");
+    const codice = ((input && input.value) || "").trim().toUpperCase();
+    if (attivaGuestDaCodice(codice)){ state.guestActivateError = null; render(); }
+    else { state.guestActivateError = "Codice non valido o fuori dal periodo di validità."; render(); }
+  }
+  else if (action === "exit-guest-mode"){ clearGuestActive(); state.view = "archive"; render(); }
+  else if (action === "download-pdf-guest"){
+    const s = getSession(btn.dataset.id);
+    if (s) attachDiagrams(s).then(() => { try { buildPdf(s); } catch(err){ alert("Impossibile generare il PDF: serve connessione per la libreria la prima volta."); } });
+  }
   else if (action === "subscription-toggle"){ setSubscriptionActive(!subscriptionActive()); render(); }
   else if (action === "subscription-refresh"){ refreshLicenseFromSupabase().then(render); }
   else if (action === "mag-tab"){ state.magTab = btn.dataset.t; state.showInkForm = state.showNeedleForm = state.showFornForm = false; state.editBuffer = {}; render(); }
@@ -4832,6 +5639,14 @@ document.addEventListener("input", (e) => {
   if (authField){ state.authBuffer = { ...(state.authBuffer||{}), [authField]: e.target.value }; return; }
   const backupField = e.target.dataset.fieldBackup;
   if (backupField){ state.backupBuffer = { ...(state.backupBuffer||{}), [backupField]: e.target.value }; return; }
+  const apptField = e.target.dataset.fieldAppt;
+  if (apptField && state.apptBuffer){ state.apptBuffer = { ...state.apptBuffer, [apptField]: e.target.value }; return; }
+  const wlField = e.target.dataset.fieldWl;
+  if (wlField && state.waitlistBuffer){ state.waitlistBuffer = { ...state.waitlistBuffer, [wlField]: e.target.value }; return; }
+  const movField = e.target.dataset.fieldMov;
+  if (movField && state.movBuffer){ state.movBuffer = { ...state.movBuffer, [movField]: e.target.value }; return; }
+  const guestField = e.target.dataset.fieldGuest;
+  if (guestField && state.guestBuffer){ state.guestBuffer = { ...state.guestBuffer, [guestField]: e.target.value }; return; }
   if (e.target.dataset.action === "search-archive"){
     state.archiveQuery = e.target.value;
     const host = qs("#archive-results");
@@ -4873,9 +5688,36 @@ document.addEventListener("change", (e) => {
   if (backupField){ state.backupBuffer = { ...(state.backupBuffer||{}), [backupField]: e.target.value }; }
   const invField = e.target.dataset.invField;
   if (invField){ state.editBuffer = { ...(state.editBuffer||{}), [invField]: e.target.value }; }
+  const apptFieldC = e.target.dataset.fieldAppt;
+  if (apptFieldC && state.apptBuffer){ state.apptBuffer = { ...state.apptBuffer, [apptFieldC]: e.target.value }; }
+  const wlFieldC = e.target.dataset.fieldWl;
+  if (wlFieldC && state.waitlistBuffer){ state.waitlistBuffer = { ...state.waitlistBuffer, [wlFieldC]: e.target.value }; }
+  const movFieldC = e.target.dataset.fieldMov;
+  if (movFieldC && state.movBuffer){ state.movBuffer = { ...state.movBuffer, [movFieldC]: e.target.value }; }
+  const guestFieldC = e.target.dataset.fieldGuest;
+  if (guestFieldC && state.guestBuffer){ state.guestBuffer = { ...state.guestBuffer, [guestFieldC]: e.target.value }; }
 
   // selezione inchiostro/ago dall'archivio nello step seduta
   const selAction = e.target.dataset.action;
+  if (selAction === "link-appuntamento-cliente" && state.apptBuffer){
+    const v = e.target.value;
+    if (!v){ state.apptBuffer.origine = { tipo: "manuale", id: null }; render(); return; }
+    const [tipo, id] = v.split(":");
+    if (tipo === "richiesta"){
+      const r = getRichiesta(id);
+      if (r){ state.apptBuffer.origine = { tipo: "richiesta", id: r.id }; state.apptBuffer.clienteNome = r.cliente.nome; state.apptBuffer.clienteCognome = r.cliente.cognome; state.apptBuffer.clienteTelefono = r.cliente.telefono; }
+    } else if (tipo === "consenso"){
+      const s = getSession(id);
+      if (s){ state.apptBuffer.origine = { tipo: "consenso", id: s.id }; state.apptBuffer.clienteNome = s.anagrafica.nome; state.apptBuffer.clienteCognome = s.anagrafica.cognome; state.apptBuffer.clienteTelefono = s.anagrafica.telefono; if (STUDIO_CONFIG.artists.includes(s.artista)) state.apptBuffer.artista = s.artista; }
+    }
+    render();
+    return;
+  }
+  if (selAction === "input-percentuale" && e.target.dataset.artista){
+    const pct = Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0));
+    setPercentualeArtista(e.target.dataset.artista, pct);
+    return;
+  }
   if (selAction === "seduta-add-ink" && e.target.value && draft){
     const ink = loadInks().find(x => x.id === e.target.value);
     if (ink){ draft.seduta.inchiostri = [ ...(draft.seduta.inchiostri||[]), { id: ink.id, nome: ink.nome, colore: ink.colore, lotto: ink.lotto, scadenza: ink.scadenza } ]; upsertSession(draft); renderStepOnly(); }
@@ -5096,6 +5938,14 @@ function initRichiestaMode(){
   if (!state.locked){
     try { await hydrateStores(); }
     catch(e){ console.warn("Idratazione archivio fallita:", e); }
+    // attivazione guest da link (?guest=1&codice=X): solo se i dati sono
+    // già leggibili a questo punto (nessun blocco password, o già sbloccato
+    // in questa stessa sessione). Se il blocco è attivo, il guest vede
+    // comunque la schermata di accesso normale — vedi nota su GUEST_ACTIVE_KEY.
+    if (state.mode === "studio" && params.get("guest") === "1"){
+      const codice = (params.get("codice") || "").trim().toUpperCase();
+      if (codice) attivaGuestDaCodice(codice);
+    }
   }
 
   if (state.mode === "client") await initClientMode();
@@ -5317,6 +6167,8 @@ function renderSettings(){
       <div class="kv"><span>ID dispositivo (Supabase)</span><b class="mono" style="font-size:11px;word-break:break-all;">${esc(licenseIds().deviceId)}</b></div>
       <p class="field hint" style="margin-top:6px;">Servono solo per attivare l'abbonamento dal pannello Supabase (tabella <span class="mono">licenza_studi</span>, colonna <span class="mono">id</span>): non sono dati del cliente e non identificano nessuno.</p>
     </div>
+
+    ${renderGuestSettingsCard()}
 
     <div class="card">
       <h3 class="section-title">Backup e ripristino</h3>
