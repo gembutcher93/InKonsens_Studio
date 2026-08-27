@@ -6,7 +6,47 @@ zero dipendenze runtime pesanti — stessa filosofia di InkAnimus.
 Testato end-to-end con browser headless (flusso completo: nuova sessione →
 6 step → doppia firma → archiviazione → ricerca in archivio) prima della consegna.
 
-## Novità di questo giro (fix + migliorie)
+## Correzioni dell'ultimo giro (non nuove funzionalità)
+
+Giro di lavoro dedicato solo a correggere il giro precedente (restyling +
+Supabase + piani), non ad aggiungere altro:
+
+- **Restyling vero**, non solo colori: la volta scorsa il dark mode aveva
+  cambiato le variabili colore ma non la struttura. Ora: topbar con
+  gerarchia editoriale (titolo grande + sottotitolo + riga d'accento),
+  card con una costa colorata a sinistra invece del bordo uniforme su
+  tutti i lati (e più respiro interno), rail di navigazione raggruppata
+  per sezione (Consenso / Preventivo / Studio / Account, non più
+  un'unica lista piatta) con un marchio "stamp" squadrato al posto del
+  tondo, tre livelli di bottoni con un contrasto reale (il vecchio
+  `btn-primary` usava lo stesso colore quasi del fondo pagina — praticamente
+  invisibile, corretto). Skill rilette prima di intervenire: vedi la nota
+  più sotto in "Novità" del giro precedente, valgono ancora.
+- **Muro del piano gratuito, ora propositivo**: mostra i tre piani con
+  una breve descrizione ciascuno, e un pulsante per piano che apre
+  WhatsApp con "Sono [studio], ID studio [codice], voglio attivare
+  [piano]" — l'attivazione resta manuale e verificata da chi gestisce
+  l'abbonamento, non automatica dal client.
+- **Tolto il pulsante di test** "Segna abbonamento come attivo/Disattiva
+  (test)" dalle Impostazioni: restava solo la verifica vera tramite
+  Supabase.
+- **URL pubblica e config Supabase bloccate**: non più campi Settings
+  modificabili dal tatuatore — valori fissi iniettati al deploy (vedi
+  "Deploy" sotto). Il campo "URL pubblico dell'app" è sparito
+  dall'interfaccia.
+- **"Compila da casa" → "in studio"** ovunque nei testi (app e README):
+  il consenso resta touch-free via QR/link, ma si compila sul telefono
+  del cliente mentre è in studio, non da remoto prima di arrivare.
+- **Via ogni riferimento preimpostato a "Podere 173"**: nome, città,
+  sigla e artista di default ora sono placeholder neutri
+  (`STUDIO_DEFAULTS`, `manifest.json`, `<title>`, esempi nei placeholder
+  dei campi) — l'app è pensata per essere venduta ad altri studi.
+- **Due livelli di credenziali chiariti e separati** (locale vs
+  licenza/Supabase): vedi la sezione dedicata "Due livelli di
+  credenziali, mai mescolati" più sotto, che include anche cosa ho
+  verificato prima di toccare codice su questo punto.
+
+## Novità del giro precedente (fix + migliorie)
 
 **Tolto**
 - La sync del consenso completo su Supabase (`maybeSyncToSupabase`,
@@ -146,9 +186,10 @@ come prima: nessuna riga di questi moduli tocca quella parte di codice.
 L'app fa **una sola cosa e la fa bene: il consenso informato**, in due fasi che
 rispecchiano come funziona davvero in studio.
 
-**Fase cliente (passi 1-6, anche da remoto):** anagrafica → questionario
-sanitario → zona e disegno → rischi e consenso → privacy e conferma disegno →
-firma. Il cliente può compilarla da casa via link/QR, o insieme a te in studio.
+**Fase cliente (passi 1-6):** anagrafica → questionario sanitario → zona e
+disegno → rischi e consenso → privacy e conferma disegno → firma. Il cliente
+la compila sul proprio telefono, in studio (touch-free, via link/QR — non più
+"da casa": vedi il passaggio con codice/QR più sotto), oppure insieme a te.
 
 **Fase studio (passi 7-8, in studio il giorno dell'appuntamento):**
 - *Dati seduta*: data effettiva, zona trattata, materiali, ago, lotto pigmento,
@@ -242,8 +283,8 @@ consenso già intestato a quel cliente.
 Per ricevere ogni richiesta come notifica sul telefono, senza account:
 1. Installa l'app **ntfy** (Android/iOS/desktop) — gratis.
 2. Iscriviti a un topic con nome lungo e non indovinabile, es.
-   `podere173-xk92q` (il topic è pubblico su ntfy.sh, quindi non usare
-   "podere173" liscio).
+   `tuostudio-xk92q` (il topic è pubblico su ntfy.sh, quindi non usare
+   "tuostudio" liscio).
 3. Incolla quel nome in `NOTIFY_CONFIG.ntfyTopic` in `index.html`.
 
 Senza questa configurazione l'app funziona lo stesso: controlli la sezione
@@ -254,12 +295,21 @@ Senza questa configurazione l'app funziona lo stesso: controlli la sezione
 Ora ci sono **due modi**, e per la vendita conta il primo:
 
 1. **Dall'app (nessun codice).** In "Impostazioni studio → Setup studio" ogni
-   studio modifica nome, città, sigla/logo testuale, artisti, URL pubblico e i
-   tre colori principali. Si salva sul dispositivo e si applica subito. È il
-   percorso pensato per studi non tecnici.
-2. **Dal codice** (per il rivenditore): i testi legali del consenso, la
-   versione informativa e i default di fabbrica stanno in `STUDIO_DEFAULTS` e
-   `STUDIO_CONFIG` in `index.html`.
+   studio modifica nome, città, sigla/logo testuale, artisti, numero di sedi
+   e i colori. Si salva sul dispositivo e si applica subito. È il percorso
+   pensato per studi non tecnici.
+2. **Dal codice** (per il rivenditore, una volta per studio al deploy): i
+   testi legali del consenso, la versione informativa e i default di
+   fabbrica stanno in `STUDIO_DEFAULTS` e `STUDIO_CONFIG` in `index.html`.
+   Qui vivono anche i valori che il tatuatore NON deve poter toccare —
+   `publicUrl` (l'URL pubblica di questo deploy) e `SUPABASE_CONFIG`
+   (url/anonKey della licenza): niente campo Settings per questi, per
+   evitare che vengano toccati per sbaglio e rompano i link/QR o
+   l'abbonamento. Vanno anche aggiornati `manifest.json` (`name`) e il
+   `<title>` di fabbrica in `index.html` se vuoi che il nome dello studio
+   compaia già nell'app installata prima che qualcuno apra le Impostazioni
+   (il `<title>` comunque si aggiorna da solo non appena lo studio salva
+   il proprio nome, vedi `applyStudioConfig`).
 
 ### Icona / logo
 
@@ -282,14 +332,27 @@ conservazione — non è ancora stato pubblicato. Il testo in `informativaText`
   `informativaVersion` — ogni consenso salva la versione firmata al momento,
   quindi lo storico resta coerente anche dopo un aggiornamento.
 
-## Deploy (Vercel, come gli altri progetti)
+## Deploy (Cloudflare Pages, un deploy per studio)
 
-1. Metti `index.html`, `manifest.json`, `sw.js` nella root del repo.
-2. Collega il repo a Vercel, deploy.
-3. Aggiorna `STUDIO_CONFIG.publicUrl` con il dominio reale — serve per il QR.
-4. Per un'icona PWA a norma su tutti i dispositivi, sostituisci l'icona SVG
-   segnaposto in `manifest.json` con dei PNG reali (192×192 e 512×512):
-   l'SVG inline funziona ma alcuni Android/iOS sono più permissivi di altri.
+Ogni studio ha il suo deploy separato — non un'app multi-tenant con un
+dominio condiviso. Attualmente in produzione su Cloudflare Pages
+(`inkonsens-studio.pages.dev`), ma qualunque hosting statico va bene
+(Vercel, Netlify...): è solo file statici, nessun backend da gestire.
+
+1. Metti `index.html`, `manifest.json`, `sw.js` e le altre risorse nella
+   root del repo/progetto.
+2. Collega il repo all'hosting scelto, deploy.
+3. Aggiorna `STUDIO_DEFAULTS.publicUrl` in `index.html` con il dominio
+   reale di **questo** deploy — è un valore fisso iniettato qui, non un
+   campo Settings (vedi "Due livelli di credenziali" più sotto per la
+   stessa logica applicata a `SUPABASE_CONFIG`): serve per i link/QR di
+   richiesta, compilazione, aftercare e guest artist.
+4. Aggiorna anche `manifest.json` (`name`) e il `<title>` di fabbrica in
+   `index.html` con il nome dello studio, se vuoi che compaia già
+   nell'app installata prima ancora che qualcuno apra le Impostazioni.
+5. `icon-192.png`/`icon-512.png` sono già PNG reali nella root: per uno
+   studio diverso basta sostituirli mantenendo gli stessi nomi (vedi
+   sezione whitelabel).
 
 ## Trasferimento consenso cliente → studio: solo locale, mai un server
 
@@ -307,6 +370,48 @@ offline-first/dati-solo-locali di questa app.
 Le **richieste preventivo** restano allo stesso modo solo locali/notifica
 push (mai su un server): arrivano dal telefono del cliente e la notifica
 ntfy è sufficiente a farti sapere subito che c'è una richiesta nuova.
+
+## Due livelli di credenziali, mai mescolati
+
+Nell'app esistono **due sistemi di credenziali completamente separati**,
+per due scopi diversi. Vale la pena scriverlo qui in modo esplicito
+perché i nomi nell'interfaccia potevano sembrare la stessa cosa:
+
+1. **Nome di accesso al dispositivo** (Impostazioni → "Accesso e
+   credenziali"): apre l'app su *questo* tablet/telefono. È l'hash con
+   salt che c'è da sempre (`AUTH_KEY`, `checkCredentials()` in
+   `index.html`), **resta sempre e solo su questo dispositivo**
+   (`localStorage`), cifrato in locale: non parte mai una richiesta di
+   rete che lo contenga, in nessuna forma, nemmeno come hash. Chi scrive
+   queste righe (o Supabase) non può mai risalirci.
+2. **Codice licenza studio** (Impostazioni → "Licenza e consensi
+   gratuiti"): un UUID opaco generato dal dispositivo al primo avvio
+   (`licenseIds()`, `LICENSE_IDS_KEY`), usato **solo** per contare i
+   consensi gratuiti e verificare l'abbonamento su Supabase
+   (`licenza_studi`/`licenza_dispositivi`, vedi sotto). Non è un login:
+   non c'è una password associata, non identifica una persona, serve
+   solo a distinguere uno studio dall'altro nel pannello di gestione.
+
+**Verifica fatta prima di scrivere codice** (come richiesto nel giro di
+lavoro che ha aggiunto questa nota): nell'app non esiste, e non è mai
+esistito, un vero "account studio" con email e password lato Supabase —
+l'idea era di usarlo per identificare piano/abbonamento, ma costruirlo
+oggi (Supabase Auth, verifica email, schermata di login dedicata) è
+un'infrastruttura nuova, non una correzione, e quel giro di lavoro era
+esplicitamente limitato a correzioni. Quello che già esiste e resta
+sufficiente per lo scopo — sapere quale studio sta scrivendo per
+attivarsi — è il codice licenza sopra: nel muro del piano gratuito
+(vedi sotto) il pulsante di ogni piano apre WhatsApp con "Sono
+[studio], ID studio [codice], voglio attivare [piano]", e chi gestisce
+gli abbonamenti verifica quel codice su Supabase prima di attivare a
+mano. Se un domani servirà davvero un account con login proprio, è un
+lavoro a parte, consapevole, non un effetto collaterale di aver
+rinominato due campi.
+
+Per adesso, l'unica cosa che serve è **non far mai coincidere** nome e
+password di sblocco locale con qualunque credenziale usi altrove: sono
+in due punti dell'interfaccia apposta separati, con un avviso a schermo
+nella schermata "Accesso e credenziali" che lo ricorda.
 
 ## Consensi gratuiti e licenza (opzionale, Supabase)
 

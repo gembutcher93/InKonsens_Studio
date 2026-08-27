@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>InkConsent · Podere 173 Tattoo Studio</title>
+<title>InkConsent</title>
 <meta name="description" content="Consenso informato digitale per studi di tatuaggio">
-<meta name="theme-color" content="#1B1A19">
+<meta name="theme-color" content="#15131A">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -132,23 +132,34 @@ button{font-family:inherit;}
 
 .shell{display:flex;min-height:100vh;}
 .rail{
-  width:248px;flex:none;background:var(--stamp);color:var(--ink);
-  display:flex;flex-direction:column;padding:22px 18px;
+  width:268px;flex:none;background:var(--stamp);color:var(--ink);
+  display:flex;flex-direction:column;padding:28px 20px;
 }
-.rail-brand{display:flex;align-items:center;gap:10px;margin-bottom:28px;}
+.rail-brand{display:flex;align-items:center;gap:12px;margin-bottom:32px;}
+/* il tondo e' diventato uno "stamp" quadrato smussato: stessa idea del
+   timbro d'inchiostro che ricorre nel resto dell'app (vedi .stamp),
+   invece del solito avatar rotondo da app gestionale. */
 .rail-mark{
-  width:34px;height:34px;border-radius:50%;background:var(--stencil);
+  width:38px;height:38px;border-radius:9px;background:var(--stencil);
   color:var(--ink);display:flex;align-items:center;justify-content:center;
   font-family:var(--font-display);font-weight:700;font-size:15px;flex:none;overflow:hidden;
+  box-shadow:0 3px 10px -3px rgba(0,0,0,.5);
 }
-.rail-brand-name{font-family:var(--font-display);font-size:15px;line-height:1.2;font-weight:600;}
+.rail-brand-name{font-family:var(--font-display);font-size:16px;line-height:1.2;font-weight:600;letter-spacing:-.01em;}
 .rail-brand-sub{font-size:11px;color:#B9AFA4;font-family:var(--font-mono);letter-spacing:.03em;}
 .rail-nav{display:flex;flex-direction:column;gap:2px;margin-bottom:auto;}
+/* sottotitoli di gruppo dentro il rail: "Consenso"/"Studio"/ecc — la
+   navigazione non e' più un'unica lista piatta di bottoni uguali. */
+.rail-group-label{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.09em;
+  color:#8A8178;margin:18px 0 6px;padding:0 12px;}
+.rail-group-label:first-child{margin-top:0;}
 .rail-btn{
-  all:unset;cursor:pointer;padding:10px 12px;border-radius:var(--radius);
-  font-size:13.5px;color:#D8D2CA;display:flex;align-items:center;gap:9px;
+  all:unset;cursor:pointer;padding:10px 12px;border-radius:8px;
+  font-size:13.5px;color:#D8D2CA;display:flex;align-items:center;gap:10px;
+  transition:background .12s ease,color .12s ease;
 }
 .rail-btn:hover{background:rgba(255,255,255,.06);}
+.rail-btn:active{transform:scale(.98);}
 .rail-btn.active{background:var(--stencil);color:#fff;}
 /* stessa separazione preventivo/consenso vista nel telefono del cliente,
    qui nella barra di navigazione dello studio: un promemoria discreto
@@ -167,11 +178,20 @@ button{font-family:inherit;}
 .privacy-toggle-mobile{flex:none;}
 .rail-foot{font-size:11px;color:#8A8178;font-family:var(--font-mono);padding-top:14px;border-top:1px solid rgba(255,255,255,.1);}
 
-.main{flex:1;min-width:0;padding:34px 40px 60px;}
+.main{flex:1;min-width:0;padding:46px 48px 72px;}
 .main-inner{max-width:820px;margin:0 auto;}
-.topbar{max-width:820px;margin:0 auto 26px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
-.topbar h1{font-size:22px;margin:0;}
-.topbar p{margin:2px 0 0;color:var(--ink-soft);font-size:13.5px;}
+/* topbar editoriale: eyebrow mono + titolo grande, non solo "h1 piccolo
+   e basta" — e una riga d'accento sotto che chiude la sezione, come un
+   filo di stencil-transfer. E' la stessa struttura su ogni schermata,
+   quindi il cambio si sente ovunque nell'app senza toccare le viste. */
+.topbar{max-width:820px;margin:0 auto 8px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  padding-bottom:20px;border-bottom:1px solid var(--line-soft);}
+.topbar > div:first-child{position:relative;padding-left:16px;}
+.topbar > div:first-child::before{content:"";position:absolute;left:0;top:.2em;bottom:.3em;width:3px;
+  background:var(--area-accent, var(--stencil));border-radius:2px;}
+.topbar h1{font-size:30px;line-height:1.1;margin:0;letter-spacing:-.02em;}
+.topbar p{margin:7px 0 0;color:var(--ink-faint);font-size:13.5px;line-height:1.5;max-width:56ch;}
+.topbar + .main-inner{margin-top:28px;}
 
 /* ---------- client (mobile self-fill) shell ----------
    Due aree, due accenti: preventivo (commerciale, caldo/flesh) e
@@ -194,12 +214,19 @@ button{font-family:inherit;}
 .progress-dash i{display:block;height:100%;width:0%;background:var(--area-accent);transition:width .35s ease;}
 .client-body{padding:22px 20px 0;}
 
-/* ---------- cards / surfaces ---------- */
+/* ---------- cards / surfaces ----------
+   Non più un riquadro uniforme bordato su tutti i lati: una costa
+   colorata a sinistra (l'"area" a cui appartiene il contenuto — vedi
+   --area-accent) al posto del bordo pieno, angoli più netti in alto,
+   più respiro interno. Stesso principio della sagoma "consenso vs
+   preventivo": qui applicato a ogni scheda, non solo al telefono
+   del cliente. */
 .card{
-  background:var(--paper-raised);border:1px solid var(--line-soft);
-  border-radius:var(--radius);padding:22px 22px 24px;box-shadow:var(--shadow);
+  background:var(--paper-raised);border:1px solid var(--line-soft);border-left:3px solid var(--area-accent, var(--stencil));
+  border-radius:0 var(--radius-md) var(--radius-md) 0;padding:26px 26px 28px;box-shadow:var(--shadow);
 }
-.card + .card{margin-top:16px;}
+.card + .card{margin-top:18px;}
+.card > .section-title:first-child,.card > h3:first-child{margin-top:0;}
 .field{margin-bottom:16px;}
 .field label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;}
 .field .hint{font-size:12px;color:var(--ink-faint);margin-top:4px;}
@@ -241,26 +268,33 @@ select{
 .callout.info{background:var(--stencil-tint);border:1px solid rgba(150,101,154,.35);color:var(--stencil);}
 .callout.ok{background:var(--ok-tint);border:1px solid rgba(111,174,130,.35);color:var(--ok);}
 
-/* ---------- buttons ---------- */
+/* ---------- buttons ----------
+   Tre livelli, non due varianti scure indistinguibili tra loro come
+   prima (btn-primary usava --stamp, quasi identico a --paper: sul
+   fondo scuro spariva). Ora: primary = chiaro e ad alto contrasto
+   ("l'azione sicura da premere"), accent = viola acceso (il CTA di
+   marca), ghost = contorno (tutto il resto). */
 .btn{
   all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;
-  padding:11px 20px;border-radius:var(--radius);font-size:13.5px;font-weight:600;
-  letter-spacing:.01em;
+  padding:12px 22px;border-radius:9px;font-size:13.5px;font-weight:600;
+  letter-spacing:.01em;transition:transform .1s ease,background .12s ease,opacity .12s ease;
 }
-.btn-primary{background:var(--stamp);color:var(--ink);}
-.btn-primary:hover{background:#000;}
+.btn-primary{background:var(--paper-field);color:var(--paper-field-text);}
+.btn-primary:hover{background:#fff;}
 .btn-accent{background:var(--stencil);color:#fff;}
 .btn-accent:hover{background:var(--stencil-deep);}
 .btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--line);}
 .lock-card .btn-ghost,.premium-card .btn-ghost,.tour-card .btn-ghost{border-color:#6b635a;}
 .lock-card .btn-ghost:hover,.premium-card .btn-ghost:hover,.tour-card .btn-ghost:hover{background:rgba(255,255,255,.08);}
-.lock-card .btn-primary,.tour-card .btn-primary{background:var(--stencil);color:#fff;border-color:var(--stencil);}
-.lock-card .btn-primary:hover,.tour-card .btn-primary:hover{background:var(--stencil-deep);border-color:var(--stencil-deep);}
+.lock-card .btn-primary,.tour-card .btn-primary{background:var(--stencil);color:#fff;}
+.lock-card .btn-primary:hover,.tour-card .btn-primary:hover{background:var(--stencil-deep);}
 .btn-ghost:hover{border-color:var(--ink);}
-.btn-sm{padding:7px 12px;font-size:12.5px;}
-@media (max-width:860px){ .btn-sm{padding:9px 14px;} }
+.btn:active{transform:scale(.97);}
+.btn-sm{padding:8px 14px;font-size:12.5px;border-radius:7px;}
+@media (max-width:860px){ .btn-sm{padding:10px 15px;} }
 .btn[disabled]{opacity:.4;cursor:not-allowed;}
-.btn-row{display:flex;gap:10px;margin-top:22px;}
+.btn[disabled]:active{transform:none;}
+.btn-row{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap;}
 
 /* ---------- stamp (signature design element) ---------- */
 .stamp{
@@ -335,8 +369,8 @@ select{
 .step-progress .track i{display:block;height:100%;background:var(--stencil);transition:width .35s ease;}
 
 /* ---------- misc ---------- */
-.section-title{font-size:17px;margin:0 0 4px;}
-.section-desc{color:var(--ink-soft);font-size:13.5px;margin:0 0 18px;}
+.section-title{font-size:18px;letter-spacing:-.01em;margin:0 0 6px;}
+.section-desc{color:var(--ink-soft);font-size:13.5px;line-height:1.6;margin:0 0 20px;max-width:52ch;}
 .subhead{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--stencil);margin:22px 0 10px;padding-top:14px;border-top:1px solid var(--line-soft);}
 .subhead:first-of-type{border-top:none;padding-top:0;margin-top:6px;}
 .kv{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line-soft);font-size:13.5px;}
@@ -683,10 +717,13 @@ select{
    vivono in localStorage (chiave inkconsent_studio_v1) e vengono fuse qui
    sopra all'avvio. Così ogni studio personalizza la sua copia dell'app. */
 const STUDIO_DEFAULTS = {
-  studioName: "Podere 173 Tattoo Studio",
-  studioCity: "Ozieri (SS)",
-  studioMark: "P173",
-  artistsText: "GemBucher, Ospite / Guest", // editabile come testo, split su virgola
+  // Placeholder neutri: questa è un'app venduta a più studi, non deve
+  // avere il nome di nessuno studio in particolare preimpostato. Li
+  // sostituisce lo studio stesso al primo avvio, in "Setup studio".
+  studioName: "Il tuo studio",
+  studioCity: "",
+  studioMark: "TS",
+  artistsText: "Nome Artista", // editabile come testo, split su virgola
   numeroSedi: 1, // >1 = multi-studio: fuori dal self-service, vedi pianoConsigliato()
   inkEffect: false,     // tratto firma leggermente irregolare invece del nero uniforme (solo resa: il path salvato non cambia)
   signatureColor: "",   // vuoto = usa il colore accento dello studio; altrimenti colore a parte
@@ -697,7 +734,11 @@ const STUDIO_DEFAULTS = {
   partitaIva: "",
   indirizzoStudio: "",
   protocolloScia: "",
-  publicUrl: "https://tuo-studio.vercel.app",
+  // Valore fisso iniettato al deploy per questo studio, NON un campo
+  // Settings: il tatuatore non lo vede né lo può toccare (vedi
+  // applyStudioConfig, che lo legge da qui e ignora ogni override
+  // salvato in passato). Cambialo qui solo tu, in fase di deploy.
+  publicUrl: "https://inkonsens-studio.pages.dev",
   // Dark-mode nativo: questi sono i colori del TEMA SCURO (quello che
   // vede lo studio di default). Il tema chiaro, se attivato dalle
   // Impostazioni, resta fisso e non risente di questa personalizzazione
@@ -760,9 +801,10 @@ function setTheme(t){
 function applyStudioConfig(){
   const o = { ...STUDIO_DEFAULTS, ...loadStudioOverrides() };
   STUDIO_CONFIG.studioName = o.studioName;
+  document.title = o.studioName ? `InkConsent · ${o.studioName}` : "InkConsent";
   STUDIO_CONFIG.studioCity = o.studioCity;
   STUDIO_CONFIG.studioMark = o.studioMark;
-  STUDIO_CONFIG.publicUrl = o.publicUrl;
+  STUDIO_CONFIG.publicUrl = STUDIO_DEFAULTS.publicUrl; // fisso, ignora ogni override salvato in passato
   STUDIO_CONFIG.aftercareText = o.aftercareText || "";
   STUDIO_CONFIG.logoDataUrl = o.logoDataUrl || "";
   STUDIO_CONFIG.ragioneSociale = o.ragioneSociale || "";
@@ -1716,6 +1758,15 @@ const PIANI = [
   { id: "studiopro",  nome: "StudioPro",  minArtisti: 2, maxArtisti: 3,        desc: "fino a 3 tatuatori" },
   { id: "atelierpro", nome: "AtelierPro", minArtisti: 4, maxArtisti: Infinity, desc: "4+ tatuatori, un solo studio" },
 ];
+/* Descrizioni brevi per la schermata del piano gratuito: solo cose vere e
+   verificabili nel codice (limite artisti + inviti guest, vedi
+   GUEST_LIMITI), niente funzioni promesse che non esistono davvero — le
+   funzionalità dell'app sono le stesse su tutti i piani. */
+const PIANO_DESCRIZIONI = {
+  solopro:    "Un tatuatore, consensi illimitati, fino a 4 inviti guest artist all'anno.",
+  studiopro:  "Fino a 3 tatuatori, consensi illimitati, fino a 10 inviti guest artist all'anno.",
+  atelierpro: "4 o più tatuatori in un solo studio, consensi illimitati, fino a 20 inviti guest artist all'anno.",
+};
 function numeroTatuatori(){ return STUDIO_CONFIG.artists.length; }
 /* true se lo studio ha più di una sede: unico segnale che porta fuori
    dal self-service, verso il contatto diretto. Campo esposto in
@@ -1855,13 +1906,13 @@ const LEAD_STATUS = {
 
 /* Notifica push gratuita via ntfy.sh — nessun account, nessuna chiave.
    1) Installa l'app ntfy (Android/iOS/desktop) — gratis, nessuna registrazione.
-   2) Scegli un nome-topic non indovinabile, es. "podere173-xk92q", e iscriviti nell'app.
+   2) Scegli un nome-topic non indovinabile, es. "tuostudio-xk92q", e iscriviti nell'app.
    3) Incollalo qui sotto: da quel momento ogni richiesta inviata dal cliente
       ti arriva come notifica push sul telefono, ovunque tu sia.
    Il topic è pubblico su ntfy.sh (chiunque lo conosca può leggerlo), quindi
-   scegline uno lungo e casuale, non "podere173".                        */
+   scegline uno lungo e casuale, non "tuostudio".                        */
 const NOTIFY_CONFIG = {
-  ntfyTopic: "", // es: "podere173-xk92q"
+  ntfyTopic: "", // es: "tuostudio-xk92q"
 };
 async function notifyNewRichiesta(r){
   if (!NOTIFY_CONFIG.ntfyTopic) return;
@@ -2832,7 +2883,7 @@ function renderFirstRunSetup(){
       <p class="lock-sub">Scegli un ID e una password: serviranno a proteggere i dati dei clienti su questo dispositivo.</p>
       ${state.loginError ? `<p class="lock-err">${esc(state.loginError)}</p>` : ""}
       <div class="login-fields">
-        <input type="text" class="login-input" placeholder="ID studio (es. podere173)" value="${esc(b.studioId||'')}" data-login-field="studioId" autocomplete="off">
+        <input type="text" class="login-input" placeholder="ID studio (es. tuostudio)" value="${esc(b.studioId||'')}" data-login-field="studioId" autocomplete="off">
         <input type="password" class="login-input" placeholder="Password" value="${esc(b.pw||'')}" data-login-field="pw">
         <input type="password" class="login-input" placeholder="Ripeti password" value="${esc(b.pw2||'')}" data-login-field="pw2">
       </div>
@@ -3033,17 +3084,26 @@ function renderStudioShell(){
       </div>
       ${isGuest ? `<div class="callout warn" style="margin-bottom:14px;font-size:12px;">Accesso guest fino al ${fmtDate(guest.dataFine)}. <button class="btn btn-ghost btn-sm" data-action="exit-guest-mode" style="margin-top:6px;">Esci</button></div>` : ""}
       <div class="rail-nav">
+        <div class="rail-group-label">Consenso</div>
         <button class="rail-btn rail-btn-consenso ${state.view==='agenda'?'active':''}" data-action="nav" data-view="agenda">${icon("calendar",17)} Agenda${promemoriaN ? `<span class="nav-badge">${promemoriaN}</span>` : ""}</button>
         <button class="rail-btn rail-btn-consenso ${state.view==='archive'?'active':''}" data-action="nav" data-view="archive">${icon("clipboard",17)} Archivio consensi</button>
         <button class="rail-btn rail-btn-consenso ${state.view==='form'?'active':''}" data-action="new-session">${icon("pen",17)} Nuovo consenso</button>
         <button class="rail-btn rail-btn-consenso ${state.view==='import'?'active':''}" data-action="nav" data-view="import">${icon("restock",17)} Importa consenso</button>
-        <button class="rail-btn ${state.view==='magazzino'?'active':''}" data-action="nav" data-view="magazzino">${icon("box",17)} Magazzino</button>
         ${isGuest ? `<button class="rail-btn ${state.view==='guest-consensi'?'active':''}" data-action="nav" data-view="guest-consensi">${icon("download",17)} I miei consensi</button>` : ""}
+
+        ${!isGuest && FEATURES.richieste ? `
+        <div class="rail-group-label">Preventivo</div>
+        <button class="rail-btn rail-btn-preventivo ${state.view==='leads'||state.view==='lead-detail'?'active':''}" data-action="nav" data-view="leads">${icon("chat",17)} Richieste preventivo${nuoveLeads ? `<span class="nav-badge">${nuoveLeads}</span>` : ""}</button>` : ""}
+
+        <div class="rail-group-label">Studio</div>
+        <button class="rail-btn ${state.view==='magazzino'?'active':''}" data-action="nav" data-view="magazzino">${icon("box",17)} Magazzino</button>
         ${!isGuest ? `<button class="rail-btn ${state.view==='registro'?'active':''}" data-action="nav" data-view="registro">${icon("book",17)} Registro</button>` : ""}
-        ${!isGuest && FEATURES.richieste ? `<button class="rail-btn rail-btn-preventivo ${state.view==='leads'||state.view==='lead-detail'?'active':''}" data-action="nav" data-view="leads">${icon("chat",17)} Richieste preventivo${nuoveLeads ? `<span class="nav-badge">${nuoveLeads}</span>` : ""}</button>` : ""}
         ${!isGuest ? `<button class="rail-btn ${state.view==='contabilita'?'active':''}" data-action="nav" data-view="contabilita">${icon("wallet",17)} Contabilità</button>` : ""}
         ${!isGuest ? `<button class="rail-btn ${state.view==='statistiche'?'active':''}" data-action="nav" data-view="statistiche">${icon("chartBar",17)} Statistiche</button>` : ""}
-        ${!isGuest ? `<button class="rail-btn ${state.view==='settings'?'active':''}" data-action="nav" data-view="settings">${icon("gear",17)} Impostazioni studio</button>` : ""}
+
+        ${!isGuest ? `
+        <div class="rail-group-label">Account</div>
+        <button class="rail-btn ${state.view==='settings'?'active':''}" data-action="nav" data-view="settings">${icon("gear",17)} Impostazioni studio</button>` : ""}
       </div>
       ${!isGuest ? `<button class="rail-btn privacy-toggle" data-action="toggle-privacy-blur" title="Oscura i dati a schermo">${icon("eyeOff",17)} ${state.privacyBlur ? "Mostra i dati" : "Vetrina spenta"}</button>` : ""}
       <div class="rail-foot">InkConsent · engine v1.0<br>Motore condiviso, personalizzabile per studio.</div>
@@ -3092,7 +3152,7 @@ function renderPremiumGate(){
       <div class="premium-lock">${icon("lock",26)}</div>
       <h2 class="premium-title">La gestione dei consensi informati è in arrivo</h2>
       <p class="premium-desc">
-        Compilazione guidata, firma del cliente anche da remoto, controfirma in studio,
+        Compilazione guidata, firma del cliente sul proprio telefono, controfirma in studio,
         archivio ricercabile, registro per i controlli e PDF professionale pronto da archiviare.
         Tutto conforme e a norma, offline e sul tuo dispositivo.
       </p>
@@ -3122,32 +3182,59 @@ function renderPremiumGate(){
    (controfirmare) il consenso che sfonda FREE_CONSENSI_LIMIT senza
    abbonamento attivo. La bozza in corso resta salvata: appena l'abbonamento
    risulta attivo, "Riprova ad archiviare" chiude il consenso normalmente. */
+/* Muro del limite gratuito: informativo e propositivo, non solo un
+   blocco. Ogni piano ha un pulsante che apre WhatsApp verso GemBucher
+   con studio + codice licenza + piano scelto, cosi' l'attivazione la
+   verifico e la faccio io lato Supabase — nessuna auto-attivazione dal
+   client (vedi Task 3: il vecchio toggle di test e' stato tolto). */
 function renderPaywall(){
   const st = licenseState();
+  const idLicenza = licenseIds().studioId;
+  const consigliato = pianoConsigliato();
+  const messaggioPiano = (nomePiano) =>
+    `Sono ${STUDIO_CONFIG.studioName}, ID studio ${idLicenza}, voglio attivare ${nomePiano}.`;
   return `
-  <div class="topbar"><div><h1>Consensi informati</h1><p>Limite consensi gratuiti raggiunto</p></div></div>
+  <div class="topbar"><div><h1>Consensi informati</h1><p>Sei nel piano gratuito</p></div></div>
   <div class="main-inner">
     <div class="premium-card">
       <div class="premium-badge">${st.count}/${st.limit}</div>
       <div class="premium-lock">${icon("lock",26)}</div>
-      <h2 class="premium-title">Hai archiviato ${st.count} consensi su ${st.limit} gratuiti</h2>
+      <h2 class="premium-title">Sei nel piano gratuito: hai usato ${st.count} di ${st.limit} consensi</h2>
       <p class="premium-desc">
         Il consenso che stai compilando resta salvato come bozza: non perdi nulla.
-        Per controfirmarlo e archiviarlo serve l'abbonamento attivo per questo studio.
+        Per controfirmarlo e archiviarlo serve un abbonamento attivo per questo studio.
       </p>
-      <div class="premium-cta">
-        ${isMultiStudio() ? `
-        <p><b>Studio multi-sede:</b> nessun piano è self-service.<br>${gembucherContattoDisponibile()
-            ? `<a href="${gembucherContactLink('Ciao, vorrei un preventivo InkConsent per più sedi.')}" target="_blank" rel="noopener" style="color:inherit;">Contatta GemBucher per un preventivo</a>`
-            : `Contatta GemBucher per un preventivo.`}</p>` : `
-        <p><b>Piano consigliato: ${esc(pianoConsigliato().nome)}</b> (${esc(pianoConsigliato().desc)}, in base agli artisti in Impostazioni).<br>Attivalo dalle Impostazioni una volta confermato il pagamento con ${esc(STUDIO_CONFIG.studioName)}${gembucherContattoDisponibile() ? ` o <a href="${gembucherContactLink('Ciao, vorrei attivare il piano ' + pianoConsigliato().nome + ' su InkConsent.')}" target="_blank" rel="noopener" style="color:inherit;">contatta GemBucher</a>` : ""}.</p>`}
-      </div>
-      <div class="btn-row" style="justify-content:center;margin-top:16px;">
-        <button class="btn btn-ghost btn-sm" data-action="save-draft-paywall">Torna alla bozza salvata</button>
-        <button class="btn btn-accent btn-sm" data-action="paywall-recheck">Riprova ad archiviare</button>
-      </div>
-      ${SUPABASE_CONFIG.url ? `<p class="field hint" style="margin-top:10px;">Verifica automatica dell'abbonamento tramite Supabase attiva.</p>` : ""}
     </div>
+
+    ${isMultiStudio() ? `
+    <div class="card">
+      <h3 class="section-title">Studio multi-sede</h3>
+      <p class="section-desc">Con più di una sede nessun piano è self-service: serve un preventivo su misura, non un'attivazione automatica.</p>
+      ${gembucherContattoDisponibile()
+        ? `<a class="btn btn-accent" href="${gembucherContactLink('Sono ' + STUDIO_CONFIG.studioName + ', ID studio ' + idLicenza + ', vorrei un preventivo InkConsent per più sedi.')}" target="_blank" rel="noopener">Contatta GemBucher per un preventivo</a>`
+        : `<p class="field hint">Contatto non ancora configurato dallo studio (GEMBUCHER_CONTATTO in index.html).</p>`}
+    </div>` : `
+    <div class="disp-grid">
+      ${PIANI.map(p => `
+        <div class="disp-card">
+          ${p.id === consigliato.id ? `<div class="disp-badge stk-top" style="margin-bottom:8px;">Consigliato per te</div>` : ""}
+          <div class="disp-info">
+            <div class="disp-name">${esc(p.nome)}</div>
+            <div class="disp-cat">${esc(p.desc)}</div>
+            <p class="section-desc" style="margin:8px 0 0;">${esc(PIANO_DESCRIZIONI[p.id] || "")}</p>
+          </div>
+          ${gembucherContattoDisponibile()
+            ? `<a class="btn btn-accent btn-sm" style="margin-top:12px;align-self:flex-start;" href="${gembucherContactLink(messaggioPiano(p.nome))}" target="_blank" rel="noopener">Attiva ${esc(p.nome)}</a>`
+            : `<p class="field hint" style="margin-top:12px;">Contatto non ancora configurato dallo studio (GEMBUCHER_CONTATTO in index.html).</p>`}
+        </div>`).join("")}
+    </div>
+    <p class="field hint" style="margin-top:10px;">Il piano consigliato è calcolato dal numero di tatuatori in Impostazioni → "Artisti": puoi comunque scegliere un piano diverso.</p>`}
+
+    <div class="btn-row" style="justify-content:center;margin-top:20px;">
+      <button class="btn btn-ghost btn-sm" data-action="save-draft-paywall">Torna alla bozza salvata</button>
+      ${SUPABASE_CONFIG.url ? `<button class="btn btn-ghost btn-sm" data-action="paywall-recheck">Riprova ad archiviare</button>` : ""}
+    </div>
+    ${SUPABASE_CONFIG.url ? `<p class="field hint" style="text-align:center;margin-top:6px;">Appena l'abbonamento risulta attivo su Supabase, "Riprova ad archiviare" lo riconosce.</p>` : ""}
   </div>`;
 }
 
@@ -5447,7 +5534,6 @@ document.addEventListener("click", (e) => {
     const s = getSession(btn.dataset.id);
     if (s) attachDiagrams(s).then(() => { try { buildPdf(s); } catch(err){ alert("Impossibile generare il PDF: serve connessione per la libreria la prima volta."); } });
   }
-  else if (action === "subscription-toggle"){ setSubscriptionActive(!subscriptionActive()); render(); }
   else if (action === "subscription-refresh"){ refreshLicenseFromSupabase().then(render); }
   else if (action === "mag-tab"){ state.magTab = btn.dataset.t; state.showInkForm = state.showNeedleForm = state.showFornForm = false; state.editBuffer = {}; render(); }
   else if (action === "forn-new"){ state.showFornForm = true; state.fornLoadMode = false; state.editBuffer = { categoria: "guanti", quantita: "", soglia: "" }; render(); }
@@ -5962,7 +6048,7 @@ if ("serviceWorker" in navigator){
 function renderSettings(){
   const cfg = { ...STUDIO_DEFAULTS, ...loadStudioOverrides(), ...(state.studioBuffer||{}) };
   return `
-  <div class="topbar"><div><h1>Impostazioni studio</h1><p>Identità, artisti e link di compilazione remota</p></div></div>
+  <div class="topbar"><div><h1>Impostazioni studio</h1><p>Identità, artisti e link di compilazione in studio</p></div></div>
   <div class="main-inner">
     <div class="card">
       <h3 class="section-title">Setup studio</h3>
@@ -5976,7 +6062,6 @@ function renderSettings(){
         <div class="field"><label>Artisti (separati da virgola)</label><input type="text" data-field-studio="artistsText" value="${esc(cfg.artistsText)}" placeholder="Nome1, Nome2"><div class="hint">Determina il piano consigliato: un tatuatore per voce.</div></div>
       </div>
       <div class="field"><label>Numero di sedi</label><input type="number" min="1" data-field-studio="numeroSedi" value="${esc(String(cfg.numeroSedi||1))}" style="max-width:120px;"><div class="hint">Più di 1 = multi-studio: niente piano self-service, solo contatto diretto per un preventivo.</div></div>
-      <div class="field"><label>URL pubblico dell'app</label><input type="text" data-field-studio="publicUrl" value="${esc(cfg.publicUrl)}" placeholder="https://tuo-studio.vercel.app"><div class="hint">Serve per generare i link/QR di richiesta e compilazione.</div></div>
 
       <div class="subhead">Logo</div>
       <div class="field">
@@ -6076,7 +6161,7 @@ function renderSettings(){
       <p class="section-desc">Alcune Regioni chiedono che sul consenso compaiano ragione sociale, indirizzo, P.IVA e gli estremi della SCIA/SUAP. Compila solo quello che ti serve: i campi vuoti non vengono stampati.</p>
       <div class="field">
         <label>Ragione sociale</label>
-        <input type="text" data-field-studio="ragioneSociale" value="${esc(STUDIO_CONFIG.ragioneSociale||"")}" placeholder="Es. Podere 173 di Mario Rossi">
+        <input type="text" data-field-studio="ragioneSociale" value="${esc(STUDIO_CONFIG.ragioneSociale||"")}" placeholder="Es. Nome Studio di Mario Rossi">
       </div>
       <div class="field">
         <label>Indirizzo dello studio</label>
@@ -6107,7 +6192,7 @@ function renderSettings(){
     </div>
     <div class="card">
       <h3 class="section-title">Link di compilazione per il cliente</h3>
-      <p class="section-desc">Genera un consenso vuoto e condividi il link/QR: il cliente lo compila da casa. A fine compilazione il suo telefono mostra un codice/QR da farti vedere: scansionalo (o incollalo) da "Importa consenso" e lo ritrovi in "Archivio" pronto per la controfirma. Nessun dato passa da un server: il trasferimento è solo quel codice, letto direttamente dal tuo dispositivo.</p>
+      <p class="section-desc">Genera un consenso vuoto e condividi il link/QR: il cliente lo compila sul proprio telefono, in studio (touch-free, mentre prepari). A fine compilazione il suo telefono mostra un codice/QR da farti vedere: scansionalo (o incollalo) da "Importa consenso" e lo ritrovi in "Archivio" pronto per la controfirma. Nessun dato passa da un server: il trasferimento è solo quel codice, letto direttamente dal tuo dispositivo.</p>
       <button class="btn btn-primary" data-action="new-remote-link">Genera link cliente</button>
       ${state.lastRemoteId ? `
         <div class="card" style="margin-top:14px;background:var(--paper);">
@@ -6124,10 +6209,11 @@ function renderSettings(){
     </div>
     <div class="card">
       <h3 class="section-title">Accesso e credenziali</h3>
-      <p class="section-desc">Proteggi l'app con ID e password: se perdi il dispositivo, nessuno può aprire l'archivio dei clienti.</p>
+      <p class="section-desc">Proteggi l'app con un nome e una password: se perdi il dispositivo, nessuno può aprire l'archivio dei clienti.</p>
+      <div class="callout info" style="margin-bottom:12px;">Queste credenziali servono <b>solo a sbloccare questo dispositivo</b>: restano sempre e solo qui, cifrate in locale, e non vengono mai inviate a nessun server — nemmeno a Supabase, nemmeno come hash. Sono una cosa diversa dal "Codice licenza studio" più sotto, che serve solo per l'abbonamento: scegli un nome e una password diversi da quelli che usi altrove, per non rendere banale risalire dall'uno all'altro.</div>
       <div class="kv"><span>Blocco di accesso</span><b>${loadAuth() ? "Attivo" : "Non attivo"}</b></div>
       <div class="grid-2" style="margin-top:12px;">
-        <div class="field"><label>ID studio (identificativo)</label><input type="text" data-field-auth="studioId" value="${esc((loadAuth()||{}).studioId || "")}" placeholder="es. podere173" autocomplete="off"></div>
+        <div class="field"><label>Nome di accesso al dispositivo</label><input type="text" data-field-auth="studioId" value="${esc((loadAuth()||{}).studioId || "")}" placeholder="es. tuostudio" autocomplete="off"></div>
         <div class="field"><label>Password</label><input type="password" data-field-auth="password" value="" placeholder="${loadAuth() ? "•••• (invariata)" : "min. 4 caratteri"}"></div>
       </div>
       <div class="btn-row">
@@ -6158,13 +6244,12 @@ function renderSettings(){
       <div class="kv"><span>Piano consigliato</span><b>${esc(pianoConsigliato().nome)} <span class="field hint" style="display:inline;">(${esc(pianoConsigliato().desc)})</span></b></div>
       <p class="section-desc" style="margin-top:10px;">Oltre i ${FREE_CONSENSI_LIMIT} consensi gratuiti per questo studio/dispositivo, serve l'abbonamento per continuare ad archiviarne di nuovi. Le bozze non consumano la soglia.</p>
       <div class="btn-row" style="margin-top:10px;">
-        <button class="btn ${subscriptionActive() ? "btn-ghost" : "btn-accent"}" data-action="subscription-toggle">${subscriptionActive() ? "Disattiva abbonamento (test)" : "Segna abbonamento come attivo"}</button>
-        ${SUPABASE_CONFIG.url ? `<button class="btn btn-ghost" data-action="subscription-refresh">Verifica su Supabase</button>` : ""}
+        ${SUPABASE_CONFIG.url ? `<button class="btn btn-ghost" data-action="subscription-refresh">Verifica abbonamento</button>` : ""}
         ${isMultiStudio() && gembucherContattoDisponibile() ? `<a class="btn btn-ghost" href="${gembucherContactLink('Ciao, vorrei un preventivo InkConsent per ' + (STUDIO_CONFIG.numeroSedi||1) + ' sedi.')}" target="_blank" rel="noopener">Contatta GemBucher (multi-studio)</a>` : ""}
       </div>
       ${!SUPABASE_CONFIG.url ? `<div class="callout info" style="margin-top:12px;">Supabase non configurato: lo stato abbonamento resta solo su questo dispositivo. Configuralo in <span class="mono">SUPABASE_CONFIG</span> per gestirlo da un pannello unico e per gli studi con più dispositivi.</div>` : ""}
-      <div class="kv" style="margin-top:10px;"><span>ID studio (Supabase)</span><b class="mono" style="font-size:11px;word-break:break-all;">${esc(licenseIds().studioId)}</b></div>
-      <div class="kv"><span>ID dispositivo (Supabase)</span><b class="mono" style="font-size:11px;word-break:break-all;">${esc(licenseIds().deviceId)}</b></div>
+      <div class="kv" style="margin-top:10px;"><span>Codice licenza studio</span><b class="mono" style="font-size:11px;word-break:break-all;">${esc(licenseIds().studioId)}</b></div>
+      <div class="kv"><span>Codice licenza dispositivo</span><b class="mono" style="font-size:11px;word-break:break-all;">${esc(licenseIds().deviceId)}</b></div>
       <p class="field hint" style="margin-top:6px;">Servono solo per attivare l'abbonamento dal pannello Supabase (tabella <span class="mono">licenza_studi</span>, colonna <span class="mono">id</span>): non sono dati del cliente e non identificano nessuno.</p>
     </div>
 
@@ -6187,8 +6272,8 @@ function renderSettings(){
 
 /* ============================================================
    MULTI-STEP FORM — due fasi:
-   • FASE CLIENTE (step 1-6): anagrafica → firma. Compilabile
-     anche da remoto dal cliente.
+   • FASE CLIENTE (step 1-6): anagrafica → firma. Compilata dal
+     cliente sul proprio telefono, in studio (touch-free via QR).
    • FASE STUDIO (step 7-8): dati seduta + controfirma, compilati
      in studio il giorno dell'appuntamento davanti al cliente.
    ============================================================ */
@@ -6216,7 +6301,7 @@ function renderStudioForm(){
         return `<button class="step-pill ${cls}" data-action="goto-step" data-step="${n}" title="${inStudio ? "Da compilare in studio" : "Parte del cliente"}">${n}. ${label}${inStudio ? icon("pen",13) : ""}</button>`;
       }).join("")}
     </div>
-    <p class="field hint" style="margin:-4px 0 16px;">Passi 1-${CLIENT_LAST_STEP}: li compila il cliente, anche da casa. Passi ${CLIENT_LAST_STEP+1}-${STEP_LABELS.length} ${icon("pen",13)}: in studio, il giorno dell'appuntamento.</p>
+    <p class="field hint" style="margin:-4px 0 16px;">Passi 1-${CLIENT_LAST_STEP}: li compila il cliente, in studio, sul proprio telefono. Passi ${CLIENT_LAST_STEP+1}-${STEP_LABELS.length} ${icon("pen",13)}: sempre in studio, il giorno dell'appuntamento.</p>
     <div class="card" id="step-content">${renderStepBody(state.step, "studio")}</div>
   </div>`;
 }

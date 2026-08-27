@@ -17,11 +17,17 @@
    v26: agenda appuntamenti, promemoria WhatsApp, waitlist disdette,
    contabilità (caparre/movimenti/chiusura periodica), guest artist —
    moduli nuovi, tutti locali. Bump per lo stesso motivo di sempre.
+   v27: restyling strutturale vero (non solo colori), muro del piano
+   gratuito propositivo con i 3 piani, tolto il toggle di test
+   abbonamento, URL pubblica/Supabase bloccate (non più in Settings),
+   via ogni riferimento a "Podere 173" dai default, due livelli di
+   credenziali chiariti nel README. manifest.json e theme-color
+   aggiornati al nuovo tema scuro.
 
    Nota: i dati (consensi, magazzino) NON passano da qui. Stanno in
    IndexedDB sul dispositivo e il service worker non li tocca mai.   */
 
-const CACHE = "inkconsent-v26";
+const CACHE = "inkconsent-v27";
 
 const PRECACHE = [
   "./",
