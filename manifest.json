@@ -2,6 +2,7 @@
   "name": "InkConsent",
   "short_name": "InkConsent",
   "description": "Consenso informato digitale per studi di tatuaggio",
+  "version": "29",
   "start_url": "/",
   "scope": "/",
   "id": "/",

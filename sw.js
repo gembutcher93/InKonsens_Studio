@@ -30,11 +30,29 @@
    "Richieste preventivo" tornata voce di menu di primo livello;
    Impostazioni riorganizzate in blocchi a fisarmonica; testo ddl
    melanoma riscritto.
+   v29: profili tatuatore locali (username+password solo sul dispositivo,
+   solo un ID opaco su Supabase) con limite 2 dispositivi PER TATUATORE;
+   prova gratuita avviata esplicitamente (telefono+titolare) invece di
+   nascere in automatico — corregge il bug per cui l'attivazione manuale
+   via SQL non trovava nessuna licenza da aggiornare; muro del piano
+   sempre raggiungibile da Impostazioni, tetto AtelierPro a 5 tatuatori
+   + pulsante Multi-studio/catena; conteggio dei 10 consensi gratuiti
+   ora aggregato per studio (non più solo locale) e sempre bypassato da
+   un piano attivo; export/import solo consensi (additivo, dedup per
+   id); sezione Preventivi riorganizzata (link pubblico + "Nuovo
+   preventivo" compilato in studio, scelta del tatuatore nel form
+   pubblico); richieste preventivo ora arrivano anche via Supabase
+   (tabella dedicata, unica eccezione al "zero dati cliente" — vedi
+   README) con polling ogni 20s e avviso in app; contabilità riscritta
+   (percentuale sul totale caparra+saldo o quota fissa mensile, per
+   tatuatore, confermata alla chiusura dell'appuntamento); footer
+   "Engine vX" letto da manifest.json invece di un testo fisso; doppio
+   menu bottom bar (4 sezioni) + tendina contestuale per le sotto-voci.
 
    Nota: i dati (consensi, magazzino) NON passano da qui. Stanno in
    IndexedDB sul dispositivo e il service worker non li tocca mai.   */
 
-const CACHE = "inkconsent-v28";
+const CACHE = "inkconsent-v29";
 
 const PRECACHE = [
   "./",

@@ -6,7 +6,76 @@ zero dipendenze runtime pesanti — stessa filosofia di InkAnimus.
 Testato end-to-end con browser headless (flusso completo: nuova sessione →
 6 step → doppia firma → archiviazione → ricerca in archivio) prima della consegna.
 
-## Correzioni dell'ultimo giro (quarto giro)
+## Novità dell'ultimo giro (quinto giro)
+
+Giro ampio: correzioni a bug reali del giro precedente (attivazione
+prova gratuita, conteggio consensi gratuiti) più diverse funzionalità
+nuove esplicitamente richieste — non solo un restyling.
+
+- **Profili tatuatore locali** (Impostazioni → "Sicurezza e accesso"):
+  se lo studio ha più di un tatuatore in "Artisti", ognuno ha ora un
+  proprio username+password per il dispositivo condiviso (schermata
+  "Chi sta lavorando ora?" dopo lo sblocco del dispositivo) — usati per
+  attribuire consensi/preventivi/appuntamenti al tatuatore giusto e per
+  contare **2 dispositivi per tatuatore** invece che 2 per l'intero
+  studio. Username e password restano sempre e solo locali (stesso
+  hash+salt dello sblocco dispositivo): su Supabase va solo un ID
+  opaco, mai nome o credenziali. Con un solo tatuatore, tutto questo
+  resta invisibile — nessuna schermata in più.
+- **Prova gratuita avviata esplicitamente**: al primo accesso
+  all'account studio, un passaggio dedicato chiede telefono e nome del
+  titolare e SOLO allora crea la riga su Supabase — prima nasceva in
+  automatico al primo consenso o al primo controllo abbonamento, il che
+  significava che l'attivazione manuale via SQL falliva se il titolare
+  scriveva per attivarsi prima di quel momento (bug reale, corretto).
+- **Muro del piano gratuito sempre raggiungibile** (Impostazioni →
+  "Licenza e piano" → "Vedi i piani"), non solo quando il limite
+  blocca l'archiviazione. AtelierPro ora ha un tetto di 5 tatuatori
+  (il prezzo copre virtualmente un sesto, comunicato come vantaggio);
+  oltre i 5, o multi-sede, un quarto pulsante "Multi-studio / catena"
+  apre WhatsApp con un messaggio dedicato — nessuna autoattivazione in
+  nessuno dei due casi.
+- **Conteggio dei 10 consensi gratuiti aggregato per studio**: prima il
+  gate guardava solo il conteggio locale del dispositivo, quindi uno
+  studio con più device poteva superare la soglia usandone 10 su
+  ognuno. Ora il client tiene anche una cache dell'ultimo conteggio
+  aggregato visto da Supabase e usa il più alto dei due. Un piano a
+  pagamento attivo continua a non bloccare mai, qualunque sia il
+  conteggio.
+- **Export/import solo consensi**: diverso dal backup completo, sposta
+  SOLO l'archivio consensi (tutti o dei mesi scelti) tra i dispositivi
+  consentiti — l'import è additivo, dedup per id, non sovrascrive nulla.
+- **Sezione Preventivi riorganizzata**: il link pubblico "Richiedi
+  preventivo" e il suo stato notifica si sono spostati lì dalle
+  Impostazioni; nuovo pulsante "Nuovo preventivo" per compilarlo tu in
+  studio mentre parli col cliente (stesso modulo del form pubblico); il
+  form pubblico ora chiede anche "con chi vorresti parlare" se lo
+  studio ha più di un tatuatore.
+- **Richieste preventivo anche via Supabase**: fin qui restavano solo
+  sul dispositivo del cliente più una notifica ntfy troncata — vedi la
+  nuova eccezione documentata sotto "Due livelli di credenziali". Lo
+  studio controlla le nuove richieste con un polling ogni 20 secondi
+  (non il Realtime vero di Supabase, che richiederebbe supabase-js o un
+  client WebSocket scritto a mano — vedi il file SQL) e un avviso
+  compare in app appena arrivano.
+- **Contabilità riscritta**: non più una percentuale fissa sulla sola
+  caparra. Per ogni tatuatore, percentuale sul TOTALE del lavoro
+  (caparra + saldo) oppure quota fissa mensile, a scelta — confermato
+  quando l'appuntamento in agenda viene chiuso (nuova card "Chiusura
+  lavoro" in ogni appuntamento). Per chi lavora come SoloPro ospite in
+  uno studio non suo, un campo percentuale da versare al titolare
+  ospitante.
+- **Footer motore dinamico**: "Engine vX" letto da `manifest.json`
+  invece di un testo fisso da aggiornare a mano ogni giro.
+- **Doppio menu**: bottom bar a 4 sezioni (Consensi/Preventivi/Studio/
+  Account) che apre una tendina contestuale con le sotto-voci di ogni
+  sezione; il menu laterale a tre righe resta come scorciatoia globale,
+  invariato.
+
+Nessun test dal vivo in browser in questo giro (l'estensione Chrome non
+era connessa in questo ambiente): verifica solo statica.
+
+## Correzioni del quarto giro
 
 Giro dedicato a correggere bug reali trovati testando l'app live su
 `inkonsens-studio.pages.dev`, più due funzionalità esplicitamente
@@ -433,11 +502,11 @@ Le **richieste preventivo** restano allo stesso modo solo locali/notifica
 push (mai su un server): arrivano dal telefono del cliente e la notifica
 ntfy è sufficiente a farti sapere subito che c'è una richiesta nuova.
 
-## Due livelli di credenziali, mai mescolati
+## Livelli di credenziali, mai mescolati
 
-Nell'app esistono **due sistemi di credenziali completamente separati**,
-per due scopi diversi. Vale la pena scriverlo qui in modo esplicito
-perché i nomi nell'interfaccia potevano sembrare la stessa cosa:
+Nell'app esistono **sistemi di credenziali completamente separati**,
+per scopi diversi. Vale la pena scriverlo qui in modo esplicito perché
+i nomi nell'interfaccia potevano sembrare la stessa cosa:
 
 1. **Nome di accesso al dispositivo** (Impostazioni → "Accesso e
    credenziali"): apre l'app su *questo* tablet/telefono. È l'hash con
@@ -478,6 +547,19 @@ password di sblocco locale con qualunque credenziale usi altrove (né
 con quella dell'account studio, né con altro): sono in punti
 dell'interfaccia apposta separati, con avvisi a schermo che lo
 ricordano.
+
+**Aggiornamento (quinto giro): profilo tatuatore, un quarto livello.**
+Se lo studio dichiara più di un tatuatore in Impostazioni → "Artisti",
+ogni tatuatore ha un proprio username+password locale (schermata "Chi
+sta lavorando ora?" dopo lo sblocco del dispositivo, vedi
+`renderTatuatoreSwitch()` in `index.html`) — stesso principio del punto
+1 (hash+salt, mai su Supabase), ma un profilo per persona invece che
+uno per dispositivo. Serve ad attribuire consensi/preventivi/
+appuntamenti al tatuatore giusto e a contare 2 dispositivi PER
+TATUATORE (non più 2 per l'intero studio). Su Supabase va solo un ID
+opaco per tatuatore (`licenza_tatuatori`), collegato allo studio_id,
+mai un nome o una credenziale. Con un solo tatuatore dichiarato, questo
+intero livello resta invisibile — nessuna schermata di scelta.
 
 ## Consensi gratuiti e licenza (opzionale, Supabase)
 
@@ -535,6 +617,34 @@ conteggio consensi, per contare anche i device attivi). Vai eseguito
 file, o senza Supabase configurato, l'app resta comunque utilizzabile:
 niente account, niente limite dispositivi, solo il percorso legacy a
 UUID anonimo per la licenza.
+
+**Prova gratuita esplicita, profili tatuatore, richieste preventivo**:
+un terzo file, **[`supabase-tatuatori-trial-richieste.sql`](./prompt%20e%20sql/supabase-tatuatori-trial-richieste.sql)**,
+sempre separato e sempre da eseguire dopo gli altri due, aggiunge: la
+funzione che crea la riga di licenza SOLO quando il titolare avvia
+esplicitamente la prova gratuita (vedi "Novità dell'ultimo giro" in
+cima); la tabella `licenza_tatuatori` (solo un ID opaco per tatuatore,
+mai nome/credenziali) e il limite di 2 dispositivi per tatuatore; e la
+tabella `richieste` — vedi il paragrafo dedicato qui sotto, è un'
+eccezione al principio generale di questo file.
+
+### Un'eccezione dichiarata: le richieste di preventivo
+
+Ovunque in questo documento vale "nessun dato del cliente tocca mai
+Supabase" — tranne qui. Una richiesta di preventivo arriva da un
+cliente **remoto**, che potrebbe non venire mai in studio di persona:
+senza un canale di rete non c'è modo che lo studio la riceva prima che
+il cliente si presenti. Per questo, se configuri Supabase, il form
+pubblico invia anche lì (oltre a salvarla in locale sul telefono del
+cliente) nome/cognome, telefono, email, stile e descrizione del
+tatuaggio richiesto — **mai foto di riferimento**, quelle restano solo
+sul dispositivo del cliente. La tabella `richieste` è leggibile
+**solo** dallo studio proprietario autenticato (RLS su `auth.uid()`),
+mai da altri studi né in forma anonima. Se preferisci restare
+interamente locali anche per questo, non eseguire il blocco 6 del file
+sopra: l'app continua a funzionare, la richiesta resta solo sul
+telefono del cliente più la notifica ntfy (se configurata) — nessun
+avviso in tempo reale in app in quel caso.
 
 ### Due modelli di business, entrambi supportati dal codice così com'è
 
