@@ -9,11 +9,16 @@
    tabella-comparativa-requisiti-regionali.xlsx) — versione bump solo
    per far scaricare ai device già installati il nuovo consensi.json,
    che qui è in precache "cache-first" e altrimenti resterebbe quello vecchio.
+   v25: rimossa la sync consensi su Supabase, aggiunti piani/trial,
+   restyling dark-mode nativo, statistiche, tracciabilità lotti,
+   aftercare con barra di guarigione, sigillo QR sul PDF — index.html
+   e' cambiato parecchio, bump per far arrivare tutto ai device già
+   installati.
 
    Nota: i dati (consensi, magazzino) NON passano da qui. Stanno in
    IndexedDB sul dispositivo e il service worker non li tocca mai.   */
 
-const CACHE = "inkconsent-v24";
+const CACHE = "inkconsent-v25";
 
 const PRECACHE = [
   "./",

@@ -6,6 +6,81 @@ zero dipendenze runtime pesanti — stessa filosofia di InkAnimus.
 Testato end-to-end con browser headless (flusso completo: nuova sessione →
 6 step → doppia firma → archiviazione → ricerca in archivio) prima della consegna.
 
+## Novità di questo giro (fix + migliorie)
+
+**Tolto**
+- La sync del consenso completo su Supabase (`maybeSyncToSupabase`,
+  `fetchRemoteSession`, tabella `consents`): non doveva esserci, mandava
+  anagrafica/sanitario/firme fuori dal dispositivo. Il passaggio
+  cliente→studio resta *solo* il codice/QR locale (`encodeHandoff`/
+  `decodeHandoff`), già esistente e mai toccato — vedi "Trasferimento
+  consenso cliente → studio" sopra. `SUPABASE_CONFIG` ora serve
+  esclusivamente alla licenza (vedi sotto): non ha più un `tenantId`.
+
+**Aggiunto**
+- **Piani a pagamento** (`PIANI` in `index.html`): SoloPro (1 tatuatore),
+  StudioPro (fino a 3), AtelierPro (4+, uno studio) — dedotti dal campo
+  "Artisti" già in Impostazioni. Multi-studio (più sedi, campo nuovo
+  "Numero di sedi") non è mai self-service: solo contatto diretto
+  (`GEMBUCHER_CONTATTO`, **da compilare** con whatsapp/email veri prima
+  di andare in produzione — vuoto di default, il pulsante resta
+  nascosto finché non lo riempi). SQL per la colonna `piano` su
+  `licenza_studi` in [`supabase-licenza.sql`](./supabase-licenza.sql)
+  (blocco 2), spostato lì insieme a tutto il resto dell'SQL della
+  licenza — nel README diventava troppo lungo da seguire.
+- **Banner prova gratuita**: barra di avanzamento "X di 10" in Archivio
+  e Impostazioni, con avviso più marcato sotto i 3 consensi rimasti; il
+  muro del limite ora nomina il piano consigliato (o il contatto
+  GemBucher per multi-studio) invece del testo generico di prima.
+- **Restyling dark-mode nativo** (vedi sezione dedicata sotto per le
+  skill usate): tema scuro di default, personalizzabile via Impostazioni
+  (con un fallback chiaro fisso e non personalizzabile, per chi lavora
+  alla luce diretta); font "Moderno" (Space Grotesk + Inter) come
+  default; separazione visiva preventivo (accento caldo)/consenso
+  (accento viola) sia nel telefono del cliente che nel rail dello studio.
+- **Statistiche** (sola lettura, zero storage nuovo): consensi del mese,
+  tasso di conversione preventivo→consenso, zone anatomiche più richieste.
+- **Tracciabilità inversa lotti**: nuova scheda in Magazzino, cerchi un
+  numero di lotto (inchiostro o ago) e trovi subito i clienti trattati.
+- **Mappa anatomica preventivo arricchita**: campo dimensione in cm
+  accanto alla fascia indicativa, upload foto di riferimento. Stile
+  tatuaggio e numerazione dei punti sulla sagoma c'erano già.
+- **Firma personalizzabile**: interruttore "effetto inchiostro" (tratto
+  leggermente irregolare, resa non-uniforme) e colore firma indipendente
+  dagli accenti dell'app — il *dato* salvato (i punti del tratto) non
+  cambia mai, solo come viene ridisegnato.
+- **Barra di guarigione aftercare**: il messaggio WhatsApp aftercare
+  include ora un link a una pagina "giorno X di N" (giorni configurabili
+  in Impostazioni), calcolata solo da una data nell'URL — nessun dato
+  cliente nel link, riapribile da qualsiasi telefono.
+- **Sigillo QR sul PDF**: il footer anonimo è diventato un timbro con
+  numero di registro e un QR che incapsula un breve testo di verifica
+  (studio, numero, data) — mai dati sensibili, non punta a nessun server.
+- **Vetrina spenta**: pulsante nel rail (e nella barra mobile) che sfoca
+  il contenuto a schermo per qualche secondo, per quando qualcuno passa
+  in reception. Solo visivo: nessun logout, nessuna perdita di sessione.
+
+**Rimandato apposta** (dipendono da un modulo agenda non ancora fatto):
+notifiche WhatsApp automatiche da calendario, waitlist disdette, guest
+artist con scadenza, contabilità/percentuali/caparre, flash book pubblico.
+
+### Skill di design usate per il restyling
+
+Prima di toccare CSS/markup: **frontend-design** (per la direzione
+estetica e le regole di implementazione — niente font/palette di
+default, un'unica direzione dichiarata) e **ui-ux-pro-max** (ricerche
+mirate di palette/tipografia via il suo tool di search, più la checklist
+contrasto/touch-target/accessibilità). La skill **mobile-design** è
+stata consultata ma è tarata su app native (React Native/Flutter,
+AsyncStorage, gesture di sistema): da lì ho preso solo i principi
+generici applicabili a una PWA touch (target di tocco ≥44px, zona
+pollice per le azioni primarie, niente azioni solo-gesture), non i
+pattern nativi specifici.
+
+I contrasti colore del nuovo tema scuro sono stati verificati a mano
+(calcolo WCAG 2.1) prima di fissare i valori finali in `:root`, non solo
+a occhio — cerca "contrast" nei commenti di `index.html` se li rivedi.
+
 ## Cosa fa
 
 L'app fa **una sola cosa e la fa bene: il consenso informato**, in due fasi che
@@ -154,58 +229,81 @@ conservazione — non è ancora stato pubblicato. Il testo in `informativaText`
    segnaposto in `manifest.json` con dei PNG reali (192×192 e 512×512):
    l'SVG inline funziona ma alcuni Android/iOS sono più permissivi di altri.
 
-## Sincronizzazione multi-dispositivo (opzionale, Supabase)
+## Trasferimento consenso cliente → studio: solo locale, mai un server
 
-Senza Supabase l'app funziona al 100%, ma un consenso compilato dal cliente
-sul *suo* telefono resta sul *suo* dispositivo — non arriva automaticamente
-allo studio. Per il flusso "cliente compila da casa, studio vede in negozio"
-serve un backend condiviso. Pattern coerente col data-sync-bridge già usato
-su InkAnimus_OS:
+Un consenso compilato dal cliente sul *suo* telefono viaggia verso lo
+studio **solo** tramite il codice/QR generato a fine compilazione
+(`encodeHandoff`/`decodeHandoff` in `index.html`): il cliente lo mostra,
+lo studio lo scansiona (o lo incolla) da "Importa consenso", e da quel
+momento il consenso completo — anagrafica, sanitario, firme, disegni —
+è nell'archivio locale dello studio. Nessun payload cliente tocca mai un
+server, nemmeno opzionalmente: in una versione precedente esisteva un
+bridge che sincronizzava il consenso completo su una tabella `consents`
+di Supabase, rimosso di proposito perché in contrasto con l'architettura
+offline-first/dati-solo-locali di questa app.
 
-1. Crea un progetto su [supabase.com](https://supabase.com) (piano free
-   sufficiente per iniziare).
-2. Crea la tabella:
+Le **richieste preventivo** restano allo stesso modo solo locali/notifica
+push (mai su un server): arrivano dal telefono del cliente e la notifica
+ntfy è sufficiente a farti sapere subito che c'è una richiesta nuova.
 
-```sql
-create table consents (
-  id text primary key,
-  tenant_id text not null,
-  status text not null,
-  payload jsonb not null,
-  updated_at timestamptz not null default now()
-);
+## Consensi gratuiti e licenza (opzionale, Supabase)
 
--- Row Level Security: ogni studio vede solo i propri record.
--- Con la sola anon key, la policy sotto basta per un MVP a singolo studio;
--- per un vero multi-tenant rivenduto a più studi, valuta un progetto
--- Supabase separato per studio (più semplice da gestire) oppure
--- autenticazione per-studio con policy su auth.uid().
-alter table consents enable row level security;
-create policy "consenti tutto sul proprio tenant"
-  on consents for all
-  using (true) with check (true);
-```
+Ogni studio/dispositivo ha diritto a `FREE_CONSENSI_LIMIT` (10 di default,
+si cambia in un solo punto in `index.html`) consensi archiviati gratis.
+Il conteggio "vero" è **locale** (quanti consensi risultano `archiviato`
+su questo dispositivo — vedi `consensiArchiviatiCount()`), perché l'app
+deve continuare a firmare consensi anche offline. Se configuri Supabase,
+il conteggio viene anche rispecchiato lato server come riscontro più
+difficile da aggirare svuotando i dati del browser, e come base per un
+vero gate multi-dispositivo per studio.
 
-3. In `index.html`, compila `SUPABASE_CONFIG.url`, `SUPABASE_CONFIG.anonKey`
-   e `SUPABASE_CONFIG.tenantId` (uno slug univoco per studio, es. `"podere173"`).
-4. Da quel momento ogni salvataggio prova anche a sincronizzarsi su Supabase
-   (fallisce in silenzio se offline — resta comunque salvato in locale).
+**Importante**: verso Supabase viaggiano SOLO due UUID opachi (licenza
+dello studio e del dispositivo, generati dal client, mai scelti da una
+persona) più lo stato abbonamento. **Nessun dato del cliente** (anagrafica,
+sanitario, firme, disegni) tocca mai queste tabelle né alcun'altra: quello
+resta locale sul dispositivo (IndexedDB), esattamente come per l'archivio
+dei consensi (vedi sezione sopra). Queste due tabelle di licenza sono
+l'unico punto di contatto fra questa app e un server.
 
-Nota: le **richieste preventivo** restano al momento solo locali/notifica push
-(non sincronizzate su Supabase), perché arrivano dal telefono del cliente e la
-notifica ntfy è sufficiente a farti sapere subito che c'è una richiesta nuova.
-Se in futuro vuoi vederle centralizzate su più dispositivi dello studio, si
-aggiunge una tabella `richieste` speculare a `consents` e si estende
-`upsertRichiesta` come già fatto per i consensi.
+Tutto l'SQL (9 blocchi commentati, eseguibili in ordine dall'inizio alla
+fine) sta in **[`supabase-licenza.sql`](./supabase-licenza.sql)**, non
+qui nel README: sono ~230 righe di SQL, tenerle inline rendeva il file
+illeggibile. Incollalo nell'SQL editor di Supabase (stesso progetto
+della sezione sopra, o uno dedicato) e eseguilo — o blocco per blocco se
+preferisci controllare ogni passaggio.
+
+In sintesi, cosa crea:
+
+1. Estensione `pgcrypto` per generare UUID lato database.
+2. `licenza_studi` — stato abbonamento (`gratuito`/`attivo`/`scaduto`/`sospeso`) e `piano` (`solopro`/`studiopro`/`atelierpro`/`multi-studio`, nullable — legato al numero di tatuatori in Impostazioni → "Artisti", vedi `pianoConsigliato()` in `index.html`).
+3. `licenza_dispositivi` — un dispositivo per riga, con il contatore `consensi_firmati` (si somma per studio).
+4. RLS a "nega tutto": nessuna query diretta dal client, solo tramite le funzioni sotto.
+5. `register_consenso_firmato(...)` — il gate vero: chiamata da `index.html` a ogni archiviazione, incrementa il contatore e blocca oltre i 10 gratuiti se non c'è abbonamento attivo. Accetta anche un `piano` opzionale, già pronto ma non ancora inviato dal client (vedi blocco 9 del file).
+6. `get_stato_licenza(...)` — sola lettura, usata da "Verifica su Supabase" e dal muro del limite raggiunto.
+7. Query di esempio per attivare/disattivare un abbonamento a mano (o valorizzare il piano) quando uno studio paga.
+8. Query di esempio per controllare lo stato di uno studio dal pannello.
+9. Nota su come collegare l'invio automatico del piano, quando vorrai.
+
+In `index.html`, `SUPABASE_CONFIG` (url + anonKey) è dedicato solo a
+questa licenza: nessun dato del cliente lo attraversa mai, vedi sezione
+sopra. Senza Supabase configurato, il gate dei 10 consensi gratuiti
+funziona comunque, solo interamente locale: puoi anche sbloccarlo
+manualmente per un singolo dispositivo dal pulsante "Segna abbonamento
+come attivo" nelle Impostazioni, utile in fase di test o finché non
+colleghi un vero sistema di pagamento.
 
 ### Due modelli di business, entrambi supportati dal codice così com'è
 
 - **Bring-your-own-Supabase**: ogni studio che compra l'app crea il proprio
   progetto Supabase gratuito e incolla le proprie chiavi. Zero infrastruttura
   da mantenere per te. Coerente con come vendi già i temi InkAnimus.
-- **SaaS centralizzato**: un solo progetto Supabase tuo, un `tenant_id`
-  diverso per ogni studio cliente, RLS per isolare i dati. Più lavoro di
-  manutenzione per te, ma consente un modello ad abbonamento.
+- **SaaS centralizzato**: un solo progetto Supabase tuo, condiviso da tutti
+  gli studi clienti — è già così che sono pensate `licenza_studi`/
+  `licenza_dispositivi`: ogni studio è isolato dal proprio `id` (uuid
+  opaco generato dal client), non da un `tenant_id` o da un login, e le
+  funzioni `security definer` impediscono a un client di leggere o alterare
+  lo stato di un altro studio. Più lavoro di manutenzione per te, ma
+  consente un modello ad abbonamento gestito da un unico pannello.
 
 ## Roadmap ragionevole per le prossime iterazioni
 
@@ -219,10 +317,13 @@ aggiunge una tabella `richieste` speculare a `consents` e si estende
 Il cuore funziona. Per farne un prodotto che uno studio compra e usa senza
 pensarci, i pezzi che contano di più (in ordine di impatto):
 
-1. **Sync multi-dispositivo attiva di default.** Oggi i dati sono per-device.
-   Uno studio con tablet in reception + telefono del tatuatore si aspetta di
-   vedere gli stessi consensi ovunque. Il gancio Supabase c'è già; va reso il
-   percorso normale, non opzionale (vedi sezione Supabase).
+1. **Multi-dispositivo per lo stesso studio.** Oggi i dati sono per-device
+   per scelta (mai un server per i dati cliente, vedi sopra). Uno studio
+   con tablet in reception + telefono del tatuatore che vuole vedere gli
+   stessi consensi ovunque deve passare da backup/export manuale (punto 2)
+   finché non c'è un modo di farlo senza far transitare dati cliente da un
+   server: sincronizzazione diretta device-to-device (es. WebRTC/rete
+   locale) invece di un bridge verso un database remoto.
 
 2. **Backup/export dell'archivio.** Un tatuatore che tiene 5 anni di consensi
    deve poter esportare tutto (ZIP di PDF + un file dati) con un click, per

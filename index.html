@@ -20,15 +20,66 @@
 <style>
 /* ============================================================
    INKCONSENT — design tokens
-   Palette evokes tattoo stencil-transfer paper (violet carbon),
-   healed-ink black and vellum. Swap values in :root to re-skin
-   per studio — see STUDIO_CONFIG in the script for the rest of
-   the whitelabel surface (name, artists, informativa text).
+   Dark-mode nativo: la tela di fondo e' inchiostro/notte studio,
+   non carta. La metafora "carta stencil" resta ma vive ora nei
+   campi modulo (--paper-field: l'unica superficie chiara, dove il
+   cliente scrive e firma — un foglio vero appoggiato su un tavolo
+   scuro) invece che nell'intera app. --stamp e' la superficie
+   "timbrata a inchiostro" (rail, badge pieni, bottoni primari):
+   resta la piu' scura di tutte anche qui, per gerarchia visiva.
+   Swap values in :root to re-skin per studio — see STUDIO_CONFIG
+   in the script for the rest of the whitelabel surface (name,
+   artists, informativa text).
    ============================================================ */
 :root{
+  --paper:       #15131A;
+  --paper-raised:#201C26;
+  --paper-sunk:  #0D0C10;
+  --paper-field: #F7F3EC;
+  --paper-field-text: #211D19;
+  --stamp:       #241A30;
+  --ink:         #F1ECE3;
+  --ink-soft:    #C9C0B4;
+  --ink-faint:   #948B7F;
+  --ink-ghost:   #6B6259;
+  --stencil:     #96659A;
+  --stencil-deep:#6E4380;
+  --stencil-tint:rgba(150,101,154,.16);
+  --flesh:       #D2946E;
+  --warn:        #E2694C;
+  --warn-tint:   rgba(226,105,76,.15);
+  --ok:          #6FAE82;
+  --ok-tint:     rgba(111,174,130,.15);
+  --line:        rgba(255,255,255,.13);
+  --line-soft:   rgba(255,255,255,.07);
+  /* scorte — tinte ricavate dalla palette, non un semaforo */
+  --stk-top:#6FAE82; --stk-top-tint:rgba(111,174,130,.16);
+  --stk-ok: #8CB86B; --stk-ok-tint: rgba(140,184,107,.16);
+  --stk-low:#D9954A; --stk-low-tint:rgba(217,149,74,.16);
+  --stk-out:#E2694C; --stk-out-tint:rgba(226,105,76,.16);
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 14px 34px -16px rgba(0,0,0,.65);
+  --shadow-sm: 0 1px 1px rgba(0,0,0,.35);
+  --radius: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --pill: 999px;
+  --font-display: 'Space Grotesk', 'Fraunces', Georgia, serif;
+  --font-body: 'Inter', 'IBM Plex Sans', -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  /* accento dell'area corrente: violeto (--stencil) per il consenso
+     medico-legale, caldo (--flesh) per il preventivo commerciale —
+     vedi .area-preventivo/.area-consenso più sotto. */
+  --area-accent: var(--stencil);
+  --area-accent-deep: var(--stencil-deep);
+  --area-accent-tint: var(--stencil-tint);
+}
+:root[data-theme="light"]{
   --paper:       #EDE8E2;
   --paper-raised:#F8F5F0;
   --paper-sunk:  #E2DBD2;
+  --paper-field: #FFFFFF;
+  --paper-field-text: #1B1A19;
+  --stamp:       #1B1A19;
   --ink:         #1B1A19;
   --ink-soft:    #57514B;
   --ink-faint:   #6E665D;
@@ -43,20 +94,12 @@
   --ok-tint:     #DCE6DE;
   --line:        #C7BEB2;
   --line-soft:   #DAD3C8;
-  /* scorte — tinte ricavate dalla palette, non un semaforo */
   --stk-top:#3F6B4E; --stk-top-tint:#DEE7E0;
   --stk-ok: #4E6640; --stk-ok-tint: #E2E7D9;
   --stk-low:#8A5A22; --stk-low-tint:#F0E4D2;
   --stk-out:#9C3B26; --stk-out-tint:#F1DAD2;
   --shadow: 0 1px 2px rgba(27,26,25,.06), 0 8px 24px -12px rgba(27,26,25,.18);
   --shadow-sm: 0 1px 1px rgba(27,26,25,.05);
-  --radius: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --pill: 999px;
-  --font-display: 'Fraunces', Georgia, serif;
-  --font-body: 'IBM Plex Sans', -apple-system, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 }
 
 *{box-sizing:border-box;}
@@ -70,6 +113,9 @@ body{
   -webkit-font-smoothing:antialiased;
   min-height:100vh;
 }
+.noise-veil{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.035;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+#app-root{position:relative;z-index:1;}
 h1,h2,h3,.display{font-family:var(--font-display);font-weight:600;letter-spacing:-.01em;color:var(--ink);}
 .mono{font-family:var(--font-mono);}
 .ic{flex:none;display:inline-block;vertical-align:-.18em;}
@@ -86,13 +132,13 @@ button{font-family:inherit;}
 
 .shell{display:flex;min-height:100vh;}
 .rail{
-  width:248px;flex:none;background:var(--ink);color:var(--paper);
+  width:248px;flex:none;background:var(--stamp);color:var(--ink);
   display:flex;flex-direction:column;padding:22px 18px;
 }
 .rail-brand{display:flex;align-items:center;gap:10px;margin-bottom:28px;}
 .rail-mark{
   width:34px;height:34px;border-radius:50%;background:var(--stencil);
-  color:var(--paper);display:flex;align-items:center;justify-content:center;
+  color:var(--ink);display:flex;align-items:center;justify-content:center;
   font-family:var(--font-display);font-weight:700;font-size:15px;flex:none;overflow:hidden;
 }
 .rail-brand-name{font-family:var(--font-display);font-size:15px;line-height:1.2;font-weight:600;}
@@ -104,6 +150,21 @@ button{font-family:inherit;}
 }
 .rail-btn:hover{background:rgba(255,255,255,.06);}
 .rail-btn.active{background:var(--stencil);color:#fff;}
+/* stessa separazione preventivo/consenso vista nel telefono del cliente,
+   qui nella barra di navigazione dello studio: un promemoria discreto
+   di quale area (commerciale o medico-legale) si sta guardando. */
+.rail-btn-preventivo{border-left:2px solid transparent;}
+.rail-btn-preventivo.active{background:var(--flesh);border-left-color:var(--flesh);}
+.rail-btn-consenso{border-left:2px solid transparent;}
+.rail-btn-consenso.active{border-left-color:var(--stencil);}
+/* vetrina spenta: oscura SOLO il contenuto (#studio-main), il rail e il
+   pulsante per riaccendere restano leggibili — cosi' non ci si resta
+   mai chiusi fuori dalla propria app. Puramente visivo: nessun logout,
+   nessuna perdita di stato, la sessione resta esattamente com'era. */
+#studio-main.privacy-blurred{filter:blur(18px) saturate(.6);pointer-events:none;user-select:none;transition:filter .25s ease;}
+.privacy-toggle{margin-top:10px;color:#B9AFA4 !important;}
+.privacy-toggle:hover{background:rgba(255,255,255,.06) !important;}
+.privacy-toggle-mobile{flex:none;}
 .rail-foot{font-size:11px;color:#8A8178;font-family:var(--font-mono);padding-top:14px;border-top:1px solid rgba(255,255,255,.1);}
 
 .main{flex:1;min-width:0;padding:34px 40px 60px;}
@@ -112,16 +173,25 @@ button{font-family:inherit;}
 .topbar h1{font-size:22px;margin:0;}
 .topbar p{margin:2px 0 0;color:var(--ink-soft);font-size:13.5px;}
 
-/* ---------- client (mobile self-fill) shell ---------- */
+/* ---------- client (mobile self-fill) shell ----------
+   Due aree, due accenti: preventivo (commerciale, caldo/flesh) e
+   consenso (medico-legale, violeto/stencil) — cosi' un cliente che
+   ha gia' fatto entrambe le cose sul telefono le riconosce a colpo
+   d'occhio come momenti diversi, anche solo dallo screenshot. */
 .client-shell{max-width:480px;margin:0 auto;min-height:100vh;padding:0 0 48px;}
+.client-shell.area-preventivo{--area-accent:var(--flesh);--area-accent-deep:#B87850;--area-accent-tint:rgba(210,148,110,.16);}
+.client-shell.area-consenso{--area-accent:var(--stencil);--area-accent-deep:var(--stencil-deep);--area-accent-tint:var(--stencil-tint);}
 .client-head{
-  background:var(--ink);color:var(--paper);padding:22px 22px 26px;
-  border-radius:0 0 18px 18px;
+  background:var(--stamp);color:var(--ink);padding:22px 22px 26px;
+  border-radius:0 0 18px 18px;border-bottom:2px solid var(--area-accent);
 }
 .client-head .rail-brand{margin-bottom:14px;}
+.area-badge{display:inline-block;font-family:var(--font-mono);font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.07em;color:var(--area-accent);
+  background:var(--area-accent-tint);border-radius:20px;padding:2px 9px;margin:3px 0 0;}
 .progress-track{display:flex;gap:5px;}
 .progress-dash{height:3px;flex:1;background:rgba(255,255,255,.18);border-radius:2px;overflow:hidden;}
-.progress-dash i{display:block;height:100%;width:0%;background:var(--flesh);transition:width .35s ease;}
+.progress-dash i{display:block;height:100%;width:0%;background:var(--area-accent);transition:width .35s ease;}
 .client-body{padding:22px 20px 0;}
 
 /* ---------- cards / surfaces ---------- */
@@ -136,14 +206,17 @@ button{font-family:inherit;}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
 @media (max-width:560px){.grid-2{grid-template-columns:1fr;}}
 
+/* i campi modulo restano "carta chiara": è dove il cliente legge e
+   scrive, la superficie fisica del consenso — il resto dell'app
+   attorno è scuro, ma il foglio no. */
 input[type=text],input[type=date],input[type=tel],input[type=email],select,textarea{
-  width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius);
-  background:#fff;color:var(--ink);font-family:var(--font-body);font-size:14.5px;
+  width:100%;padding:11px 12px;border:1px solid transparent;border-radius:var(--radius);
+  background:var(--paper-field);color:var(--paper-field-text);font-family:var(--font-body);font-size:14.5px;
 }
 input:focus,select:focus,textarea:focus{border-color:var(--stencil);}
 textarea{resize:vertical;min-height:70px;}
 select{
-  appearance:none;-webkit-appearance:none;background-color:#fff;padding-right:38px;
+  appearance:none;-webkit-appearance:none;background-color:var(--paper-field);padding-right:38px;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2357514B' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9.5l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 12px center;background-size:15px;
 }
@@ -157,14 +230,16 @@ select{
 .chip-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:8px;}
 .chip{
   border:1px solid var(--line);border-radius:var(--radius);padding:9px 10px;
-  font-size:13px;cursor:pointer;background:#fff;text-align:center;user-select:none;
+  font-size:13px;cursor:pointer;background:var(--paper-raised);color:var(--ink);text-align:center;user-select:none;
+  transition:background .15s ease,border-color .15s ease;
 }
+.chip:hover{border-color:var(--stencil);}
 .chip.on{background:var(--stencil);border-color:var(--stencil);color:#fff;}
 
 .callout{border-radius:var(--radius);padding:14px 16px;font-size:13.5px;line-height:1.6;}
-.callout.warn{background:var(--warn-tint);border:1px solid #DEBBAF;color:#6B2113;}
-.callout.info{background:var(--stencil-tint);border:1px solid #CBB9CF;color:var(--stencil-deep);}
-.callout.ok{background:var(--ok-tint);border:1px solid #B9CDBD;color:#274935;}
+.callout.warn{background:var(--warn-tint);border:1px solid rgba(226,105,76,.35);color:var(--warn);}
+.callout.info{background:var(--stencil-tint);border:1px solid rgba(150,101,154,.35);color:var(--stencil);}
+.callout.ok{background:var(--ok-tint);border:1px solid rgba(111,174,130,.35);color:var(--ok);}
 
 /* ---------- buttons ---------- */
 .btn{
@@ -172,15 +247,15 @@ select{
   padding:11px 20px;border-radius:var(--radius);font-size:13.5px;font-weight:600;
   letter-spacing:.01em;
 }
-.btn-primary{background:var(--ink);color:var(--paper);}
+.btn-primary{background:var(--stamp);color:var(--ink);}
 .btn-primary:hover{background:#000;}
 .btn-accent{background:var(--stencil);color:#fff;}
 .btn-accent:hover{background:var(--stencil-deep);}
 .btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--line);}
-/* su fondo scuro il testo scuro sparisce: qui si schiarisce tutto */
-.lock-card .btn-ghost,.premium-card .btn-ghost,.tour-card .btn-ghost{color:var(--paper);border-color:#6b635a;}
+.lock-card .btn-ghost,.premium-card .btn-ghost,.tour-card .btn-ghost{border-color:#6b635a;}
 .lock-card .btn-ghost:hover,.premium-card .btn-ghost:hover,.tour-card .btn-ghost:hover{background:rgba(255,255,255,.08);}
-.lock-card .btn-primary,.tour-card .btn-primary{background:var(--paper);color:var(--ink);border-color:var(--paper);}
+.lock-card .btn-primary,.tour-card .btn-primary{background:var(--stencil);color:#fff;border-color:var(--stencil);}
+.lock-card .btn-primary:hover,.tour-card .btn-primary:hover{background:var(--stencil-deep);border-color:var(--stencil-deep);}
 .btn-ghost:hover{border-color:var(--ink);}
 .btn-sm{padding:7px 12px;font-size:12.5px;}
 @media (max-width:860px){ .btn-sm{padding:9px 14px;} }
@@ -244,7 +319,7 @@ select{
   border:1px solid var(--line);color:var(--ink-faint);background:transparent;cursor:pointer;
   display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
 }
-.step-pill.on{background:var(--ink);border-color:var(--ink);color:var(--paper);}
+.step-pill.on{background:var(--stamp);border-color:var(--ink);color:var(--ink);}
 .step-pill.done{border-color:var(--ok);color:var(--ok);}
 .step-pill .ic{opacity:.7;}
 @media (max-width:700px){
@@ -262,14 +337,14 @@ select{
 /* ---------- misc ---------- */
 .section-title{font-size:17px;margin:0 0 4px;}
 .section-desc{color:var(--ink-soft);font-size:13.5px;margin:0 0 18px;}
-.subhead{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--stencil-deep);margin:22px 0 10px;padding-top:14px;border-top:1px solid var(--line-soft);}
+.subhead{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--stencil);margin:22px 0 10px;padding-top:14px;border-top:1px solid var(--line-soft);}
 .subhead:first-of-type{border-top:none;padding-top:0;margin-top:6px;}
 .kv{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line-soft);font-size:13.5px;}
 .kv:last-child{border-bottom:none;}
 .kv b{font-weight:600;}
 .qr-box{background:#fff;padding:14px;border-radius:var(--radius);display:inline-block;border:1px solid var(--line-soft);}
 .tag-row{display:flex;gap:6px;flex-wrap:wrap;}
-.tag{font-size:11.5px;background:var(--stencil-tint);color:var(--stencil-deep);padding:3px 9px;border-radius:20px;font-weight:600;}
+.tag{font-size:11.5px;background:var(--stencil-tint);color:var(--stencil);padding:3px 9px;border-radius:20px;font-weight:600;}
 
 /* ---------- body diagram (richiesta preventivo) ---------- */
 .body-pair{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:14px 0;}
@@ -338,9 +413,9 @@ select{
   background:var(--paper-raised);color:var(--ink-soft);border:1px solid var(--line-soft);
   display:inline-flex;align-items:center;gap:7px;}
 .mag-tab:hover{border-color:var(--line);color:var(--ink);}
-.mag-tab.on{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+.mag-tab.on{background:var(--stamp);color:var(--ink);border-color:var(--ink);}
 .disp-summary{display:grid;grid-template-columns:repeat(3,1fr);margin-bottom:18px;
-  background:var(--ink);color:var(--paper);border-radius:var(--radius-md);overflow:hidden;}
+  background:var(--stamp);color:var(--ink);border-radius:var(--radius-md);overflow:hidden;}
 .disp-stat{padding:13px 15px;display:flex;flex-direction:column;gap:2px;
   border-right:1px solid rgba(255,255,255,.09);min-width:0;}
 .disp-stat:last-child{border-right:none;}
@@ -353,8 +428,8 @@ select{
 .disp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
 .disp-card{background:var(--paper-raised);border:1px solid var(--line-soft);border-radius:var(--radius-md);
   padding:14px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow-sm);}
-.disp-card.is-low{border-color:#DDCBAB;}
-.disp-card.is-out{border-color:#DEBBAF;background:#FBF3EF;}
+.disp-card.is-low{border-color:rgba(217,149,74,.45);}
+.disp-card.is-out{border-color:rgba(226,105,76,.4);background:rgba(226,105,76,.07);}
 .disp-card-top{display:flex;gap:12px;align-items:flex-start;}
 .disp-name-row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
 .disp-thumb{width:56px;height:56px;border-radius:var(--radius-lg);background:var(--paper);flex:none;
@@ -383,12 +458,12 @@ select{
   justify-content:center;color:var(--ink);background:transparent;}
 .disp-step + .disp-step{border-left:1px solid var(--ink);}
 .disp-step:hover{background:rgba(27,26,25,.06);}
-.disp-step:active{background:var(--ink);color:var(--paper);}
+.disp-step:active{background:var(--stamp);color:var(--ink);}
 .disp-icon-btn{all:unset;cursor:pointer;width:36px;height:36px;border-radius:var(--radius-md);
   display:inline-flex;align-items:center;justify-content:center;
   color:var(--ink-faint);background:transparent;border:1px solid var(--line-soft);}
 .disp-icon-btn:hover{color:var(--ink);border-color:var(--line);background:var(--paper);}
-.disp-icon-btn.danger:hover{color:var(--warn);border-color:#DEBBAF;background:var(--warn-tint);}
+.disp-icon-btn.danger:hover{color:var(--warn);border-color:rgba(226,105,76,.4);background:var(--warn-tint);}
 .disp-badge{font-family:var(--font-mono);font-size:9.5px;font-weight:600;letter-spacing:.09em;
   padding:5px 9px;border-radius:3px;flex:none;text-transform:uppercase;
   border:1px solid currentColor;background:transparent;position:relative;overflow:hidden;}
@@ -406,12 +481,12 @@ select{
 }
 
 /* ---------- premium gate ---------- */
-.premium-card{max-width:560px;margin:20px auto;background:var(--ink);color:var(--paper);border-radius:calc(var(--radius) * 1.5);padding:36px 30px;text-align:center;position:relative;overflow:hidden;}
+.premium-card{max-width:560px;margin:20px auto;background:var(--stamp);color:var(--ink);border-radius:calc(var(--radius) * 1.5);padding:36px 30px;text-align:center;position:relative;overflow:hidden;}
 .premium-badge{position:absolute;top:18px;right:-34px;background:var(--flesh);color:#fff;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;padding:5px 40px;transform:rotate(45deg);}
 .premium-lock{width:54px;height:54px;margin:0 auto 14px;border-radius:50%;color:var(--flesh);
   border:1.5px solid rgba(201,143,108,.4);background:rgba(201,143,108,.1);
   display:flex;align-items:center;justify-content:center;}
-.premium-title{color:var(--paper);font-size:22px;margin:0 0 12px;}
+.premium-title{color:var(--ink);font-size:22px;margin:0 0 12px;}
 .premium-desc{color:#C4BBB0;font-size:14px;line-height:1.6;margin:0 auto 22px;max-width:440px;}
 .premium-features{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 auto 24px;max-width:440px;text-align:left;}
 .pf{background:rgba(255,255,255,.06);border-radius:var(--radius-md);padding:12px 14px;font-size:13px;
@@ -432,36 +507,53 @@ select{
 }
 
 /* ---------- lock screen ---------- */
-.lock-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--ink);padding:24px;}
-.lock-card{width:100%;max-width:320px;text-align:center;color:var(--paper);}
+.lock-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--stamp);padding:24px;}
+.lock-card{width:100%;max-width:320px;text-align:center;color:var(--ink);}
 .lock-logo{width:96px;height:96px;margin:0 auto 20px;border-radius:22px;overflow:hidden;background:var(--paper-raised);box-shadow:0 10px 30px rgba(0,0,0,.4);animation:logoIn .6s ease, breathe 3.5s ease-in-out infinite 0.6s;}
 .lock-logo img{width:100%;height:100%;object-fit:cover;}
 .mark-img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;}
-.logo-preview{width:64px;height:64px;border-radius:14px;background:var(--ink);color:var(--paper);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;overflow:hidden;flex:none;}
+.logo-preview{width:64px;height:64px;border-radius:14px;background:var(--stamp);color:var(--ink);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;overflow:hidden;flex:none;}
 .logo-preview img{width:100%;height:100%;object-fit:cover;}
 .lock-logo.shake{animation:shake .4s ease;}
 @keyframes logoIn{from{opacity:0;transform:translateY(14px) scale(.9);}to{opacity:1;transform:none;}}
 @keyframes breathe{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
 @keyframes shake{0%,100%{transform:translateX(0);}20%,60%{transform:translateX(-9px);}40%,80%{transform:translateX(9px);}}
-.lock-title{color:var(--paper);font-size:20px;margin:0 0 4px;}
+.lock-title{color:var(--ink);font-size:20px;margin:0 0 4px;}
 .lock-sub{color:#B9AFA4;font-size:13.5px;margin:0 0 22px;}
 .lock-err{color:var(--flesh);font-size:12.5px;margin:10px 0 0;font-family:var(--font-mono);}
 .login-fields{display:flex;flex-direction:column;gap:10px;margin:20px 0 6px;}
-.login-input{width:100%;padding:12px 14px;border-radius:var(--radius);border:1px solid #4a443d;background:rgba(255,255,255,.06);color:var(--paper);font-size:15px;font-family:var(--font-body);}
+.login-input{width:100%;padding:12px 14px;border-radius:var(--radius);border:1px solid #4a443d;background:rgba(255,255,255,.06);color:var(--ink);font-size:15px;font-family:var(--font-body);}
 .login-input::placeholder{color:#8A8178;}
 .login-input:focus{border-color:var(--flesh);background:rgba(255,255,255,.1);}
 .lock-hint{color:#8A8178;font-size:11.5px;margin-top:22px;}
 .lock-hint a{color:var(--flesh);text-decoration:underline;cursor:pointer;}
 .lock-ok{color:#7FB77E;font-size:12.5px;margin:10px 0 0;font-family:var(--font-mono);}
-.recovery-code{font-family:var(--font-mono);font-size:20px;letter-spacing:2px;color:var(--paper);background:rgba(255,255,255,.08);border:1px dashed #6b635a;border-radius:12px;padding:16px;margin:8px 0 14px;user-select:all;}
+.recovery-code{font-family:var(--font-mono);font-size:20px;letter-spacing:2px;color:var(--ink);background:rgba(255,255,255,.08);border:1px dashed #6b635a;border-radius:12px;padding:16px;margin:8px 0 14px;user-select:all;}
 /* condizioni: riquadro scorrevole su fondo scuro */
 /* fascia backup: appare in alto quando la copia di oggi non c'e' */
 .bkbar{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:var(--radius-md);
   margin-bottom:16px;font-size:13px;line-height:1.4;border:1px solid;}
 .bkbar .ic{flex:none;} .bkbar span{flex:1;}
-.bkbar.due{background:var(--stencil-tint);border-color:#CBB9CF;color:var(--stencil-deep);}
-.bkbar.old{background:var(--warn-tint);border-color:#DEBBAF;color:#6B2113;}
+.bkbar.due{background:var(--stencil-tint);border-color:rgba(150,101,154,.35);color:var(--stencil);}
+.bkbar.old{background:var(--warn-tint);border-color:rgba(226,105,76,.35);color:var(--warn);}
 .bkbar button{flex:none;}
+/* barra prova gratuita: stessa famiglia visiva dei bkbar, ma con una
+   barra di progresso al posto della sola icona — l'avanzamento e' il
+   messaggio, non solo il numero. */
+.trial-bar{border-radius:var(--radius-md);padding:12px 14px;margin-bottom:16px;
+  font-size:13px;line-height:1.4;border:1px solid;}
+.trial-bar-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:8px;}
+.trial-bar-top b{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+.trial-track{height:6px;border-radius:var(--pill);background:rgba(255,255,255,.1);overflow:hidden;}
+.trial-track i{display:block;height:100%;border-radius:var(--pill);transition:width .3s ease;}
+.trial-note{margin:9px 0 0;}
+.trial-note a{color:inherit;text-decoration:underline;}
+.trial-ok{background:var(--stencil-tint);border-color:rgba(150,101,154,.3);color:var(--stencil);}
+.trial-ok .trial-track i{background:var(--stencil);}
+.trial-low{background:var(--stk-low-tint);border-color:rgba(217,149,74,.4);color:var(--stk-low);}
+.trial-low .trial-track i{background:var(--stk-low);}
+.trial-out{background:var(--warn-tint);border-color:rgba(226,105,76,.4);color:var(--warn);}
+.trial-out .trial-track i{background:var(--warn);}
 /* archivio raggruppato per mese */
 .arch-month{margin:22px 0 10px;display:flex;align-items:baseline;gap:10px;}
 .arch-month h4{margin:0;font-family:var(--font-display);font-size:16px;color:var(--ink);text-transform:capitalize;}
@@ -474,43 +566,43 @@ select{
 .eta-bar{display:flex;align-items:center;gap:11px;padding:11px 14px;border-radius:var(--radius-md);
   margin:2px 0 16px;font-size:13px;line-height:1.42;border:1px solid;}
 .eta-bar span{flex:1;}
-.eta-bar.ok{background:#E4EDE4;border-color:#BFD4BF;color:#274935;}
-.eta-bar.warn{background:var(--stencil-tint);border-color:#CBB9CF;color:var(--stencil-deep);}
-.eta-bar.stop{background:var(--warn-tint);border-color:#DEBBAF;color:#6B2113;font-weight:500;}
+.eta-bar.ok{background:var(--ok-tint);border-color:rgba(111,174,130,.35);color:var(--ok);}
+.eta-bar.warn{background:var(--stencil-tint);border-color:rgba(150,101,154,.35);color:var(--stencil);}
+.eta-bar.stop{background:var(--warn-tint);border-color:rgba(226,105,76,.35);color:var(--warn);font-weight:500;}
 .hq{display:flex;align-items:center;gap:14px;padding:12px 4px;border-bottom:1px solid var(--line-soft);}
 .hq:last-of-type{border-bottom:none;}
 .hq-label{flex:1;font-size:13.5px;line-height:1.45;color:var(--ink);}
-.sw{position:relative;flex:none;width:50px;height:30px;border-radius:999px;background:#cfc7bb;
+.sw{position:relative;flex:none;width:50px;height:30px;border-radius:999px;background:rgba(255,255,255,.14);
   transition:background .18s;cursor:pointer;border:none;padding:0;}
 .sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;
-  background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.28);transition:transform .18s;}
+  background:var(--paper-field);box-shadow:0 1px 3px rgba(0,0,0,.4);transition:transform .18s;}
 .sw.on{background:var(--warn);}
 .sw.on::after{transform:translateX(20px);}
-.sw.unset{background:#e7e0d5;box-shadow:inset 0 0 0 2px #cbb9cf;}
+.sw.unset{background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 2px rgba(150,101,154,.4);}
 .hq-block{margin-top:18px;padding:15px 16px;border-radius:var(--radius-md);
-  background:var(--warn-tint);border:1px solid #DEBBAF;color:#6B2113;font-size:13px;line-height:1.55;}
-.hq-block b{color:#5a1a0f;}
+  background:var(--warn-tint);border:1px solid rgba(226,105,76,.35);color:var(--warn);font-size:13px;line-height:1.55;}
+.hq-block b{color:#F0846A;}
 .terms-box{max-height:38vh;overflow-y:auto;text-align:left;background:rgba(255,255,255,.05);
   border:1px solid #4a443e;border-radius:10px;padding:14px 15px;margin:6px 0 14px;
   font-size:12.5px;line-height:1.62;color:#c9c1b7;-webkit-overflow-scrolling:touch;}
 .terms-box h4{margin:14px 0 5px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;
   color:var(--flesh);font-family:var(--font-mono);}
 .terms-box h4:first-child{margin-top:0;}
-.terms-box p{margin:0 0 8px;} .terms-box b{color:var(--paper);}
+.terms-box p{margin:0 0 8px;} .terms-box b{color:var(--ink);}
 .terms-check{display:flex;align-items:flex-start;gap:10px;text-align:left;color:#b9afa4;
   font-size:12.5px;line-height:1.5;margin-bottom:11px;cursor:pointer;}
 .terms-check input{width:19px;height:19px;flex:none;margin-top:1px;}
-.terms-check.on{color:var(--paper);}
+.terms-check.on{color:var(--ink);}
 /* frase di recupero: 12 parole numerate, leggibili per trascriverle a mano */
 .frase-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin:10px 0 16px;text-align:left;}
 .frase-grid span{background:rgba(255,255,255,.07);border:1px solid #6b635a;border-radius:7px;
-  padding:8px 10px;font-family:var(--font-mono);font-size:13.5px;color:var(--paper);user-select:all;}
+  padding:8px 10px;font-family:var(--font-mono);font-size:13.5px;color:var(--ink);user-select:all;}
 .frase-grid span i{color:#8d857b;font-style:normal;margin-right:7px;font-size:11px;}
 .frase-input{width:100%;min-height:96px;font-family:var(--font-mono);font-size:13.5px;line-height:1.7;
-  background:rgba(255,255,255,.06);border:1px solid #6b635a;border-radius:10px;color:var(--paper);
+  background:rgba(255,255,255,.06);border:1px solid #6b635a;border-radius:10px;color:var(--ink);
   padding:12px;resize:vertical;}
 .lock-alt{margin-top:20px;padding-top:16px;border-top:1px solid #4a443e;text-align:left;}
-.lock-alt h4{margin:0 0 6px;font-size:13px;color:var(--paper);font-family:var(--font-display);}
+.lock-alt h4{margin:0 0 6px;font-size:13px;color:var(--ink);font-family:var(--font-display);}
 .lock-alt p{margin:0 0 10px;font-size:12px;line-height:1.55;color:#9a9188;}
 .recovery-check{display:flex;align-items:center;gap:10px;justify-content:center;color:#B9AFA4;font-size:13px;margin-bottom:18px;cursor:pointer;}
 .recovery-check input{width:18px;height:18px;flex:none;}
@@ -534,7 +626,7 @@ select{
   .mobile-topbar{
     display:flex !important;position:sticky;top:0;z-index:30;
     margin:-20px -16px 16px;padding:10px 16px;
-    background:rgba(237,232,226,.92);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+    background:rgba(21,19,26,.85);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
     border-bottom:1px solid var(--line-soft);
   }
   .mobile-topbar .mt-name{font-family:var(--font-mono);font-size:11px;letter-spacing:.05em;
@@ -553,6 +645,7 @@ select{
 </style>
 </head>
 <body>
+<div class="noise-veil"></div>
 <div id="app-root"><!-- rendered by app.js --></div>
 
 <script>
@@ -577,6 +670,10 @@ const STUDIO_DEFAULTS = {
   studioCity: "Ozieri (SS)",
   studioMark: "P173",
   artistsText: "GemBucher, Ospite / Guest", // editabile come testo, split su virgola
+  numeroSedi: 1, // >1 = multi-studio: fuori dal self-service, vedi pianoConsigliato()
+  inkEffect: false,     // tratto firma leggermente irregolare invece del nero uniforme (solo resa: il path salvato non cambia)
+  signatureColor: "",   // vuoto = usa il colore accento dello studio; altrimenti colore a parte
+  giorniGuarigione: 14, // durata indicativa della guarigione, per la barra di avanzamento aftercare
   // dati fiscali/autorizzativi: facoltativi. Alcune Regioni chiedono che
   // compaiano sul consenso, altre no. Vuoti = non stampati.
   ragioneSociale: "",
@@ -584,10 +681,15 @@ const STUDIO_DEFAULTS = {
   indirizzoStudio: "",
   protocolloScia: "",
   publicUrl: "https://tuo-studio.vercel.app",
-  colorInk: "#1B1A19",
-  colorStencil: "#5B3B63",
-  colorFlesh: "#C98F6C",
-  fontTheme: "classico", // classico | moderno | essenziale | manoscritto
+  // Dark-mode nativo: questi sono i colori del TEMA SCURO (quello che
+  // vede lo studio di default). Il tema chiaro, se attivato dalle
+  // Impostazioni, resta fisso e non risente di questa personalizzazione
+  // — vedi applyStudioConfig().
+  colorInk: "#F1ECE3",     // testo principale
+  colorStamp: "#241A30",   // superficie "timbrata" scura: rail, badge pieni, bottoni primari
+  colorStencil: "#96659A", // accento (area consenso, medico-legale)
+  colorFlesh: "#D2946E",   // accento caldo (area preventivo, commerciale)
+  fontTheme: "moderno", // classico | moderno | essenziale | manoscritto
   logoDataUrl: "",       // logo caricato dallo studio (data URL), sovrascrive la sigla
   aftercareText: "Ciao {nome}! Grazie per la fiducia. Ecco come prenderti cura del tuo tatuaggio nei prossimi giorni:\n\n• Tieni la pellicola per le ore indicate.\n• Lava delicatamente con acqua tiepida e sapone neutro.\n• Applica un velo sottile di crema specifica 2-3 volte al giorno.\n• Niente sole diretto, piscina, mare o sauna per 2-3 settimane.\n• Non grattare né staccare le crosticine.\n\nPer qualsiasi dubbio scrivimi. A presto!",
 };
@@ -622,6 +724,20 @@ const FONT_THEMES = {
   manoscritto: { label: "Manoscritto", display: "'Caveat', cursive",                 body: "'IBM Plex Sans', sans-serif" },
 };
 
+/* ---------- tema chiaro/scuro ----------
+   Scuro e' il tema nativo dell'app (di default, sempre) e l'unico che
+   riceve la personalizzazione colori dello studio. Il chiaro e' un
+   fallback fisso di leggibilita' (per chi lavora alla luce diretta, o
+   lo preferisce): NON risente dei colori studio, cosi' resta sempre
+   leggibile senza dover ripetere la validazione contrasto per ogni
+   combinazione possibile di colori scelti dallo studio. */
+const THEME_KEY = "inkconsent_theme_v1";
+function loadTheme(){ try { return localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark"; } catch(e){ return "dark"; } }
+function setTheme(t){
+  try { localStorage.setItem(THEME_KEY, t === "light" ? "light" : "dark"); } catch(e){}
+  applyStudioConfig();
+}
+
 /* Fonde defaults + override salvati dallo studio nei campi vivi di STUDIO_CONFIG,
    e applica colori e font come CSS variables. Chiamata all'avvio e dopo ogni salvataggio. */
 function applyStudioConfig(){
@@ -640,11 +756,24 @@ function applyStudioConfig(){
   STUDIO_CONFIG.noteConsenso = (state.studioBuffer && "noteConsenso" in state.studioBuffer) ? state.studioBuffer.noteConsenso : (o.noteConsenso || "");
   STUDIO_CONFIG.artists = o.artistsText.split(",").map(s => s.trim()).filter(Boolean);
   if (!STUDIO_CONFIG.artists.length) STUDIO_CONFIG.artists = ["Artista"];
+  STUDIO_CONFIG.numeroSedi = Math.max(1, parseInt(o.numeroSedi, 10) || 1);
+  STUDIO_CONFIG.inkEffect = !!o.inkEffect;
+  STUDIO_CONFIG.signatureColor = o.signatureColor || "";
+  STUDIO_CONFIG.giorniGuarigione = Math.max(1, parseInt(o.giorniGuarigione, 10) || 14);
+  const theme = loadTheme();
+  document.documentElement.setAttribute("data-theme", theme);
   const r = document.documentElement.style;
-  r.setProperty("--ink", o.colorInk);
-  r.setProperty("--stencil", o.colorStencil);
-  r.setProperty("--flesh", o.colorFlesh);
-  const ft = FONT_THEMES[o.fontTheme] || FONT_THEMES.classico;
+  if (theme === "light"){
+    // fallback fisso: nessuna personalizzazione, si affida ai valori di :root[data-theme="light"]
+    r.removeProperty("--ink"); r.removeProperty("--stamp");
+    r.removeProperty("--stencil"); r.removeProperty("--flesh");
+  } else {
+    r.setProperty("--ink", o.colorInk);
+    r.setProperty("--stamp", o.colorStamp || "#241A30");
+    r.setProperty("--stencil", o.colorStencil);
+    r.setProperty("--flesh", o.colorFlesh);
+  }
+  const ft = FONT_THEMES[o.fontTheme] || FONT_THEMES.moderno;
   r.setProperty("--font-display", ft.display);
   r.setProperty("--font-body", ft.body);
   return o;
@@ -897,16 +1026,17 @@ function moduloAttivo(tipo){
   };
 }
 
-/* ---------- SUPABASE (optional multi-device sync) ----------
-   Lascia vuoto per lavorare 100% offline/locale (default).
-   Per abilitare la sincronizzazione multi-dispositivo — utile
-   per il flusso "cliente compila da casa, studio vede in
-   negozio" — crea un progetto su supabase.com e incolla qui
-   url + anonKey. Schema tabella suggerito nel README.md.     */
+/* ---------- SUPABASE (solo licenza/abbonamento, MAI dati cliente) ----------
+   Lascia vuoto per lavorare 100% offline/locale (default: nessuna
+   differenza funzionale, il gate dei consensi gratuiti resta locale).
+   Se compilato, l'unica cosa che viaggia verso Supabase sono i due UUID
+   opachi di licenza (licenseIds(), vedi più sotto) e lo stato abbonamento:
+   tabelle licenza_studi/licenza_dispositivi, schema in README.md.
+   Anagrafica, sanitario, firme e disegni del cliente NON hanno alcun
+   percorso verso Supabase in questo file: restano solo su IndexedDB. */
 const SUPABASE_CONFIG = {
-  url: "",       // es: "https://xxxx.supabase.co"
-  anonKey: "",   // anon/public key del progetto
-  tenantId: "podere173", // identifica questo studio tra i tanti che usano l'app
+  url: "https://nkrlazlhfmrsuvtcwcar.supabase.co",
+  anonKey: "sb_publishable_AhutvN8OevP9kVWSzD5Nlw_uKHKbR1C",
 };
 
 /* ---------- funzioni attivabili per studio ----------
@@ -986,7 +1116,9 @@ const ICON_PATHS = {
   signature: '<path d="M3.4 17.4c2.8 0 3.4-9.6 5.6-9.6 1.7 0 1 7.2 2.8 7.2 1.4 0 1.8-4.4 3.4-4.4 1.3 0 1.2 3.2 2.4 3.2.9 0 1.4-1 1.4-1"/><path d="M3.6 20.6h16.8"/>',
   alert:     '<path d="M12 3.9 20.8 19.6H3.2z"/><path d="M12 10v4.3M12 17.2h.01"/>',
   search:    '<circle cx="10.6" cy="10.6" r="6.6"/><path d="m15.4 15.4 5 5"/>',
-  shield:    '<path d="M12 3 20 6v5.8c0 4.6-3.3 8.2-8 9.7-4.7-1.5-8-5.1-8-9.7V6z"/>'
+  shield:    '<path d="M12 3 20 6v5.8c0 4.6-3.3 8.2-8 9.7-4.7-1.5-8-5.1-8-9.7V6z"/>',
+  eyeOff:    '<path d="M3.5 3.5l17 17M9.9 9.9a3 3 0 0 0 4.2 4.2M6.2 6.4C4 8 2.5 10 2 12c1.6 4 6 8 10 8 1.7 0 3.4-.5 5-1.4M12.4 5.1c4.7.2 8.5 3.5 9.9 6.9-.4 1-1 2-1.8 3"/>',
+  chartBar:  '<path d="M4 20V10M11 20V4M18 20v-7"/><path d="M2.5 20h19"/>'
 };
 function icon(name, size){
   const p = ICON_PATHS[name];
@@ -1503,7 +1635,6 @@ function upsertSession(session){
   session.updatedAt = new Date().toISOString();
   if (i >= 0) list[i] = session; else list.unshift(session);
   saveSessions(list);
-  maybeSyncToSupabase(session);
   return session;
 }
 function deleteSession(id){
@@ -1530,35 +1661,159 @@ function assignProgressivo(session){
   return session.progressivo;
 }
 
-/* ---------- Supabase bridge (no-op until configured) ----------
-   Pattern coerente con il data-sync-bridge già usato su
-   InkAnimus_OS. Finché SUPABASE_CONFIG.url è vuoto, queste
-   funzioni non fanno nulla: l'app resta 100% locale.
-   Schema tabella suggerito in README.md.                      */
-async function maybeSyncToSupabase(session){
+/* ---------- niente sync consensi su Supabase, per scelta -----------
+   I dati del cliente (anagrafica, sanitario, firme, disegni) non lasciano
+   MAI il dispositivo, in nessuna condizione, nemmeno opt-in: c'era in una
+   versione precedente un bridge che mandava il payload di sessione a una
+   tabella `consents` su Supabase, rimosso di proposito. Il passaggio dati
+   cliente↔studio resta SOLO il codice/QR locale (encodeHandoff/decodeHandoff
+   qui sotto), che non tocca alcun server. L'unica cosa che tocca Supabase,
+   se configurato, è la licenza/contatore (vedi licenseIds/syncLicenseOnFinalize
+   più sopra): due UUID opachi e lo stato abbonamento, mai dati cliente.  */
+
+/* ============================================================
+   LICENZA — consensi gratuiti prima del blocco pagamento.
+   L'app resta offline-first: il conteggio "vero" è quello LOCALE
+   (quanti consensi risultano archiviati su questo dispositivo), e
+   funziona anche senza rete. Se SUPABASE_CONFIG è configurato, il
+   conteggio viene anche rispecchiato lato server (tabelle studi/
+   dispositivi, vedi README.md) come riscontro più difficile da
+   aggirare svuotando i dati del browser — ma resta un di più:
+   l'app deve continuare a firmare consensi anche in un
+   seminterrato senza campo.
+   Verso Supabase viaggiano SOLO due UUID opachi (licenza dello
+   studio e del dispositivo): mai dati del cliente.
+   Per alzare/abbassare la soglia, cambia SOLO questa costante
+   (tienila allineata con FREE_LIMIT dentro le funzioni SQL). */
+const FREE_CONSENSI_LIMIT = 10;
+
+/* ---------- piani a pagamento — legati al numero di tatuatori ----------
+   Il numero dichiarato e' STUDIO_CONFIG.artists.length (campo "Artisti"
+   già in Impostazioni, un tatuatore per voce separata da virgola: non
+   serve un campo nuovo). Multi-studio (più sedi) non è mai self-service:
+   solo un contatto diretto, vedi GEMBUCHER_CONTATTO sotto. */
+const PIANI = [
+  { id: "solopro",    nome: "SoloPro",    minArtisti: 1, maxArtisti: 1,        desc: "1 tatuatore" },
+  { id: "studiopro",  nome: "StudioPro",  minArtisti: 2, maxArtisti: 3,        desc: "fino a 3 tatuatori" },
+  { id: "atelierpro", nome: "AtelierPro", minArtisti: 4, maxArtisti: Infinity, desc: "4+ tatuatori, un solo studio" },
+];
+function numeroTatuatori(){ return STUDIO_CONFIG.artists.length; }
+/* true se lo studio ha più di una sede: unico segnale che porta fuori
+   dal self-service, verso il contatto diretto. Campo esposto in
+   Impostazioni (STUDIO_DEFAULTS.numeroSedi), default 1. */
+function isMultiStudio(){ return (STUDIO_CONFIG.numeroSedi || 1) > 1; }
+function pianoConsigliato(){
+  if (isMultiStudio()) return { id: "multi-studio", nome: "Multi-studio", desc: "più sedi — solo su preventivo" };
+  const n = numeroTatuatori();
+  return PIANI.find(p => n >= p.minArtisti && n <= p.maxArtisti) || PIANI[PIANI.length - 1];
+}
+
+/* Contatto per l'unico caso non self-service (multi-studio) e come
+   riferimento generale "contatta lo studio/GemBucher per un preventivo".
+   PLACEHOLDER: compila whatsapp (numero internazionale senza +, es.
+   "393331234567") o email prima di andare in produzione — senza nessuno
+   dei due, il pulsante/link resta nascosto invece di puntare a nulla. */
+const GEMBUCHER_CONTATTO = {
+  whatsapp: "",  // es. "393331234567"
+  email: "",     // es. "info@gembucher.it"
+};
+function gembucherContattoDisponibile(){ return !!(GEMBUCHER_CONTATTO.whatsapp || GEMBUCHER_CONTATTO.email); }
+function gembucherContactLink(testo){
+  if (GEMBUCHER_CONTATTO.whatsapp) return `https://wa.me/${GEMBUCHER_CONTATTO.whatsapp}?text=${encodeURIComponent(testo)}`;
+  if (GEMBUCHER_CONTATTO.email) return `mailto:${GEMBUCHER_CONTATTO.email}?subject=${encodeURIComponent(testo)}`;
+  return "";
+}
+
+const LICENSE_IDS_KEY = "inkconsent_license_ids_v1";
+function uuidv4(){
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, x => x.toString(16).padStart(2, "0"));
+  return `${h.slice(0,4).join("")}-${h.slice(4,6).join("")}-${h.slice(6,8).join("")}-${h.slice(8,10).join("")}-${h.slice(10,16).join("")}`;
+}
+/* studioId/deviceId: chiavi opache generate una volta sola, per la sola
+   licenza. Non hanno nulla a che fare con l'"ID studio" mnemonico che il
+   titolare sceglie per il blocco d'accesso locale (vedi AUTH_KEY):
+   quello lo digita una persona, questo lo genera il dispositivo. */
+function licenseIds(){
+  let ids = null;
+  try { ids = JSON.parse(localStorage.getItem(LICENSE_IDS_KEY)); } catch(e){ /* prima volta */ }
+  if (!ids || !ids.studioId || !ids.deviceId){
+    ids = { studioId: (ids && ids.studioId) || uuidv4(), deviceId: uuidv4() };
+    localStorage.setItem(LICENSE_IDS_KEY, JSON.stringify(ids));
+  }
+  return ids;
+}
+
+const SUBSCRIPTION_KEY = "inkconsent_subscription_active_v1";
+function subscriptionActive(){ try { return localStorage.getItem(SUBSCRIPTION_KEY) === "1"; } catch(e){ return false; } }
+function setSubscriptionActive(v){ if (v) localStorage.setItem(SUBSCRIPTION_KEY, "1"); else localStorage.removeItem(SUBSCRIPTION_KEY); }
+
+/* Un consenso "conta" quando viene davvero archiviato (firmato dal
+   cliente e controfirmato dal tatuatore) — le bozze non consumano la
+   soglia gratuita. E' lo stesso momento in cui si assegna il progressivo
+   di registro (assignProgressivo), quindi non serve un contatore separato
+   da tenere sincronizzato: si ricava sempre dall'archivio vero. */
+function consensiArchiviatiCount(){
+  return loadSessions().filter(s => s.status === "archiviato").length;
+}
+function licenseState(){
+  const count = consensiArchiviatiCount();
+  const limit = FREE_CONSENSI_LIMIT;
+  return {
+    count, limit,
+    remaining: Math.max(0, limit - count),
+    subscriptionActive: subscriptionActive(),
+    blocked: !subscriptionActive() && count >= limit,
+  };
+}
+
+/* Riscontro server-side (no-op se Supabase non configurato): registra il
+   consenso appena archiviato tramite la funzione SQL register_consenso_
+   firmato (vedi README.md), che fa da gate "vero" lato database e
+   restituisce lo stato reale dell'abbonamento. Non blocca mai l'archiviazione
+   locale, gia' avvenuta: aggiorna solo lo stato abbonamento per la prossima volta. */
+async function syncLicenseOnFinalize(){
   if (!SUPABASE_CONFIG.url || !SUPABASE_CONFIG.anonKey) return;
-  try{
-    await fetch(`${SUPABASE_CONFIG.url}/rest/v1/consents`, {
+  const { studioId, deviceId } = licenseIds();
+  try {
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/register_consenso_firmato`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "apikey": SUPABASE_CONFIG.anonKey,
         "Authorization": `Bearer ${SUPABASE_CONFIG.anonKey}`,
-        "Prefer": "resolution=merge-duplicates",
       },
-      body: JSON.stringify({ id: session.id, tenant_id: SUPABASE_CONFIG.tenantId, payload: session, status: session.status, updated_at: session.updatedAt }),
+      body: JSON.stringify({ p_studio_id: studioId, p_device_id: deviceId }),
     });
-  } catch(e){ console.warn("Sync Supabase fallita, resto locale:", e); }
-}
-async function fetchRemoteSession(sessionId){
-  if (!SUPABASE_CONFIG.url || !SUPABASE_CONFIG.anonKey) return null;
-  try{
-    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/consents?id=eq.${sessionId}&tenant_id=eq.${SUPABASE_CONFIG.tenantId}&select=payload`, {
-      headers: { "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${SUPABASE_CONFIG.anonKey}` },
-    });
+    if (!res.ok) return;
     const rows = await res.json();
-    return rows && rows[0] ? rows[0].payload : null;
-  } catch(e){ console.warn("Fetch remoto fallito:", e); return null; }
+    const r = Array.isArray(rows) ? rows[0] : rows;
+    if (r && typeof r.abbonamento_attivo === "boolean") setSubscriptionActive(r.abbonamento_attivo);
+  } catch(e){ console.warn("Sync licenza fallita, resta valido il conteggio locale:", e); }
+}
+/* Richiama lo stato abbonamento da Supabase senza registrare nulla:
+   usata dalle Impostazioni per un refresh manuale ("Verifica abbonamento"). */
+async function refreshLicenseFromSupabase(){
+  if (!SUPABASE_CONFIG.url || !SUPABASE_CONFIG.anonKey) return null;
+  const { studioId, deviceId } = licenseIds();
+  try {
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/get_stato_licenza`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_CONFIG.anonKey,
+        "Authorization": `Bearer ${SUPABASE_CONFIG.anonKey}`,
+      },
+      body: JSON.stringify({ p_studio_id: studioId, p_device_id: deviceId }),
+    });
+    if (!res.ok) return null;
+    const rows = await res.json();
+    const r = Array.isArray(rows) ? rows[0] : rows;
+    if (r && typeof r.abbonamento_attivo === "boolean") setSubscriptionActive(r.abbonamento_attivo);
+    return r || null;
+  } catch(e){ console.warn("Verifica licenza fallita:", e); return null; }
 }
 
 /* ============================================================
@@ -1614,6 +1869,8 @@ function blankRichiesta(){
     stileAltro: "",
     descrizione: "",
     dimensione: "",
+    dimensioneCm: "", // stima in cm del lato più lungo, oltre alla fascia indicativa
+    referenceImg: "", // foto di riferimento/reference caricata dal cliente (dataURL, ridotta)
     genere: "maschile",
     markers: [], // { view: 'fronte'|'retro', xPct, yPct }
     dataConsulenza: "",
@@ -2005,7 +2262,17 @@ function waMessageFor(r){
 function aftercareMessage(session){
   const nome = session.anagrafica ? session.anagrafica.nome : "";
   const tpl = STUDIO_CONFIG.aftercareText || "";
-  return tpl.replace(/\{nome\}/g, nome || "").trim();
+  const testo = tpl.replace(/\{nome\}/g, nome || "").trim();
+  return testo + "\n\n" + buildAftercareLink(session);
+}
+/* Link alla barra "giorno X di N": porta con sé SOLO una data e un
+   numero di giorni, calcolati lato client dalla pagina stessa — nessun
+   id di sessione, nessun dato del cliente nel link. Riapribile quante
+   volte serve, anche da un altro telefono, senza toccare l'archivio. */
+function buildAftercareLink(session){
+  const data = (session.seduta && session.seduta.dataApplicazione) || (session.createdAt||"").slice(0,10);
+  const giorni = STUDIO_CONFIG.giorniGuarigione || 14;
+  return `${STUDIO_CONFIG.publicUrl}/?aftercare=1&data=${encodeURIComponent(data)}&giorni=${giorni}`;
 }
 /* Restituisce il logo caricato (se presente) o la sigla testuale. */
 function markHtml(){
@@ -2029,7 +2296,9 @@ function bodyImg(gender, view){
    ============================================================ */
 const params = new URLSearchParams(location.search);
 const state = {
-  mode: params.get("client") === "1" ? "client" : (params.get("richiesta") === "1" && FEATURES.richieste ? "richiesta" : "studio"),
+  mode: params.get("aftercare") === "1" ? "aftercare"
+      : params.get("client") === "1" ? "client"
+      : (params.get("richiesta") === "1" && FEATURES.richieste ? "richiesta" : "studio"),
   view: "archive",       // archive | form | settings | leads | lead-form | registro | import
   step: 1,
   // passaggio consenso cliente -> studio (offline, via QR o codice)
@@ -2120,7 +2389,8 @@ function validateStep(step){
    ============================================================ */
 function render(){
   const root = qs("#app-root");
-  if (state.mode === "client") root.innerHTML = renderClientShell();
+  if (state.mode === "aftercare") root.innerHTML = renderAftercarePage();
+  else if (state.mode === "client") root.innerHTML = renderClientShell();
   else if (state.mode === "richiesta") root.innerHTML = renderLeadShell();
   else if (state.showTour) root.innerHTML = renderTour();
   else if (state.needsTerms) root.innerHTML = renderTerms();
@@ -2501,30 +2771,35 @@ function renderStudioShell(){
         <button class="rail-close" data-action="toggle-rail">${icon("close",15)} Chiudi</button>
       </div>
       <div class="rail-nav">
-        <button class="rail-btn ${state.view==='archive'?'active':''}" data-action="nav" data-view="archive">${icon("clipboard",17)} Archivio consensi</button>
+        <button class="rail-btn rail-btn-consenso ${state.view==='archive'?'active':''}" data-action="nav" data-view="archive">${icon("clipboard",17)} Archivio consensi</button>
         <button class="rail-btn ${state.view==='registro'?'active':''}" data-action="nav" data-view="registro">${icon("book",17)} Registro</button>
         <button class="rail-btn ${state.view==='magazzino'?'active':''}" data-action="nav" data-view="magazzino">${icon("box",17)} Magazzino</button>
-        <button class="rail-btn ${state.view==='form'?'active':''}" data-action="new-session">${icon("pen",17)} Nuovo consenso</button>
-        <button class="rail-btn ${state.view==='import'?'active':''}" data-action="nav" data-view="import">${icon("restock",17)} Importa consenso</button>
-        ${FEATURES.richieste ? `<button class="rail-btn ${state.view==='leads'||state.view==='lead-detail'?'active':''}" data-action="nav" data-view="leads">${icon("chat",17)} Richieste preventivo${nuoveLeads ? `<span class="nav-badge">${nuoveLeads}</span>` : ""}</button>` : ""}
+        <button class="rail-btn rail-btn-consenso ${state.view==='form'?'active':''}" data-action="new-session">${icon("pen",17)} Nuovo consenso</button>
+        <button class="rail-btn rail-btn-consenso ${state.view==='import'?'active':''}" data-action="nav" data-view="import">${icon("restock",17)} Importa consenso</button>
+        ${FEATURES.richieste ? `<button class="rail-btn rail-btn-preventivo ${state.view==='leads'||state.view==='lead-detail'?'active':''}" data-action="nav" data-view="leads">${icon("chat",17)} Richieste preventivo${nuoveLeads ? `<span class="nav-badge">${nuoveLeads}</span>` : ""}</button>` : ""}
+        <button class="rail-btn ${state.view==='statistiche'?'active':''}" data-action="nav" data-view="statistiche">${icon("chartBar",17)} Statistiche</button>
         <button class="rail-btn ${state.view==='settings'?'active':''}" data-action="nav" data-view="settings">${icon("gear",17)} Impostazioni studio</button>
       </div>
+      <button class="rail-btn privacy-toggle" data-action="toggle-privacy-blur" title="Oscura i dati a schermo">${icon("eyeOff",17)} ${state.privacyBlur ? "Mostra i dati" : "Vetrina spenta"}</button>
       <div class="rail-foot">InkConsent · engine v1.0<br>Motore condiviso, personalizzabile per studio.</div>
     </nav>
     <div class="main">
       <div class="mobile-topbar">
         <button class="btn btn-ghost btn-sm" data-action="toggle-rail">${icon("menu",16)} Menu</button>
         <span class="mt-name">${esc(STUDIO_CONFIG.studioName)}</span>
+        <button class="btn btn-ghost btn-sm privacy-toggle-mobile" data-action="toggle-privacy-blur" title="Oscura i dati a schermo" style="margin-left:auto;">${icon("eyeOff",16)}</button>
       </div>
-      <div id="studio-main">${renderStudioView()}</div>
+      <div id="studio-main" class="${state.privacyBlur ? 'privacy-blurred' : ''}">${renderStudioView()}</div>
     </div>
   </div>`;
 }
 function renderStudioView(){
   if (state.view === "settings") return renderSettings();
   if (state.view === "magazzino") return renderMagazzino();
+  if (state.view === "statistiche") return renderStatistiche();
   // sezione consensi: in vetrina Premium finché non sbloccata
   if (isPremiumView(state.view) && !premiumUnlocked()) return renderPremiumGate();
+  if (state.view === "paywall") return renderPaywall();
   if (state.view === "form" && draft) return renderStudioForm();
   if (state.view === "leads") return renderLeads();
   if (state.view === "lead-detail" && leadDraft) return renderLeadDetail();
@@ -2568,6 +2843,39 @@ function renderPremiumGate(){
   </div>`;
 }
 
+/* Gate dei consensi gratuiti: appare solo quando si prova ad archiviare
+   (controfirmare) il consenso che sfonda FREE_CONSENSI_LIMIT senza
+   abbonamento attivo. La bozza in corso resta salvata: appena l'abbonamento
+   risulta attivo, "Riprova ad archiviare" chiude il consenso normalmente. */
+function renderPaywall(){
+  const st = licenseState();
+  return `
+  <div class="topbar"><div><h1>Consensi informati</h1><p>Limite consensi gratuiti raggiunto</p></div></div>
+  <div class="main-inner">
+    <div class="premium-card">
+      <div class="premium-badge">${st.count}/${st.limit}</div>
+      <div class="premium-lock">${icon("lock",26)}</div>
+      <h2 class="premium-title">Hai archiviato ${st.count} consensi su ${st.limit} gratuiti</h2>
+      <p class="premium-desc">
+        Il consenso che stai compilando resta salvato come bozza: non perdi nulla.
+        Per controfirmarlo e archiviarlo serve l'abbonamento attivo per questo studio.
+      </p>
+      <div class="premium-cta">
+        ${isMultiStudio() ? `
+        <p><b>Studio multi-sede:</b> nessun piano è self-service.<br>${gembucherContattoDisponibile()
+            ? `<a href="${gembucherContactLink('Ciao, vorrei un preventivo InkConsent per più sedi.')}" target="_blank" rel="noopener" style="color:inherit;">Contatta GemBucher per un preventivo</a>`
+            : `Contatta GemBucher per un preventivo.`}</p>` : `
+        <p><b>Piano consigliato: ${esc(pianoConsigliato().nome)}</b> (${esc(pianoConsigliato().desc)}, in base agli artisti in Impostazioni).<br>Attivalo dalle Impostazioni una volta confermato il pagamento con ${esc(STUDIO_CONFIG.studioName)}${gembucherContattoDisponibile() ? ` o <a href="${gembucherContactLink('Ciao, vorrei attivare il piano ' + pianoConsigliato().nome + ' su InkConsent.')}" target="_blank" rel="noopener" style="color:inherit;">contatta GemBucher</a>` : ""}.</p>`}
+      </div>
+      <div class="btn-row" style="justify-content:center;margin-top:16px;">
+        <button class="btn btn-ghost btn-sm" data-action="save-draft-paywall">Torna alla bozza salvata</button>
+        <button class="btn btn-accent btn-sm" data-action="paywall-recheck">Riprova ad archiviare</button>
+      </div>
+      ${SUPABASE_CONFIG.url ? `<p class="field hint" style="margin-top:10px;">Verifica automatica dell'abbonamento tramite Supabase attiva.</p>` : ""}
+    </div>
+  </div>`;
+}
+
 function renderBackupBar(){
   if (backupFattoOggi()) return "";
   const g = giorniDaUltimoBackup();
@@ -2584,6 +2892,95 @@ function renderBackupBar(){
   </div>`;
 }
 
+/* Banner prova gratuita: sempre visibile finché non c'è un abbonamento
+   attivo (chi lo ha già, non ha bisogno di vedersi ricordato il limite).
+   Tre stati: ok (barra piena tranquilla), low (ultimi 3, avviso più
+   marcato), out (limite raggiunto, invita al piano giusto per il numero
+   di tatuatori dichiarato — o al contatto diretto se multi-studio). */
+function renderTrialProgress(st){
+  const pct = Math.min(100, Math.round((st.count / st.limit) * 100));
+  const low = st.remaining > 0 && st.remaining <= 3;
+  const out = st.remaining <= 0;
+  const cls = out ? "out" : low ? "low" : "ok";
+  const piano = pianoConsigliato();
+  const pianoLabel = piano.id === "multi-studio"
+    ? (gembucherContattoDisponibile()
+        ? `<a href="${gembucherContactLink('Ciao, vorrei un preventivo InkConsent per più sedi.')}" target="_blank" rel="noopener">contatta GemBucher per un preventivo multi-studio</a>`
+        : "contatta GemBucher per un preventivo multi-studio")
+    : `il piano ${esc(piano.nome)} (${esc(piano.desc)})`;
+  return `
+  <div class="trial-bar trial-${cls}">
+    <div class="trial-bar-top">
+      <span>${out ? "Consensi gratuiti terminati" : "Prova gratuita"}</span>
+      <b>${st.count} di ${st.limit}</b>
+    </div>
+    <div class="trial-track"><i style="width:${pct}%"></i></div>
+    ${low ? `<p class="trial-note">Ti restano ${st.remaining} consens${st.remaining===1?"o":"i"} gratuit${st.remaining===1?"o":"i"}: quando finiscono, valuta ${pianoLabel}.</p>` : ""}
+    ${out ? `<p class="trial-note">Per continuare ad archiviare nuovi consensi serve l'abbonamento: ${pianoLabel}.</p>` : ""}
+  </div>`;
+}
+
+/* ============================================================
+   STATISTICHE — sola lettura, zero storage nuovo: solo
+   aggregazione di quello che c'e' già in loadSessions()/loadRichieste().
+   ============================================================ */
+function renderStatistiche(){
+  const sessions = loadSessions().filter(s => s.status === "archiviato");
+  const richieste = loadRichieste();
+  const now = new Date();
+  const ym = now.toISOString().slice(0,7);
+  const meseCorrente = sessions.filter(s => (s.createdAt||"").slice(0,7) === ym
+    || ((s.seduta && s.seduta.dataApplicazione)||"").slice(0,7) === ym);
+  const prevDate = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  const ymPrev = prevDate.toISOString().slice(0,7);
+  const mesePrec = sessions.filter(s => (s.createdAt||"").slice(0,7) === ymPrev);
+  const delta = mesePrec.length === 0 ? null : meseCorrente.length - mesePrec.length;
+
+  const convertiti = richieste.filter(l => l.convertito).length;
+  const tassoConv = richieste.length ? Math.round((convertiti / richieste.length) * 100) : null;
+
+  const zoneCount = {};
+  sessions.forEach(s => (s.zone||[]).forEach(z => { zoneCount[z] = (zoneCount[z]||0) + 1; }));
+  const zoneTop = Object.entries(zoneCount).sort((a,b) => b[1]-a[1]).slice(0,5);
+  const zoneMax = zoneTop.length ? zoneTop[0][1] : 0;
+
+  return `
+  <div class="topbar">
+    <div><h1>Statistiche</h1><p>Solo lettura, calcolate sui dati già in archivio su questo dispositivo</p></div>
+  </div>
+  <div class="main-inner">
+    <div class="disp-summary">
+      <div class="disp-stat">
+        <span>Consensi questo mese</span>
+        <b>${meseCorrente.length}</b>
+        ${delta !== null ? `<small class="trend ${delta>0?'trend-up':delta<0?'trend-down':'trend-flat'}">${delta>0?'+':''}${delta} vs mese scorso</small>` : `<small>—</small>`}
+      </div>
+      <div class="disp-stat">
+        <span>Preventivi convertiti</span>
+        <b>${tassoConv === null ? "—" : tassoConv + "%"}</b>
+        <small>${convertiti} su ${richieste.length} richiest${richieste.length===1?"a":"e"}</small>
+      </div>
+      <div class="disp-stat">
+        <span>Zona più richiesta</span>
+        <b style="font-size:16px;">${zoneTop.length ? esc(zoneTop[0][0]) : "—"}</b>
+        <small>${zoneTop.length ? zoneTop[0][1] + " consens" + (zoneTop[0][1]===1?"o":"i") : "nessun dato ancora"}</small>
+      </div>
+    </div>
+    ${zoneTop.length ? `
+    <div class="card">
+      <h3 class="section-title">Zone anatomiche più richieste</h3>
+      <div class="disp-grid" style="grid-template-columns:1fr;gap:8px;">
+        ${zoneTop.map(([z,n]) => `
+          <div class="disp-qty-row">
+            <span style="flex:0 0 130px;font-size:13.5px;">${esc(z)}</span>
+            <div class="disp-bar"><i class="stk-ok" style="width:${Math.round(n/zoneMax*100)}%;"></i></div>
+            <span class="mono" style="font-size:12px;color:var(--ink-faint);width:26px;text-align:right;">${n}</span>
+          </div>`).join("")}
+      </div>
+    </div>` : `<div class="arch-empty"><b>Ancora nessun dato</b><p>Le statistiche si popolano da sole man mano che archivi consensi e ricevi richieste di preventivo.</p></div>`}
+  </div>`;
+}
+
 function renderArchive(){
   const sessions = loadSessions();
   const notice = state.pdfWarning ? `<div class="callout warn" style="margin-bottom:14px;">Il consenso è stato salvato, ma il PDF non è stato generato (serve connessione internet per la libreria di export). Apri il record e usa "Scarica di nuovo il PDF".</div>` : "";
@@ -2594,6 +2991,7 @@ function renderArchive(){
   </div>
   <div class="main-inner">
     ${renderBackupBar()}
+    ${subscriptionActive() ? "" : renderTrialProgress(licenseState())}
     ${notice}
     <div class="arch-toolbar">
       <div class="field">
@@ -2808,6 +3206,7 @@ function renderMagazzino(){
       <button class="mag-tab ${tab==='forniture'?'on':''}" data-action="mag-tab" data-t="forniture">${icon("basket",16)} Forniture</button>
       <button class="mag-tab ${tab==='inchiostri'?'on':''}" data-action="mag-tab" data-t="inchiostri">${icon("droplet",16)} Inchiostri</button>
       <button class="mag-tab ${tab==='aghi'?'on':''}" data-action="mag-tab" data-t="aghi">${icon("cartridge",16)} Aghi</button>
+      <button class="mag-tab ${tab==='lotti'?'on':''}" data-action="mag-tab" data-t="lotti">${icon("search",16)} Cerca lotto</button>
     </div>
 
     ${tab === "forniture" ? `
@@ -2904,7 +3303,43 @@ function renderMagazzino(){
     </div>
     ` : ""}
 
+    ${tab === "lotti" ? `
+    <div class="card">
+      <h3 class="section-title">Tracciabilità lotto</h3>
+      <p class="section-desc">Cerca un numero di lotto (inchiostro o ago): trovi subito tutti i clienti trattati con quel lotto — utile per un richiamo prodotto o un controllo ASL.</p>
+      <div class="field"><input type="text" placeholder="Numero di lotto…" value="${esc(state.lottoQuery||"")}" data-action="search-lotto"></div>
+      <div id="lotto-results">${renderLottoResults(cercaSessioniPerLotto(state.lottoQuery))}</div>
+    </div>
+    ` : ""}
+
   </div>`;
+}
+/* Tracciabilità inversa: dato un lotto (inchiostro o ago), trova le
+   sessioni archiviate che lo hanno usato. I dati sono già nel consenso
+   (draft.seduta.inchiostri/aghi), qui c'e' solo la query. */
+function cercaSessioniPerLotto(query){
+  const q = (query || "").trim().toLowerCase();
+  if (!q) return [];
+  return loadSessions().filter(s => s.status === "archiviato").filter(s => {
+    const sd = s.seduta || {};
+    const inch = sd.inchiostri || [], aghi = sd.aghi || [];
+    return inch.some(it => (it.lotto||"").toLowerCase().includes(q)) ||
+           aghi.some(it => (it.lotto||"").toLowerCase().includes(q));
+  });
+}
+function renderLottoResults(list){
+  if (!(state.lottoQuery||"").trim()) return `<p class="field hint" style="margin-top:10px;">Digita almeno parte di un numero di lotto.</p>`;
+  if (!list.length) return `<p class="section-desc" style="margin-top:10px;">Nessun consenso archiviato usa un lotto che corrisponde.</p>`;
+  return `
+  <div class="inv-list" style="margin-top:10px;">
+    ${list.map(s => `
+      <div class="inv-row" style="cursor:pointer;" data-action="open-session" data-id="${s.id}">
+        <div class="inv-main"><b>${esc(s.anagrafica.cognome)} ${esc(s.anagrafica.nome)}</b>
+          <span class="inv-sub">${s.progressivo ? "N. " + esc(s.progressivo) + " · " : ""}${fmtDate(s.seduta && s.seduta.dataApplicazione || s.createdAt)}</span>
+        </div>
+      </div>`).join("")}
+  </div>
+  <p class="field hint" style="margin-top:8px;">${list.length} consens${list.length===1?"o":"i"} trovat${list.length===1?"o":"i"}.</p>`;
 }
 
 function renderArchiveResults(sessions){
@@ -2931,6 +3366,37 @@ function renderArchiveResults(sessions){
 /* ============================================================
    SIGNATURE PAD — canvas a mano libera, salvata come dataURL
    ============================================================ */
+/* Colore reso della firma: quello scelto a parte in Impostazioni, o —
+   se non impostato — l'accento corrente dello studio (letto dal CSS,
+   cosi' segue anche un cambio colore live senza bisogno di duplicare
+   il valore). */
+function signatureRenderColor(){
+  return STUDIO_CONFIG.signatureColor
+    || getComputedStyle(document.documentElement).getPropertyValue("--stencil").trim()
+    || "#1B1A19";
+}
+/* Disegna un segmento di tratto con lo stile scelto dallo studio.
+   "Effetto inchiostro" e' SOLO resa: la variazione di spessore/posizione
+   si ricalcola ogni volta dalle stesse coordinate (seed deterministico
+   sul punto, non casuale), non viene mai scritta nei dati — il path
+   salvato (draft[vecKey].s) resta sempre lo stesso, stesso valore legale. */
+function strokeSegmentStyled(ctx, x1, y1, x2, y2, opts){
+  const o = opts || {};
+  ctx.strokeStyle = o.color || "#1B1A19";
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  if (!o.ink){
+    ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    return;
+  }
+  const seed = Math.sin(x1 * 12.9898 + y1 * 78.233 + x2 * 4.14 + y2 * 2.71) * 43758.5453;
+  const j = (seed - Math.floor(seed) - 0.5); // -0.5..0.5 deterministico sul punto
+  ctx.lineWidth = 1.7 + Math.abs(j) * 1.9;
+  ctx.beginPath();
+  ctx.moveTo(x1 + j * 0.5, y1 - j * 0.5);
+  ctx.lineTo(x2 - j * 0.5, y2 + j * 0.5);
+  ctx.stroke();
+}
 function initSignaturePad(canvas, targetField){
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
@@ -2938,9 +3404,8 @@ function initSignaturePad(canvas, targetField){
   canvas.height = rect.height * dpr;
   const ctx = canvas.getContext("2d");
   ctx.scale(dpr, dpr);
-  ctx.lineWidth = 2.2;
   ctx.lineCap = "round";
-  ctx.strokeStyle = "#1B1A19";
+  const sigStyle = { color: signatureRenderColor(), ink: STUDIO_CONFIG.inkEffect };
 
   const existing = draft[targetField];
   if (existing){
@@ -2970,7 +3435,7 @@ function initSignaturePad(canvas, targetField){
   const move = (e) => {
     if (!drawing) return; e.preventDefault();
     const p = pos(e);
-    ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(p.x, p.y); ctx.stroke();
+    strokeSegmentStyled(ctx, lastX, lastY, p.x, p.y, sigStyle);
     if (curStroke) curStroke.push([Math.round(p.x), Math.round(p.y)]);
     lastX = p.x; lastY = p.y;
   };
@@ -3005,12 +3470,11 @@ function vecToPng(vec, scale){
   cv.height = Math.max(1, Math.round((vec.h||170) * k));
   const c = cv.getContext("2d");
   c.scale(k, k);
-  c.lineWidth = 2.2; c.lineCap = "round"; c.lineJoin = "round"; c.strokeStyle = "#1B1A19";
+  c.lineCap = "round"; c.lineJoin = "round";
+  const style = { color: signatureRenderColor(), ink: STUDIO_CONFIG.inkEffect };
   vec.s.forEach(st => {
     if (!st || st.length < 2) return;
-    c.beginPath();
-    st.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]));
-    c.stroke();
+    for (let i = 1; i < st.length; i++) strokeSegmentStyled(c, st[i-1][0], st[i-1][1], st[i][0], st[i][1], style);
   });
   return cv.toDataURL("image/png");
 }
@@ -3297,6 +3761,24 @@ async function attachDiagrams(sess){
   if (retro) sess._diagImgs.retro = retro;
 }
 
+/* QR "di verifica" per il timbro sul PDF: incapsula un breve testo di
+   riepilogo (studio, numero di registro, data), MAI dati sensibili del
+   cliente — non punta a nessun server, non c'e' nulla da consultare
+   online, e' solo un modo rapido per ricontrollare a vista che il PDF
+   in mano corrisponda al consenso archiviato. Sincrono: qrcode.min.js
+   disegna nel costruttore, il canvas e' gia' pronto subito dopo. */
+function generaQrDataUrl(testo, size){
+  try {
+    const host = document.createElement("div");
+    host.style.cssText = "position:absolute;left:-9999px;top:-9999px;";
+    document.body.appendChild(host);
+    new QRCode(host, { text: testo, width: size || 120, height: size || 120, colorDark: "#1B1A19", colorLight: "#ffffff" });
+    const canvas = host.querySelector("canvas");
+    const dataUrl = canvas ? canvas.toDataURL("image/png") : null;
+    document.body.removeChild(host);
+    return dataUrl;
+  } catch(e){ console.warn("QR verifica non generato:", e); return null; }
+}
 function buildPdf(s){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "a4" });
@@ -3316,11 +3798,21 @@ function buildPdf(s){
   const setText = (h) => { const [r,g,b]=hexToRgb(h); doc.setTextColor(r,g,b); };
   const setDraw = (h) => { const [r,g,b]=hexToRgb(h); doc.setDrawColor(r,g,b); };
 
+  // ---- sigillo: logo/QR di verifica + numero di registro, al posto del footer anonimo ----
+  const sigilloTesto = `InkConsent\n${STUDIO_CONFIG.studioName}\nConsenso N. ${s.progressivo || "non ancora archiviato"}\n${fmtDate((s.seduta && s.seduta.dataApplicazione) || s.createdAt)}`;
+  const sigilloQr = generaQrDataUrl(sigilloTesto, 110);
   const footer = () => {
     setDraw("#DED7CC"); doc.setLineWidth(0.5); doc.line(M, BOTTOM+18, PW-M, BOTTOM+18);
-    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(FAINT);
-    doc.text(`${STUDIO_CONFIG.studioName} · Documento generato con InkConsent · da conservare almeno ${STUDIO_CONFIG.retentionYears} anni`, M, BOTTOM+32);
-    doc.text(`Pag. ${pageNum}`, PW-M, BOTTOM+32, { align: "right" });
+    const sealY = BOTTOM + 24;
+    let sx = M;
+    if (sigilloQr){
+      try { doc.addImage(sigilloQr, "PNG", M, sealY, 26, 26); sx = M + 32; } catch(e){}
+    }
+    doc.setFont("helvetica","bold"); doc.setFontSize(8); setText(INK);
+    doc.text(`${STUDIO_CONFIG.studioName}${s.progressivo ? " · Consenso N. " + s.progressivo : ""}`, sx, sealY + 9);
+    doc.setFont("helvetica","normal"); doc.setFontSize(7); setText(FAINT);
+    doc.text(`Documento generato con InkConsent · da conservare almeno ${STUDIO_CONFIG.retentionYears} anni${sigilloQr ? " · QR di verifica a fianco" : ""}`, sx, sealY + 19);
+    doc.text(`Pag. ${pageNum}`, PW-M, sealY + 9, { align: "right" });
   };
   const newPage = () => { footer(); doc.addPage(); pageNum++; y = TOP; };
   const ensure = (needed) => { if (y + needed > BOTTOM) newPage(); };
@@ -3562,12 +4054,13 @@ function renderLeadShell(){
   const total = 4;
   if (state.leadDone) return renderLeadDone();
   return `
-  <div class="client-shell">
+  <div class="client-shell area-preventivo">
     <div class="client-head">
       <div class="rail-brand">
         <div class="rail-mark">${markHtml()}</div>
         <div>
-          <div class="rail-brand-name" style="color:var(--paper);">${esc(STUDIO_CONFIG.studioName)}</div>
+          <div class="rail-brand-name" style="color:var(--ink);">${esc(STUDIO_CONFIG.studioName)}</div>
+          <span class="area-badge">Preventivo</span>
           <div class="rail-brand-sub">Richiesta consulenza · passo ${state.leadStep} di ${total}</div>
         </div>
       </div>
@@ -3582,7 +4075,7 @@ function renderLeadShell(){
 }
 function renderLeadDone(){
   return `
-  <div class="client-shell">
+  <div class="client-shell area-preventivo">
     <div class="client-body" style="padding-top:60px;text-align:center;">
       <div class="rail-mark" style="width:56px;height:56px;font-size:22px;margin:0 auto 18px;">${markHtml()}</div>
       <h2>Richiesta inviata${leadDraft.cliente.nome ? ", grazie " + esc(leadDraft.cliente.nome) : ""}!</h2>
@@ -3642,6 +4135,23 @@ function renderLeadStep2(){
     <div class="chip-grid">
       ${DIMENSIONI.map(d => `<button class="chip ${leadDraft.dimensione===d?'on':''}" data-action="set-dimensione" data-d="${esc(d)}">${esc(d)}</button>`).join("")}
     </div>
+    <div class="hint">Se hai già un'idea precisa, indica anche i centimetri qui sotto — aiuta il tatuatore a fare un preventivo più giusto.</div>
+  </div>
+  <div class="field" style="max-width:160px;">
+    <label>Lato più lungo (cm)</label>
+    <input type="number" min="1" max="120" inputmode="numeric" data-field-lead="dimensioneCm" value="${esc(leadDraft.dimensioneCm||"")}" placeholder="Es. 15">
+  </div>
+  <div class="field">
+    <label>Foto di riferimento (facoltativa)</label>
+    <div style="display:flex;align-items:center;gap:14px;">
+      ${leadDraft.referenceImg ? `<div class="disp-thumb"><img src="${leadDraft.referenceImg}" alt="riferimento"></div>` : ""}
+      <div>
+        <button type="button" class="btn btn-ghost btn-sm" data-action="pick-reference">${leadDraft.referenceImg ? "Cambia foto…" : "Carica foto…"}</button>
+        ${leadDraft.referenceImg ? `<button type="button" class="btn btn-ghost btn-sm" data-action="remove-reference">Rimuovi</button>` : ""}
+        <div class="hint">Uno screenshot, un disegno, una foto simile a quello che vuoi.</div>
+      </div>
+      <input type="file" id="reference-file" accept="image/png,image/jpeg" style="display:none;">
+    </div>
   </div>
   ${renderLeadNav(2)}`;
 }
@@ -3690,8 +4200,9 @@ function renderLeadStep4(){
     <div class="kv"><span>Nome</span><b>${esc(c.nome)} ${esc(c.cognome)}</b></div>
     <div class="kv"><span>Telefono</span><b>${esc(c.telefono)}</b></div>
     <div class="kv"><span>Stile</span><b>${leadDraft.stile.map(esc).join(", ")}${leadDraft.stileAltro ? " — " + esc(leadDraft.stileAltro) : ""}</b></div>
-    <div class="kv"><span>Dimensione</span><b>${esc(leadDraft.dimensione || "—")}</b></div>
+    <div class="kv"><span>Dimensione</span><b>${esc(leadDraft.dimensione || "—")}${leadDraft.dimensioneCm ? " · ~" + esc(leadDraft.dimensioneCm) + " cm" : ""}</b></div>
     <div class="kv"><span>Punti segnati</span><b>${leadDraft.markers.length}</b></div>
+    ${leadDraft.referenceImg ? `<div class="kv"><span>Foto di riferimento</span><b>Allegata</b></div>` : ""}
   </div>
   ${renderLeadNav(4)}`;
 }
@@ -3746,9 +4257,14 @@ function renderLeadDetail(){
       <div class="kv"><span>Email</span><b>${esc(c.email) || "—"}</b></div>
       <div class="kv"><span>Data di nascita</span><b>${fmtDate(c.nascita)}</b></div>
       <div class="kv"><span>Stile</span><b>${l.stile.map(esc).join(", ")}${l.stileAltro ? " — " + esc(l.stileAltro) : ""}</b></div>
-      <div class="kv"><span>Dimensione</span><b>${esc(l.dimensione || "—")}</b></div>
+      <div class="kv"><span>Dimensione</span><b>${esc(l.dimensione || "—")}${l.dimensioneCm ? " · ~" + esc(l.dimensioneCm) + " cm" : ""}</b></div>
       <div class="kv"><span>Descrizione</span><b>${esc(l.descrizione) || "—"}</b></div>
     </div>
+    ${l.referenceImg ? `
+    <div class="card">
+      <h3 class="section-title">Foto di riferimento</h3>
+      <img src="${l.referenceImg}" alt="Riferimento tatuaggio" style="max-width:100%;border-radius:var(--radius);display:block;">
+    </div>` : ""}
     <div class="card">
       <h3 class="section-title">Zone indicate</h3>
       <div class="body-pair">${renderBodyFrame("fronte")}${renderBodyFrame("retro")}</div>
@@ -4046,14 +4562,24 @@ document.addEventListener("click", (e) => {
   else if (action === "finalize-studio"){
     const errs = validateStep(8);
     if (errs.length){ state.showErrors = 8; renderStepOnly(); return; }
+    // gate: oltre i consensi gratuiti, senza abbonamento attivo non si archivia
+    if (licenseState().blocked){ state.view = "paywall"; render(); return; }
     draft.seduta.compilata = true;
     draft.status = "archiviato";
     assignProgressivo(draft); // numero di registro definitivo
     upsertSession(draft);
     attachDiagrams(draft).then(() => { try { buildPdf(draft); } catch(err){ console.warn("PDF non riuscito:", err); state.pdfWarning = true; render(); } });
+    syncLicenseOnFinalize();
     state.view = "archive"; render();
   }
   else if (action === "save-draft"){ upsertSession(draft); state.savedFlash = true; renderStepOnly(); }
+  else if (action === "save-draft-paywall"){ upsertSession(draft); state.view = "form"; render(); }
+  else if (action === "paywall-recheck"){
+    refreshLicenseFromSupabase().then(() => {
+      state.view = licenseState().blocked ? "paywall" : "form";
+      render();
+    });
+  }
   else if (action === "download-pdf"){
     attachDiagrams(draft).then(() => { try { buildPdf(draft); } catch(err){ alert("Impossibile generare il PDF: serve connessione per la libreria la prima volta."); } });
   }
@@ -4113,6 +4639,9 @@ document.addEventListener("click", (e) => {
     });
   }
   else if (action === "premium-relock"){ setPremiumUnlocked(false); render(); }
+  else if (action === "toggle-privacy-blur"){ state.privacyBlur = !state.privacyBlur; render(); }
+  else if (action === "subscription-toggle"){ setSubscriptionActive(!subscriptionActive()); render(); }
+  else if (action === "subscription-refresh"){ refreshLicenseFromSupabase().then(render); }
   else if (action === "mag-tab"){ state.magTab = btn.dataset.t; state.showInkForm = state.showNeedleForm = state.showFornForm = false; state.editBuffer = {}; render(); }
   else if (action === "forn-new"){ state.showFornForm = true; state.fornLoadMode = false; state.editBuffer = { categoria: "guanti", quantita: "", soglia: "" }; render(); }
   else if (action === "forn-edit"){ state.editBuffer = { ...(loadForniture().find(x=>x.id===btn.dataset.id)||{}) }; state.showFornForm = true; state.fornLoadMode = false; render(); }
@@ -4176,6 +4705,12 @@ document.addEventListener("click", (e) => {
     }
   }
   else if (action === "toggle-cifra-backup"){ state.cifraBackup = !state.cifraBackup; render(); }
+  else if (action === "set-theme"){ setTheme(btn.dataset.v); render(); }
+  else if (action === "toggle-ink-effect"){
+    const cfg = { ...STUDIO_DEFAULTS, ...loadStudioOverrides(), ...(state.studioBuffer||{}) };
+    state.studioBuffer = { ...(state.studioBuffer||{}), inkEffect: !cfg.inkEffect };
+    render();
+  }
   else if (action === "set-fonttheme"){
     state.studioBuffer = { ...(state.studioBuffer||{}), fontTheme: btn.dataset.v };
     const ft = FONT_THEMES[btn.dataset.v] || FONT_THEMES.classico;
@@ -4184,6 +4719,8 @@ document.addEventListener("click", (e) => {
     render();
   }
   else if (action === "pick-logo"){ const inp = qs("#logo-file"); if (inp) inp.click(); }
+  else if (action === "pick-reference"){ const inp = qs("#reference-file"); if (inp) inp.click(); }
+  else if (action === "remove-reference"){ leadDraft.referenceImg = ""; renderLeadStepOnly(); }
   else if (action === "remove-logo"){
     state.studioBuffer = { ...(state.studioBuffer||{}), logoDataUrl: "" };
     render();
@@ -4229,8 +4766,9 @@ document.addEventListener("click", (e) => {
       s.strokes = (leadDraft.strokes||[]).map(st => ({ view: st.view, points: st.points.map(p=>({...p})) }));
     }
     if (leadDraft.dimensione) s.grandezza = leadDraft.dimensione;
+    s.origineRichiestaId = leadDraft.id; // per la statistica "preventivi convertiti"
     upsertSession(s);
-    leadDraft.status = "chiusa"; upsertRichiesta(leadDraft);
+    leadDraft.status = "chiusa"; leadDraft.convertito = true; upsertRichiesta(leadDraft);
     draft = s; state.view = "form"; state.step = 1; state.showErrors = null;
     render();
   }
@@ -4299,6 +4837,11 @@ document.addEventListener("input", (e) => {
     const host = qs("#archive-results");
     if (host) host.innerHTML = renderArchiveResults();
   }
+  if (e.target.dataset.action === "search-lotto"){
+    state.lottoQuery = e.target.value;
+    const host = qs("#lotto-results");
+    if (host) host.innerHTML = renderLottoResults(cercaSessioniPerLotto(state.lottoQuery));
+  }
 });
 document.addEventListener("change", (e) => {
   const field = e.target.dataset.field;
@@ -4356,6 +4899,26 @@ document.addEventListener("change", (e) => {
         cv.getContext("2d").drawImage(img, 0, 0, w, h);
         state.editBuffer = { ...(state.editBuffer||{}), foto: cv.toDataURL("image/jpeg", 0.82) };
         render();
+      };
+      img.onerror = () => alert("Immagine non valida.");
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+    return;
+  }
+  if (e.target.id === "reference-file" && e.target.files && e.target.files[0]){
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 480; // reference visiva, non serve piena risoluzione
+        let w = img.width, h = img.height;
+        if (w > h && w > max){ h = h*max/w; w = max; } else if (h >= w && h > max){ w = w*max/h; h = max; }
+        const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+        cv.getContext("2d").drawImage(img, 0, 0, w, h);
+        leadDraft.referenceImg = cv.toDataURL("image/jpeg", 0.82);
+        renderLeadStepOnly();
       };
       img.onerror = () => alert("Immagine non valida.");
       img.src = reader.result;
@@ -4490,11 +5053,12 @@ document.addEventListener("change", (e) => {
    BOOTSTRAP
    ============================================================ */
 async function initClientMode(){
+  // niente più fetch remota da Supabase: senza una sessione già locale
+  // su questo dispositivo (es. importata da un codice/QR), si parte da
+  // una bozza vuota — il passaggio dati cliente↔studio è solo il
+  // codice/QR locale (encodeHandoff/decodeHandoff), mai un server.
   const sid = params.get("session");
-  let s = sid ? getSession(sid) : null;
-  if (!s && sid && SUPABASE_CONFIG.url){
-    s = await fetchRemoteSession(sid);
-  }
+  const s = sid ? getSession(sid) : null;
   draft = s || blankSession();
   state.step = 1;
   render();
@@ -4559,8 +5123,9 @@ function renderSettings(){
       </div>
       <div class="grid-2">
         <div class="field"><label>Sigla / logo testuale</label><input type="text" data-field-studio="studioMark" value="${esc(cfg.studioMark)}" maxlength="6" placeholder="Es. P173"><div class="hint">Massimo 6 caratteri, appare nel tondo in alto.</div></div>
-        <div class="field"><label>Artisti (separati da virgola)</label><input type="text" data-field-studio="artistsText" value="${esc(cfg.artistsText)}" placeholder="Nome1, Nome2"></div>
+        <div class="field"><label>Artisti (separati da virgola)</label><input type="text" data-field-studio="artistsText" value="${esc(cfg.artistsText)}" placeholder="Nome1, Nome2"><div class="hint">Determina il piano consigliato: un tatuatore per voce.</div></div>
       </div>
+      <div class="field"><label>Numero di sedi</label><input type="number" min="1" data-field-studio="numeroSedi" value="${esc(String(cfg.numeroSedi||1))}" style="max-width:120px;"><div class="hint">Più di 1 = multi-studio: niente piano self-service, solo contatto diretto per un preventivo.</div></div>
       <div class="field"><label>URL pubblico dell'app</label><input type="text" data-field-studio="publicUrl" value="${esc(cfg.publicUrl)}" placeholder="https://tuo-studio.vercel.app"><div class="hint">Serve per generare i link/QR di richiesta e compilazione.</div></div>
 
       <div class="subhead">Logo</div>
@@ -4576,24 +5141,52 @@ function renderSettings(){
         </div>
       </div>
 
-      <div class="subhead">Colori</div>
-      <div class="grid-2">
-        <div class="field"><label>Colore scuro (testo/menu)</label><input type="color" data-field-studio="colorInk" value="${esc(cfg.colorInk)}" style="height:44px;padding:4px;"></div>
-        <div class="field"><label>Colore principale (accenti)</label><input type="color" data-field-studio="colorStencil" value="${esc(cfg.colorStencil)}" style="height:44px;padding:4px;"></div>
+      <div class="subhead">Aspetto</div>
+      <div class="field">
+        <label>Tema</label>
+        <div class="chip-grid" style="grid-template-columns:1fr 1fr;">
+          <button class="chip ${loadTheme()!=='light'?'on':''}" data-action="set-theme" data-v="dark">Scuro (nativo)</button>
+          <button class="chip ${loadTheme()==='light'?'on':''}" data-action="set-theme" data-v="light">Chiaro (lettura)</button>
+        </div>
+        <div class="hint">Lo scuro è il tema di InkConsent e l'unico personalizzabile coi colori qui sotto. Il chiaro è un fallback fisso ad alta leggibilità, utile alla luce diretta, e non cambia con i colori dello studio.</div>
       </div>
-      <div class="field"><label>Colore secondario (progress)</label><input type="color" data-field-studio="colorFlesh" value="${esc(cfg.colorFlesh)}" style="height:44px;padding:4px;max-width:200px;"></div>
+      <div class="subhead">Colori (tema scuro)</div>
+      <div class="grid-2">
+        <div class="field"><label>Colore testo principale</label><input type="color" data-field-studio="colorInk" value="${esc(cfg.colorInk)}" style="height:44px;padding:4px;"></div>
+        <div class="field"><label>Superficie scura (rail, badge)</label><input type="color" data-field-studio="colorStamp" value="${esc(cfg.colorStamp||'#241A30')}" style="height:44px;padding:4px;"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Accento — area consenso</label><input type="color" data-field-studio="colorStencil" value="${esc(cfg.colorStencil)}" style="height:44px;padding:4px;"></div>
+        <div class="field"><label>Accento — area preventivo</label><input type="color" data-field-studio="colorFlesh" value="${esc(cfg.colorFlesh)}" style="height:44px;padding:4px;"></div>
+      </div>
 
       <div class="subhead">Font</div>
       <div class="field">
         <div class="chip-grid">
-          ${Object.keys(FONT_THEMES).map(k => `<button class="chip ${(cfg.fontTheme||'classico')===k?'on':''}" data-action="set-fonttheme" data-v="${k}">${FONT_THEMES[k].label}</button>`).join("")}
+          ${Object.keys(FONT_THEMES).map(k => `<button class="chip ${(cfg.fontTheme||'moderno')===k?'on':''}" data-action="set-fonttheme" data-v="${k}">${FONT_THEMES[k].label}</button>`).join("")}
         </div>
+      </div>
+
+      <div class="subhead">Firma</div>
+      <div class="hq">
+        <div class="hq-label">Effetto inchiostro sulla firma<br><span class="hint" style="text-transform:none;letter-spacing:0;">Il tratto touch diventa leggermente irregolare invece del nero uniforme da modulo. Resa solo visiva: il valore legale e il dato salvato non cambiano.</span></div>
+        <button class="sw ${cfg.inkEffect?'on':''}" role="switch" aria-checked="${!!cfg.inkEffect}" data-action="toggle-ink-effect"></button>
+      </div>
+      <div class="field" style="margin-top:14px;max-width:200px;">
+        <label>Colore firma</label>
+        <input type="color" data-field-studio="signatureColor" value="${esc(cfg.signatureColor || cfg.colorStencil)}" style="height:44px;padding:4px;">
+        <div class="hint">Indipendente dai colori dell'app: di base segue l'accento, ma puoi sceglierne uno diverso solo per la firma.</div>
       </div>
 
       <div class="subhead">Messaggio aftercare (WhatsApp)</div>
       <div class="field">
         <textarea data-field-studio="aftercareText" rows="7" placeholder="Istruzioni per la cura…">${esc(cfg.aftercareText)}</textarea>
-        <div class="hint">Inviato al cliente dopo l'archiviazione con un tap. Usa <b>{nome}</b> per inserire il nome del cliente.</div>
+        <div class="hint">Inviato al cliente dopo l'archiviazione con un tap. Usa <b>{nome}</b> per inserire il nome del cliente. Il messaggio include già un link a una pagina di avanzamento guarigione ("giorno X di N"), calcolata solo dalla data — nessun dato del cliente nel link.</div>
+      </div>
+      <div class="field" style="max-width:200px;">
+        <label>Giorni di guarigione stimati</label>
+        <input type="number" min="1" max="90" data-field-studio="giorniGuarigione" value="${esc(String(cfg.giorniGuarigione||14))}">
+        <div class="hint">Usati dalla barra "giorno X di N" nel link aftercare.</div>
       </div>
 
       <div class="btn-row">
@@ -4660,11 +5253,11 @@ function renderSettings(){
       <h3 class="section-title">Stato</h3>
       <div class="kv"><span>Versione informativa attiva</span><b class="mono">${esc(moduloAttivo().etichetta)}</b></div>
       <div class="kv"><span>Conservazione consensi</span><b>Almeno ${STUDIO_CONFIG.retentionYears} anni</b></div>
-      <div class="kv"><span>Sync remota</span><b>${SUPABASE_CONFIG.url ? "Supabase collegato" : "Solo locale (offline-first)"}</b></div>
+      <div class="kv"><span>Dati clienti</span><b>Solo su questo dispositivo (offline-first) — nessuna sync consensi su server</b></div>
     </div>
     <div class="card">
       <h3 class="section-title">Link di compilazione per il cliente</h3>
-      <p class="section-desc">Genera un consenso vuoto e condividi il link/QR: il cliente lo compila da casa, tu lo trovi in "Archivio" pronto per la controfirma in studio.</p>
+      <p class="section-desc">Genera un consenso vuoto e condividi il link/QR: il cliente lo compila da casa. A fine compilazione il suo telefono mostra un codice/QR da farti vedere: scansionalo (o incollalo) da "Importa consenso" e lo ritrovi in "Archivio" pronto per la controfirma. Nessun dato passa da un server: il trasferimento è solo quel codice, letto direttamente dal tuo dispositivo.</p>
       <button class="btn btn-primary" data-action="new-remote-link">Genera link cliente</button>
       ${state.lastRemoteId ? `
         <div class="card" style="margin-top:14px;background:var(--paper);">
@@ -4706,6 +5299,23 @@ function renderSettings(){
       <div class="kv"><span>Stato</span><b>${premiumUnlocked() ? "Sbloccata (modalità test)" : "In vetrina (bloccata)"}</b></div>
       <p class="section-desc" style="margin-top:10px;">${premiumUnlocked() ? "La sezione consensi è attiva su questo dispositivo. Puoi ri-bloccarla per vedere come appare al pubblico." : "La sezione consensi è mostrata come Premium. Sbloccala dalla schermata Consensi con la password di test."}</p>
       ${premiumUnlocked() ? `<button class="btn btn-ghost" data-action="premium-relock">Ri-blocca (torna alla vetrina)</button>` : ""}
+    </div>
+
+    <div class="card">
+      <h3 class="section-title">Licenza e consensi gratuiti</h3>
+      ${renderTrialProgress(licenseState())}
+      <div class="kv"><span>Abbonamento</span><b>${subscriptionActive() ? "Attivo" : "Non attivo"}</b></div>
+      <div class="kv"><span>Piano consigliato</span><b>${esc(pianoConsigliato().nome)} <span class="field hint" style="display:inline;">(${esc(pianoConsigliato().desc)})</span></b></div>
+      <p class="section-desc" style="margin-top:10px;">Oltre i ${FREE_CONSENSI_LIMIT} consensi gratuiti per questo studio/dispositivo, serve l'abbonamento per continuare ad archiviarne di nuovi. Le bozze non consumano la soglia.</p>
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="btn ${subscriptionActive() ? "btn-ghost" : "btn-accent"}" data-action="subscription-toggle">${subscriptionActive() ? "Disattiva abbonamento (test)" : "Segna abbonamento come attivo"}</button>
+        ${SUPABASE_CONFIG.url ? `<button class="btn btn-ghost" data-action="subscription-refresh">Verifica su Supabase</button>` : ""}
+        ${isMultiStudio() && gembucherContattoDisponibile() ? `<a class="btn btn-ghost" href="${gembucherContactLink('Ciao, vorrei un preventivo InkConsent per ' + (STUDIO_CONFIG.numeroSedi||1) + ' sedi.')}" target="_blank" rel="noopener">Contatta GemBucher (multi-studio)</a>` : ""}
+      </div>
+      ${!SUPABASE_CONFIG.url ? `<div class="callout info" style="margin-top:12px;">Supabase non configurato: lo stato abbonamento resta solo su questo dispositivo. Configuralo in <span class="mono">SUPABASE_CONFIG</span> per gestirlo da un pannello unico e per gli studi con più dispositivi.</div>` : ""}
+      <div class="kv" style="margin-top:10px;"><span>ID studio (Supabase)</span><b class="mono" style="font-size:11px;word-break:break-all;">${esc(licenseIds().studioId)}</b></div>
+      <div class="kv"><span>ID dispositivo (Supabase)</span><b class="mono" style="font-size:11px;word-break:break-all;">${esc(licenseIds().deviceId)}</b></div>
+      <p class="field hint" style="margin-top:6px;">Servono solo per attivare l'abbonamento dal pannello Supabase (tabella <span class="mono">licenza_studi</span>, colonna <span class="mono">id</span>): non sono dati del cliente e non identificano nessuno.</p>
     </div>
 
     <div class="card">
@@ -4759,6 +5369,67 @@ function renderStudioForm(){
   </div>`;
 }
 
+/* ============================================================
+   AFTERCARE — barra "giorno X di N", raggiunta dal link mandato via
+   WhatsApp dopo la seduta. Calcola tutto SOLO da due parametri
+   nell'URL (data, giorni): nessuna sessione, nessun dato del cliente,
+   riapribile da qualsiasi telefono quante volte serve.
+   ============================================================ */
+function renderAftercarePage(){
+  const dataStr = params.get("data") || "";
+  const giorniTot = Math.max(1, parseInt(params.get("giorni"), 10) || STUDIO_CONFIG.giorniGuarigione || 14);
+  const start = dataStr ? new Date(dataStr + "T00:00:00") : null;
+  let giornoGrezzo = null;
+  if (start && !isNaN(start)){
+    const oggi = new Date();
+    const d0 = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const d1 = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate());
+    giornoGrezzo = Math.round((d1 - d0) / 86400000) + 1; // il giorno della seduta e' il giorno 1
+  }
+  const valido = giornoGrezzo !== null && giornoGrezzo >= 1;
+  const giorno = valido ? Math.max(1, Math.min(giornoGrezzo, giorniTot)) : null;
+  const finito = valido && giornoGrezzo > giorniTot;
+  const pct = giorno ? Math.round((giorno / giorniTot) * 100) : 0;
+  const fase = !giorno ? "" : giorno <= Math.ceil(giorniTot*0.25)
+    ? "Fase iniziale: segui con attenzione le istruzioni ricevute, è il momento più delicato."
+    : giorno <= Math.ceil(giorniTot*0.7)
+    ? "A metà percorso: continua idratazione e protezione dal sole, evita piscina e mare."
+    : "Ultimi giorni: la pelle sta completando la guarigione superficiale in vista.";
+  return `
+  <div class="client-shell area-consenso">
+    <div class="client-head">
+      <div class="rail-brand">
+        <div class="rail-mark">${markHtml()}</div>
+        <div>
+          <div class="rail-brand-name" style="color:var(--ink);">${esc(STUDIO_CONFIG.studioName)}</div>
+          <span class="area-badge">Guarigione</span>
+          <div class="rail-brand-sub">Percorso di cura del tatuaggio</div>
+        </div>
+      </div>
+    </div>
+    <div class="client-body">
+      <div class="card" style="text-align:center;">
+        ${!valido ? `
+          <h2>Link non valido</h2>
+          <p class="section-desc">Questo link non contiene una data leggibile. Chiedi allo studio di rimandartelo.</p>
+        ` : finito ? `
+          <h2>Guarigione completata</h2>
+          <p class="section-desc">Sono passati più di ${giorniTot} giorni dalla seduta. Se noti qualcosa che ti preoccupa, scrivi comunque allo studio.</p>
+        ` : `
+          <h2>Giorno ${giorno} di ${giorniTot}</h2>
+          <div class="trial-track" style="height:10px;margin:16px 0;"><i style="width:${pct}%;background:var(--stencil);"></i></div>
+          <p class="section-desc">${fase}</p>
+        `}
+      </div>
+      ${STUDIO_CONFIG.aftercareText ? `
+      <div class="card">
+        <h3 class="section-title">Le istruzioni che ti abbiamo dato</h3>
+        <p class="section-desc" style="white-space:pre-line;">${esc(STUDIO_CONFIG.aftercareText.replace(/\{nome\}/g, "").trim())}</p>
+      </div>` : ""}
+    </div>
+  </div>`;
+}
+
 function renderClientShell(){
   if (!draft) draft = getSession(params.get("session")) || blankSession();
   const total = CLIENT_LAST_STEP; // il cliente compila fino alla propria firma
@@ -4766,12 +5437,13 @@ function renderClientShell(){
     return renderClientDone();
   }
   return `
-  <div class="client-shell">
+  <div class="client-shell area-consenso">
     <div class="client-head">
       <div class="rail-brand">
         <div class="rail-mark">${markHtml()}</div>
         <div>
-          <div class="rail-brand-name" style="color:var(--paper);">${esc(STUDIO_CONFIG.studioName)}</div>
+          <div class="rail-brand-name" style="color:var(--ink);">${esc(STUDIO_CONFIG.studioName)}</div>
+          <span class="area-badge">Consenso medico-legale</span>
           <div class="rail-brand-sub">Consenso informato · passo ${state.step} di ${total}</div>
         </div>
       </div>
@@ -4789,7 +5461,7 @@ function renderClientDone(){
   const kb = code ? (code.length/1024).toFixed(1) : "0";
   const tooBig = code.length > QR_BYTE_LIMIT;
   return `
-  <div class="client-shell">
+  <div class="client-shell area-consenso">
     <div class="client-body" style="padding-top:40px;text-align:center;">
       <div class="rail-mark" style="width:56px;height:56px;font-size:22px;margin:0 auto 16px;">${markHtml()}</div>
       <h2>Fatto — grazie${draft.anagrafica.nome ? ", " + esc(draft.anagrafica.nome) : ""}</h2>
