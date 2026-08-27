@@ -6,7 +6,69 @@ zero dipendenze runtime pesanti — stessa filosofia di InkAnimus.
 Testato end-to-end con browser headless (flusso completo: nuova sessione →
 6 step → doppia firma → archiviazione → ricerca in archivio) prima della consegna.
 
-## Correzioni dell'ultimo giro (non nuove funzionalità)
+## Correzioni dell'ultimo giro (quarto giro)
+
+Giro dedicato a correggere bug reali trovati testando l'app live su
+`inkonsens-studio.pages.dev`, più due funzionalità esplicitamente
+richieste (account studio, limite dispositivi) e una riorganizzazione
+della navigazione — non un restyling.
+
+- **Rimosso del tutto il vecchio gate "Premium a password"**: era un
+  bug in produzione, non solo codice morto — bloccava l'accesso su
+  ogni dispositivo nuovo perché restava "in parallelo" al nuovo muro
+  del piano gratuito invece di essere sostituito. Tolti `renderPremiumGate`,
+  `PREMIUM_MASTER_HASH`, `PREMIUM_KEY`, `PREMIUM_VIEWS`,
+  `premiumUnlocked`/`setPremiumUnlocked`/`checkMasterPassword`/
+  `isPremiumView`, i relativi `data-action`, il campo in Impostazioni e
+  il CSS non condiviso con il muro del piano gratuito (`.premium-features`,
+  `.pf`, `.premium-cta`, `.premium-unlock`) — verificato che nessun
+  percorso dell'app possa ancora arrivarci. Resta solo `renderPaywall`,
+  basato sul conteggio consensi reale.
+- **Account studio email+password vero** (Supabase Auth, via `fetch`
+  diretto alle API GoTrue — niente SDK, coerente con il resto dell'app):
+  al primo avvio, se Supabase è configurato e il dispositivo non ha
+  ancora un'identità di licenza, appare `renderStudioAccountSetup()`
+  invece del vecchio percorso silenzioso a UUID anonimo. Vedi
+  "Due livelli di credenziali" più sotto (ora un terzo livello, tenuto
+  volutamente separato dagli altri due) e il nuovo file
+  `supabase-auth-dispositivi.sql`.
+- **Limite di 2 dispositivi per studio**: riusa `licenza_dispositivi`
+  (già esistente per il conteggio consensi) per contare anche i device
+  attivi per uno studio autenticato; un terzo dispositivo mostra un
+  messaggio chiaro (`renderDeviceLimitBlock`) invece di sbloccarsi in
+  silenzio. Backup/ripristino (già in app) resta il modo per spostare i
+  dati tra i 2 dispositivi consentiti — nessuna sync automatica aggiunta.
+- **Bottom bar mobile aggiunta** (in più, non al posto del menu
+  laterale), con le stesse voci principali e icone, pattern coerente
+  con InkAnimus/VolleyTeam Manager.
+- **"Richiesta preventivo" tornata voce di primo livello**: la causa
+  reale per cui sembrava "sepolta nelle Impostazioni" era
+  `FEATURES.richieste: false`, che nascondeva l'intera sezione di menu
+  — corretto alla radice (`true`), non solo spostata.
+- **Impostazioni riorganizzate in blocchi a fisarmonica** (accordion,
+  più sezioni apribili insieme): stesso contenuto di prima, stesso
+  ordine delle card esistenti, solo raggruppato in 7 blocchi tematici
+  invece di un'unica lista lunga.
+- **Testo ddl melanoma riscritto**: non più "aggiornalo tu quando esce
+  il decreto", ma corretto — finché non è operativo l'app usa i moduli
+  per regione già implementati, quando lo sarà è un aggiornamento
+  dell'app (non dello studio) a passare al consenso unico nazionale; i
+  consensi già firmati restano storicizzati con la versione regionale
+  con cui sono stati firmati (`informativaVersion`, logica invariata).
+- **Verificati due residui del terzo giro, entrambi già a posto**: il
+  campo "URL pubblico dell'app" non è tornato nelle Impostazioni (URL e
+  config Supabase restano valori fissi da deploy); i due avvisi
+  testuali email/password (account studio vs sblocco locale) erano già
+  presenti nella schermata di onboarding.
+
+Nessun test dal vivo in browser in questo giro (l'estensione Chrome non
+era connessa in questo ambiente): verifica solo statica — sintassi JS
+(`new Function` sull'intero script estratto), bilanciamento parentesi
+CSS, e controlli incrociati `var(--x)`↔`--x:`, `data-action`↔handler,
+`icon("x")`↔`ICON_PATHS`. Da testare dal vivo su
+`inkonsens-studio.pages.dev` prima di considerarlo definitivo.
+
+## Correzioni del terzo giro (non nuove funzionalità)
 
 Giro di lavoro dedicato solo a correggere il giro precedente (restyling +
 Supabase + piani), non ad aggiungere altro:
@@ -46,7 +108,7 @@ Supabase + piani), non ad aggiungere altro:
   credenziali, mai mescolati" più sotto, che include anche cosa ho
   verificato prima di toccare codice su questo punto.
 
-## Novità del giro precedente (fix + migliorie)
+## Novità del secondo giro (fix + migliorie)
 
 **Tolto**
 - La sync del consenso completo su Supabase (`maybeSyncToSupabase`,
@@ -65,7 +127,7 @@ Supabase + piani), non ad aggiungere altro:
   (`GEMBUCHER_CONTATTO`, **da compilare** con whatsapp/email veri prima
   di andare in produzione — vuoto di default, il pulsante resta
   nascosto finché non lo riempi). SQL per la colonna `piano` su
-  `licenza_studi` in [`supabase-licenza.sql`](./supabase-licenza.sql)
+  `licenza_studi` in [`supabase-licenza.sql`](./prompt%20e%20sql/supabase-licenza.sql)
   (blocco 2), spostato lì insieme a tutto il resto dell'SQL della
   licenza — nel README diventava troppo lungo da seguire.
 - **Banner prova gratuita**: barra di avanzamento "X di 10" in Archivio
@@ -392,26 +454,30 @@ perché i nomi nell'interfaccia potevano sembrare la stessa cosa:
    non c'è una password associata, non identifica una persona, serve
    solo a distinguere uno studio dall'altro nel pannello di gestione.
 
-**Verifica fatta prima di scrivere codice** (come richiesto nel giro di
-lavoro che ha aggiunto questa nota): nell'app non esiste, e non è mai
-esistito, un vero "account studio" con email e password lato Supabase —
-l'idea era di usarlo per identificare piano/abbonamento, ma costruirlo
-oggi (Supabase Auth, verifica email, schermata di login dedicata) è
-un'infrastruttura nuova, non una correzione, e quel giro di lavoro era
-esplicitamente limitato a correzioni. Quello che già esiste e resta
-sufficiente per lo scopo — sapere quale studio sta scrivendo per
-attivarsi — è il codice licenza sopra: nel muro del piano gratuito
-(vedi sotto) il pulsante di ogni piano apre WhatsApp con "Sono
-[studio], ID studio [codice], voglio attivare [piano]", e chi gestisce
-gli abbonamenti verifica quel codice su Supabase prima di attivare a
-mano. Se un domani servirà davvero un account con login proprio, è un
-lavoro a parte, consapevole, non un effetto collaterale di aver
-rinominato due campi.
+**Aggiornamento (giro successivo a questa nota)**: da questo giro esiste
+anche un vero **account studio email+password** via Supabase Auth (primo
+avvio → `renderStudioAccountSetup()` in `index.html`, se Supabase è
+configurato), usato **solo** per riconoscere lo stesso studio su più
+dispositivi e applicare il limite di 2 dispositivi per studio (vedi
+sotto) — non per il conteggio consensi in sé, che resta come descritto
+sopra. Resta comunque **un terzo livello di credenziali**, separato dai
+due precedenti: la password dell'account studio serve solo a Supabase
+(gestione abbonamento/dispositivi), non apre mai l'app sul dispositivo
+(quello resta *sempre* il nome di accesso locale al punto 1) e non deve
+mai coincidere con esso — la schermata di creazione account lo ricorda
+a video, così come la schermata di sblocco locale ricorda di non
+riusare la password dell'account studio (vedi Task 8, entrambi gli
+avvisi sono solo testuali, nessun controllo automatico che le confronti).
+Per gli studi che non configurano Supabase, o che non completano la
+creazione dell'account, resta valido il percorso legacy descritto sopra
+(UUID anonimo generato dal dispositivo, nessun login) — `licenseIds()`
+usa l'account autenticato quando c'è, altrimenti ricade su quello.
 
 Per adesso, l'unica cosa che serve è **non far mai coincidere** nome e
-password di sblocco locale con qualunque credenziale usi altrove: sono
-in due punti dell'interfaccia apposta separati, con un avviso a schermo
-nella schermata "Accesso e credenziali" che lo ricorda.
+password di sblocco locale con qualunque credenziale usi altrove (né
+con quella dell'account studio, né con altro): sono in punti
+dell'interfaccia apposta separati, con avvisi a schermo che lo
+ricordano.
 
 ## Consensi gratuiti e licenza (opzionale, Supabase)
 
@@ -433,7 +499,7 @@ dei consensi (vedi sezione sopra). Queste due tabelle di licenza sono
 l'unico punto di contatto fra questa app e un server.
 
 Tutto l'SQL (9 blocchi commentati, eseguibili in ordine dall'inizio alla
-fine) sta in **[`supabase-licenza.sql`](./supabase-licenza.sql)**, non
+fine) sta in **[`supabase-licenza.sql`](./prompt%20e%20sql/supabase-licenza.sql)**, non
 qui nel README: sono ~230 righe di SQL, tenerle inline rendeva il file
 illeggibile. Incollalo nell'SQL editor di Supabase (stesso progetto
 della sezione sopra, o uno dedicato) e eseguilo — o blocco per blocco se
@@ -458,6 +524,17 @@ funziona comunque, solo interamente locale: puoi anche sbloccarlo
 manualmente per un singolo dispositivo dal pulsante "Segna abbonamento
 come attivo" nelle Impostazioni, utile in fase di test o finché non
 colleghi un vero sistema di pagamento.
+
+**Account studio + limite dispositivi**: un secondo file, **[`supabase-auth-dispositivi.sql`](./prompt%20e%20sql/supabase-auth-dispositivi.sql)**,
+tenuto apposta separato da `supabase-licenza.sql` (non lo sostituisce,
+non lo tocca) aggiunge l'account studio email+password vero (Supabase
+Auth) e il limite di **massimo 2 dispositivi per studio in
+contemporanea** (riusa `licenza_dispositivi`, la stessa tabella del
+conteggio consensi, per contare anche i device attivi). Vai eseguito
+*dopo* `supabase-licenza.sql`, almeno una volta. Senza questo secondo
+file, o senza Supabase configurato, l'app resta comunque utilizzabile:
+niente account, niente limite dispositivi, solo il percorso legacy a
+UUID anonimo per la licenza.
 
 ### Due modelli di business, entrambi supportati dal codice così com'è
 

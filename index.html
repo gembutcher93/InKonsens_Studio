@@ -227,6 +227,25 @@ button{font-family:inherit;}
 }
 .card + .card{margin-top:18px;}
 .card > .section-title:first-child,.card > h3:first-child{margin-top:0;}
+
+/* ---------- accordion (Impostazioni) ----------
+   Ogni gruppo tematico si apre/chiude sul titolo; più gruppi possono
+   restare aperti insieme. Le card dentro restano identiche, solo
+   raggruppate — vedi accOpen()/accClose() in index.html. */
+.accordion{margin-bottom:14px;}
+.accordion-header{
+  all:unset;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  width:100%;padding:16px 18px;background:var(--paper-raised);border:1px solid var(--line-soft);
+  border-radius:var(--radius-md);box-sizing:border-box;
+}
+.accordion-header:hover{border-color:var(--line);}
+.accordion-head-text{display:flex;flex-direction:column;gap:2px;text-align:left;}
+.accordion-head-text b{font-family:var(--font-display);font-size:15.5px;font-weight:600;letter-spacing:-.005em;}
+.accordion-head-text small{font-size:12px;color:var(--ink-faint);}
+.accordion-chevron{flex:none;color:var(--ink-faint);transition:transform .18s ease;}
+.accordion-chevron.open{transform:rotate(180deg);color:var(--stencil);}
+.accordion-body{display:none;padding-top:14px;}
+.accordion-body.open{display:block;}
 .field{margin-bottom:16px;}
 .field label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;}
 .field .hint{font-size:12px;color:var(--ink-faint);margin-top:4px;}
@@ -539,14 +558,6 @@ select{
   display:flex;align-items:center;justify-content:center;}
 .premium-title{color:var(--ink);font-size:22px;margin:0 0 12px;}
 .premium-desc{color:#C4BBB0;font-size:14px;line-height:1.6;margin:0 auto 22px;max-width:440px;}
-.premium-features{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 auto 24px;max-width:440px;text-align:left;}
-.pf{background:rgba(255,255,255,.06);border-radius:var(--radius-md);padding:12px 14px;font-size:13px;
-  display:flex;align-items:center;gap:10px;line-height:1.35;}
-.pf .ic{color:var(--flesh);}
-.premium-cta{background:rgba(201,143,108,.15);border:1px solid var(--flesh);border-radius:12px;padding:16px;margin-bottom:20px;}
-.premium-cta p{margin:0;font-size:14px;line-height:1.5;}
-.premium-unlock{border-top:1px solid rgba(255,255,255,.1);padding-top:18px;}
-@media (max-width:600px){ .premium-features{grid-template-columns:1fr;} }
 .only-print{display:none;}
 @media print{
   .rail, .mobile-topbar, .no-print, .topbar button{display:none !important;}
@@ -673,7 +684,7 @@ select{
 @media (max-width:860px){
   .rail{position:fixed;left:0;top:0;bottom:0;transform:translateX(-100%);transition:transform .25s ease;z-index:41;}
   .rail.open{transform:translateX(0);box-shadow:20px 0 40px rgba(0,0,0,.35);}
-  .main{padding:20px 16px 60px;}
+  .main{padding:20px 16px calc(78px + env(safe-area-inset-bottom, 0px));}
   .mobile-topbar{
     display:flex !important;position:sticky;top:0;z-index:30;
     margin:-20px -16px 16px;padding:10px 16px;
@@ -682,8 +693,32 @@ select{
   }
   .mobile-topbar .mt-name{font-family:var(--font-mono);font-size:11px;letter-spacing:.05em;
     color:var(--ink-faint);text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .bottom-bar{display:flex;}
 }
 .mobile-topbar{display:none;align-items:center;gap:12px;margin-bottom:18px;}
+/* ---------- bottom bar (mobile) ----------
+   Stesso linguaggio visivo del rail (superficie --stamp, accento
+   viola), stesse voci principali con icone — pattern coerente con le
+   altre app dello stesso autore (InkAnimus, VolleyTeam Manager). Il
+   rail resta comunque raggiungibile dal bottone menu per tutto il
+   resto: qui solo le 5 sezioni più usate. */
+.bottom-bar{
+  display:none;position:fixed;left:0;right:0;bottom:0;z-index:35;
+  background:var(--stamp);border-top:1px solid rgba(255,255,255,.08);
+  padding:8px 6px calc(8px + env(safe-area-inset-bottom, 0px));
+  justify-content:space-around;align-items:stretch;gap:2px;
+  box-shadow:0 -8px 24px -8px rgba(0,0,0,.4);
+}
+.bottom-bar-btn{
+  all:unset;cursor:pointer;flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;
+  gap:3px;padding:6px 2px;border-radius:8px;color:#9A9188;text-align:center;
+  transition:color .12s ease,background .12s ease;
+}
+.bottom-bar-btn .bb-label{font-size:10px;letter-spacing:.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
+.bottom-bar-btn .bb-ic{position:relative;display:inline-flex;}
+.bottom-bar-btn.active{color:var(--stencil);background:rgba(150,101,154,.14);}
+.bottom-bar-btn:active{transform:scale(.96);}
+.bb-badge{position:absolute;top:-6px;right:-10px;margin:0;font-size:9px;padding:1px 5px;}
 .rail-backdrop{
   display:none;position:fixed;inset:0;background:rgba(20,18,16,.45);z-index:40;
 }
@@ -1104,7 +1139,11 @@ const SUPABASE_CONFIG = {
    Chi le consulenze le fa in studio (e chiede la caparra di persona)
    lo tiene spento, ma il codice resta e si riaccende con true.   */
 const FEATURES = {
-  richieste: false,
+  // era spento: risultato, "Richieste preventivo" non compariva mai come
+  // voce di menu, solo il link pubblico nelle Impostazioni restava visibile
+  // — sembrava "sepolto lì" perché di fatto lo era. Acceso: la sezione
+  // torna una voce di primo livello nel rail (gruppo "Preventivo").
+  richieste: true,
 };
 
 /* ---------- reference data ----------
@@ -1802,18 +1841,149 @@ function uuidv4(){
   const h = Array.from(b, x => x.toString(16).padStart(2, "0"));
   return `${h.slice(0,4).join("")}-${h.slice(4,6).join("")}-${h.slice(6,8).join("")}-${h.slice(8,10).join("")}-${h.slice(10,16).join("")}`;
 }
-/* studioId/deviceId: chiavi opache generate una volta sola, per la sola
-   licenza. Non hanno nulla a che fare con l'"ID studio" mnemonico che il
-   titolare sceglie per il blocco d'accesso locale (vedi AUTH_KEY):
-   quello lo digita una persona, questo lo genera il dispositivo. */
+/* studioId/deviceId: chiavi opache per la sola licenza. Non hanno nulla
+   a che fare con l'"ID studio" mnemonico che il titolare sceglie per il
+   blocco d'accesso locale (vedi AUTH_KEY): quello lo digita una
+   persona, questo lo genera il dispositivo (o lo eredita da un vero
+   account studio autenticato, se c'è — vedi loadStudioAccount sotto).
+   Due percorsi coesistono apposta, per non rompere gli studi già
+   attivi prima che esistesse un account vero:
+     - autenticato: studioId = l'id dell'utente Supabase Auth (stabile,
+       condiviso tra i dispositivi che fanno login con le stesse
+       credenziali — è quello che rende possibile il limite dispositivi).
+     - anonimo (legacy): studioId generato a caso da QUESTO dispositivo,
+       comportamento invariato rispetto a prima. */
 function licenseIds(){
+  const account = loadStudioAccount();
   let ids = null;
   try { ids = JSON.parse(localStorage.getItem(LICENSE_IDS_KEY)); } catch(e){ /* prima volta */ }
+  if (account && account.userId){
+    if (!ids || ids.studioId !== account.userId || !ids.deviceId){
+      ids = { studioId: account.userId, deviceId: (ids && ids.deviceId) || uuidv4() };
+      localStorage.setItem(LICENSE_IDS_KEY, JSON.stringify(ids));
+    }
+    return ids;
+  }
   if (!ids || !ids.studioId || !ids.deviceId){
     ids = { studioId: (ids && ids.studioId) || uuidv4(), deviceId: uuidv4() };
     localStorage.setItem(LICENSE_IDS_KEY, JSON.stringify(ids));
   }
   return ids;
+}
+/* true se questo dispositivo ha già un'identità di licenza (anonima o
+   autenticata): NON usa licenseIds() apposta, perché chiamarla la
+   genererebbe subito — qui serve sapere se esisteva GIA' PRIMA, per
+   decidere se mostrare la schermata di creazione account studio. */
+function hasLocalLicenseIdentity(){
+  try { return !!localStorage.getItem(LICENSE_IDS_KEY) || !!localStorage.getItem(STUDIO_ACCOUNT_KEY); }
+  catch(e){ return true; } // se localStorage non è leggibile, non blocchiamo l'avvio con una schermata in più
+}
+
+/* ============================================================
+   ACCOUNT STUDIO — email+password vero, via Supabase Auth (REST
+   diretto, niente SDK supabase-js: l'app resta offline-first, zero
+   librerie in più da scaricare). Serve SOLO a identificare lo studio
+   per l'abbonamento/piano e per il limite di 2 dispositivi — non è
+   collegato in alcun modo al blocco di accesso locale del dispositivo
+   (AUTH_KEY): sono due sistemi di credenziali separati apposta, vedi
+   README "Due livelli di credenziali, mai mescolati".
+   ============================================================ */
+const STUDIO_ACCOUNT_KEY = "inkconsent_account_v1"; // { userId, email, access_token, refresh_token, expires_at }
+function loadStudioAccount(){ try { return JSON.parse(localStorage.getItem(STUDIO_ACCOUNT_KEY)); } catch(e){ return null; } }
+function saveStudioAccount(a){ localStorage.setItem(STUDIO_ACCOUNT_KEY, JSON.stringify(a)); }
+function clearStudioAccount(){ localStorage.removeItem(STUDIO_ACCOUNT_KEY); }
+
+function supabaseAuthUrl(path){ return `${SUPABASE_CONFIG.url}/auth/v1/${path}`; }
+async function supabaseAuthRequest(path, body){
+  const res = await fetch(supabaseAuthUrl(path), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "apikey": SUPABASE_CONFIG.anonKey },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error_description || data.msg || data.error || data.error_code || "Errore imprevisto.");
+  return data;
+}
+function supabaseSignUp(email, password){ return supabaseAuthRequest("signup", { email, password }); }
+function supabaseSignIn(email, password){ return supabaseAuthRequest("token?grant_type=password", { email, password }); }
+function supabaseRefreshSession(refresh_token){ return supabaseAuthRequest("token?grant_type=refresh_token", { refresh_token }); }
+
+function accountFromAuthResponse(data){
+  return {
+    userId: data.user && data.user.id,
+    email: data.user && data.user.email,
+    access_token: data.access_token || null,
+    refresh_token: data.refresh_token || null,
+    expires_at: data.access_token ? Date.now() + ((data.expires_in || 3600) * 1000) : null,
+  };
+}
+/* Token valido per chiamare le funzioni "autenticate" (registra_dispositivo_autenticato
+   e affini): lo rinfresca da solo se scaduto. Torna null se non c'è un
+   account studio o se la sessione non è più recuperabile (in quel caso
+   l'app resta comunque usabile in locale: qui non si blocca mai nulla
+   per un problema di rete). */
+async function validStudioAccessToken(){
+  const acc = loadStudioAccount();
+  if (!acc || !acc.userId) return null;
+  if (acc.access_token && acc.expires_at && Date.now() < acc.expires_at - 30000) return acc.access_token;
+  if (!acc.refresh_token) return acc.access_token || null;
+  try {
+    const fresh = await supabaseRefreshSession(acc.refresh_token);
+    const updated = { ...acc, ...accountFromAuthResponse(fresh) };
+    saveStudioAccount(updated);
+    return updated.access_token;
+  } catch(e){ console.warn("Rinnovo sessione account studio fallito:", e); return null; }
+}
+
+/* Registra (o rinnova) il dispositivo corrente per lo studio autenticato
+   e applica il limite di 2. No-op innocuo se Supabase non è configurato
+   o lo studio è ancora sul percorso anonimo legacy: in quei casi l'app
+   resta usabile senza alcun limite, come sempre finora. */
+async function registraDispositivoCorrente(){
+  if (!SUPABASE_CONFIG.url) return { consentito: true };
+  const token = await validStudioAccessToken();
+  if (!token) return { consentito: true };
+  const { deviceId } = licenseIds();
+  const nomeDispositivo = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "Dispositivo";
+  try {
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/registra_dispositivo_autenticato`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_CONFIG.anonKey,
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify({ p_device_id: deviceId, p_nome_dispositivo: nomeDispositivo }),
+    });
+    if (!res.ok) return { consentito: true }; // errore lato server: non blocchiamo l'uso offline per questo
+    const rows = await res.json();
+    return (Array.isArray(rows) ? rows[0] : rows) || { consentito: true };
+  } catch(e){ console.warn("Registrazione dispositivo fallita, resto usabile offline:", e); return { consentito: true }; }
+}
+async function elencoDispositiviStudio(){
+  const token = await validStudioAccessToken();
+  if (!token) return [];
+  try {
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/lista_dispositivi_studio`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${token}` },
+      body: "{}",
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch(e){ return []; }
+}
+async function rimuoviDispositivoRemoto(deviceId){
+  const token = await validStudioAccessToken();
+  if (!token) return false;
+  try {
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/rimuovi_dispositivo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ p_device_id: deviceId }),
+    });
+    return res.ok;
+  } catch(e){ return false; }
 }
 
 const SUBSCRIPTION_KEY = "inkconsent_subscription_active_v1";
@@ -1994,27 +2164,10 @@ function upsertNeedle(item){
 function deleteNeedle(id){ saveNeedles(loadNeedles().filter(x => x.id !== id)); }
 function newId(){ return "x" + Math.random().toString(36).slice(2, 9); }
 
-/* ============================================================
-   PREMIUM GATE — la sezione consensi è "in vetrina" (Premium).
-   La dispensa/magazzino resta libera. Durante i test lo studio
-   sblocca con una password-master (hash sotto). Lo sblocco è
-   locale: NON è una protezione anti-pirateria (l'app gira sul
-   dispositivo), ma una vetrina per la fase di lancio. Il blocco
-   "vero" arriverà con la verifica licenza lato Supabase.
-   ============================================================ */
-// Password master di sblocco test — SHA-256 di "P173-unlock" (cambiala se vuoi).
-// Per cambiarla: calcola lo sha256 della nuova password e incolla qui l'hash.
-const PREMIUM_MASTER_HASH = "71d256a21f66e37d9847b59e9b1c688c169ca0e98178a9376348eb864adec4cf";
-const PREMIUM_KEY = "inkconsent_premium_v1";
-const PREMIUM_VIEWS = ["form", "archive", "registro", "leads", "lead-detail", "import", "agenda", "waitlist", "contabilita"];
-function premiumUnlocked(){ try { return localStorage.getItem(PREMIUM_KEY) === "1"; } catch(e){ return false; } }
-function setPremiumUnlocked(v){ if (v) localStorage.setItem(PREMIUM_KEY, "1"); else localStorage.removeItem(PREMIUM_KEY); }
-async function checkMasterPassword(pw){
-  // accetta sia l'hash configurato sia una password di comodo per il primo test
-  const h = await sha256((pw||"").trim());
-  return h === PREMIUM_MASTER_HASH || (pw||"").trim() === "P173-unlock";
-}
-function isPremiumView(v){ return PREMIUM_VIEWS.includes(v); }
+/* Il vecchio gate "Premium a password" (vetrina di lancio con password
+   master) è stato rimosso del tutto: c'è solo il muro del piano gratuito
+   (renderPaywall), basato sul conteggio consensi reale, non un codice
+   di sblocco condiviso. Vedi README, "Correzioni" per il perché. */
 
 /* ---- FORNITURE (dispensa): guanti, pellicole, disinfettanti, ecc. ----
    Ogni articolo tiene la quantità corrente + movimenti (carico/scarico).
@@ -2700,11 +2853,13 @@ function render(){
   if (state.mode === "aftercare") root.innerHTML = renderAftercarePage();
   else if (state.mode === "client") root.innerHTML = renderClientShell();
   else if (state.mode === "richiesta") root.innerHTML = renderLeadShell();
+  else if (state.needsStudioAccount) root.innerHTML = renderStudioAccountSetup();
   else if (state.showTour) root.innerHTML = renderTour();
   else if (state.needsTerms) root.innerHTML = renderTerms();
   else if (state.needsSetup) root.innerHTML = renderFirstRunSetup();
   else if (state.locked) root.innerHTML = renderLockScreen();
   else if ((guestSessionState()||{}).scaduto) root.innerHTML = renderGuestGate();
+  else if (state.deviceLimitBlock) root.innerHTML = renderDeviceLimitBlock();
   else root.innerHTML = renderStudioShell();
   afterRender();
 }
@@ -2848,6 +3003,73 @@ function renderTour(){
   </div>`;
 }
 
+/* ============================================================
+   ACCOUNT STUDIO — email+password vero, il PRIMO passo al primo avvio
+   quando Supabase è configurato (vedi boot()). Crea/riconosce lo studio
+   su licenza_studi via Supabase Auth. Livello di credenziali diverso e
+   separato dal blocco d'accesso locale che segue subito dopo (vedi
+   renderFirstRunSetup) — vedi anche README "Due livelli di credenziali".
+   ============================================================ */
+function renderStudioAccountSetup(){
+  const modo = state.accountMode || "signup";
+  const b = state.accountBuffer || {};
+  if (state.accountNeedsConfirm){
+    return `
+    <div class="lock-wrap">
+      <div class="lock-card">
+        <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+        <h2 class="lock-title">Controlla la tua email</h2>
+        <p class="lock-sub">Ti abbiamo mandato un link di conferma a <b>${esc(b.email||"")}</b>. Apri quel link, poi torna qui e accedi con email e password.</p>
+        <div class="btn-row" style="justify-content:center;">
+          <button class="btn btn-accent" data-action="account-goto-signin">Ho confermato, accedi</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  return `
+  <div class="lock-wrap">
+    <div class="lock-card">
+      <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+      <h2 class="lock-title">${modo === "signup" ? "Crea l'account studio" : "Accedi all'account studio"}</h2>
+      <p class="lock-sub">${modo === "signup"
+        ? "Email e password servono a creare l'identità del tuo studio per gestire l'abbonamento (piano gratuito/SoloPro/StudioPro/AtelierPro): vanno su Supabase, il gestore dell'abbonamento."
+        : "Stai aggiungendo un secondo dispositivo a uno studio già registrato? Accedi con le stesse credenziali: massimo 2 dispositivi per studio."}</p>
+      ${state.accountError ? `<p class="lock-err">${esc(state.accountError)}</p>` : ""}
+      <div class="login-fields">
+        <input type="email" class="login-input" placeholder="Email dello studio" value="${esc(b.email||'')}" data-account-field="email" autocomplete="email">
+        <input type="password" class="login-input" placeholder="Password" value="${esc(b.password||'')}" data-account-field="password" autocomplete="${modo==='signup'?'new-password':'current-password'}">
+        ${modo === "signup" ? `<input type="password" class="login-input" placeholder="Ripeti password" value="${esc(b.password2||'')}" data-account-field="password2" autocomplete="new-password">` : ""}
+      </div>
+      <div class="btn-row" style="justify-content:center;">
+        <button class="btn btn-accent" data-action="${modo === 'signup' ? 'account-signup' : 'account-signin'}" ${state.accountBusy ? "disabled" : ""}>${state.accountBusy ? "Un momento…" : (modo === "signup" ? "Crea account" : "Accedi")}</button>
+      </div>
+      <p class="lock-hint">
+        ${modo === "signup"
+          ? `Hai già un account studio (secondo dispositivo)? <a data-action="account-goto-signin">Accedi</a>.`
+          : `Primo dispositivo di questo studio? <a data-action="account-goto-signup">Crea l'account</a>.`}
+      </p>
+      <div class="callout info" style="margin-top:16px;text-align:left;">Questo account <b>non c'entra</b> con il nome/password che sceglierai subito dopo per sbloccare l'app su questo dispositivo (quello resta sempre e solo locale, mai su Supabase): usa credenziali diverse tra i due, per non rendere banale risalire dall'una all'altra.</div>
+    </div>
+  </div>`;
+}
+
+function renderDeviceLimitBlock(){
+  const info = state.deviceLimitBlock || {};
+  return `
+  <div class="lock-wrap">
+    <div class="lock-card">
+      <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+      <h2 class="lock-title">Limite dispositivi raggiunto</h2>
+      <p class="lock-sub">${esc(info.messaggio || "Hai già raggiunto il limite di 2 dispositivi per questo studio.")}</p>
+      <p class="lock-hint">Per continuare qui, rimuovi un dispositivo dall'account (da un dispositivo già attivo, Impostazioni → "Account studio e dispositivi"), poi ricarica questa pagina. Il backup/ripristino resta il modo per spostare i dati tra i dispositivi consentiti.</p>
+      <div class="btn-row" style="justify-content:center;">
+        <button class="btn btn-ghost" data-action="device-limit-retry">Ho liberato un posto, riprova</button>
+        <button class="btn btn-ghost" data-action="account-sign-out">Esci da questo account</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderFirstRunSetup(){
   const b = state.setupBuffer || {};
   // Fase 2: mostra il codice di recupero generato, da conservare
@@ -2891,6 +3113,7 @@ function renderFirstRunSetup(){
         <button class="btn btn-accent" data-action="setup-create">Crea e continua</button>
       </div>
       <p class="lock-hint">Al passo successivo riceverai un codice di recupero, utile se dimentichi la password.</p>
+      ${loadStudioAccount() ? `<div class="callout info" style="margin-top:16px;text-align:left;">Questo ID/password sbloccano <b>solo questo dispositivo</b> e restano sempre in locale: usane uno diverso dall'email/password del tuo account studio (${esc(loadStudioAccount().email||"")}), per non rendere banale risalire dall'uno all'altro.</div>` : ""}
     </div>
   </div>`;
 }
@@ -3116,7 +3339,30 @@ function renderStudioShell(){
       </div>
       <div id="studio-main" class="${state.privacyBlur ? 'privacy-blurred' : ''}">${renderStudioView()}</div>
     </div>
+    ${!isGuest ? renderBottomBar() : ""}
   </div>`;
+}
+/* Bottom bar mobile: stesse voci principali del rail, con icone, sempre
+   visibile sotto agli 860px — il rail resta comunque raggiungibile col
+   bottone menu per tutto il resto (Registro, Contabilità, Statistiche,
+   Impostazioni...). Max 5 voci per restare leggibile su schermo piccolo. */
+function renderBottomBar(){
+  const nuoveLeads = loadRichieste().filter(l => l.status === "nuova").length;
+  const items = [
+    { view: "agenda",   icon: "calendar",  label: "Agenda" },
+    { view: "archive",  icon: "clipboard", label: "Consensi" },
+    { view: "leads",    icon: "chat",      label: "Preventivi", badge: nuoveLeads, hidden: !FEATURES.richieste },
+    { view: "magazzino",icon: "box",       label: "Magazzino" },
+    { view: "settings", icon: "gear",      label: "Impostazioni" },
+  ].filter(it => !it.hidden).slice(0, 5);
+  return `
+  <nav class="bottom-bar">
+    ${items.map(it => `
+      <button class="bottom-bar-btn ${state.view===it.view || (it.view==='leads' && state.view==='lead-detail') ?'active':''}" data-action="nav" data-view="${it.view}">
+        <span class="bb-ic">${icon(it.icon,20)}${it.badge ? `<span class="nav-badge bb-badge">${it.badge}</span>` : ""}</span>
+        <span class="bb-label">${it.label}</span>
+      </button>`).join("")}
+  </nav>`;
 }
 /* Viste fuori portata per un guest attivo: se lo stato punta lì
    comunque (link vecchio, stato residuo), si ricade sull'agenda. */
@@ -3132,8 +3378,6 @@ function renderStudioView(){
   if (state.view === "waitlist") return renderWaitlist();
   if (state.view === "contabilita") return renderContabilita();
   if (state.view === "guest-consensi") return renderGuestConsensi();
-  // sezione consensi: in vetrina Premium finché non sbloccata
-  if (isPremiumView(state.view) && !premiumUnlocked()) return renderPremiumGate();
   if (state.view === "paywall") return renderPaywall();
   if (state.view === "form" && draft) return renderStudioForm();
   if (state.view === "leads") return renderLeads();
@@ -3143,45 +3387,6 @@ function renderStudioView(){
   return renderArchive();
 }
 
-function renderPremiumGate(){
-  return `
-  <div class="topbar"><div><h1>Consensi informati</h1><p>Funzione Premium</p></div></div>
-  <div class="main-inner">
-    <div class="premium-card">
-      <div class="premium-badge">PREMIUM</div>
-      <div class="premium-lock">${icon("lock",26)}</div>
-      <h2 class="premium-title">La gestione dei consensi informati è in arrivo</h2>
-      <p class="premium-desc">
-        Compilazione guidata, firma del cliente sul proprio telefono, controfirma in studio,
-        archivio ricercabile, registro per i controlli e PDF professionale pronto da archiviare.
-        Tutto conforme e a norma, offline e sul tuo dispositivo.
-      </p>
-      <div class="premium-features">
-        <div class="pf">${icon("clipboard",18)} Consenso in due fasi (cliente + studio)</div>
-        <div class="pf">${icon("signature",18)} Firma digitale e controfirma</div>
-        <div class="pf">${icon("folder",18)} Archivio + registro a norma</div>
-        <div class="pf">${icon("doc",18)} Esportazione PDF professionale</div>
-      </div>
-      <div class="premium-cta">
-        <p><b>Vuoi attivarla per il tuo studio?</b><br>Contatta ${esc(STUDIO_CONFIG.studioName)} per il pacchetto completo.</p>
-      </div>
-      <div class="premium-unlock">
-        ${state.premiumError ? `<p class="lock-err" style="color:var(--warn);">${esc(state.premiumError)}</p>` : ""}
-        <button class="btn btn-ghost btn-sm" data-action="premium-show-unlock">Ho un codice di sblocco</button>
-        ${state.showPremiumUnlock ? `
-          <div style="display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap;">
-            <input type="password" class="login-input" style="max-width:220px;" placeholder="Password di sblocco" value="${esc(state.premiumPw||'')}" data-premium-field="pw">
-            <button class="btn btn-accent btn-sm" data-action="premium-unlock">Sblocca</button>
-          </div>` : ""}
-      </div>
-    </div>
-  </div>`;
-}
-
-/* Gate dei consensi gratuiti: appare solo quando si prova ad archiviare
-   (controfirmare) il consenso che sfonda FREE_CONSENSI_LIMIT senza
-   abbonamento attivo. La bozza in corso resta salvata: appena l'abbonamento
-   risulta attivo, "Riprova ad archiviare" chiude il consenso normalmente. */
 /* Muro del limite gratuito: informativo e propositivo, non solo un
    blocco. Ogni piano ha un pulsante che apre WhatsApp verso GemBucher
    con studio + codice licenza + piano scelto, cosi' l'attivazione la
@@ -5117,6 +5322,68 @@ document.addEventListener("click", (e) => {
     render(); return;
   }
 
+  // --- account studio (email+password, Supabase Auth) ---
+  else if (action === "account-goto-signin"){ state.accountMode = "signin"; state.accountError = null; state.accountNeedsConfirm = false; render(); }
+  else if (action === "account-goto-signup"){ state.accountMode = "signup"; state.accountError = null; render(); }
+  else if (action === "account-signup"){
+    const b = state.accountBuffer || {};
+    const email = (b.email||"").trim(), pw = b.password||"", pw2 = b.password2||"";
+    if (!email || !email.includes("@")){ state.accountError = "Inserisci un'email valida."; render(); return; }
+    if (pw.length < 6){ state.accountError = "La password deve avere almeno 6 caratteri."; render(); return; }
+    if (pw !== pw2){ state.accountError = "Le due password non coincidono."; render(); return; }
+    state.accountBusy = true; state.accountError = null; render();
+    supabaseSignUp(email, pw).then(data => {
+      state.accountBusy = false;
+      if (data.access_token){
+        saveStudioAccount(accountFromAuthResponse(data));
+        state.needsStudioAccount = false; state.accountBuffer = null;
+        registraDispositivoCorrente().then(esito => {
+          if (esito && esito.consentito === false) state.deviceLimitBlock = esito;
+          render();
+        });
+      } else {
+        // conferma email richiesta dal progetto: nessuna sessione ancora
+        state.accountNeedsConfirm = true; render();
+      }
+    }).catch(err => { state.accountBusy = false; state.accountError = err.message; render(); });
+  }
+  else if (action === "account-signin"){
+    const b = state.accountBuffer || {};
+    const email = (b.email||"").trim(), pw = b.password||"";
+    if (!email || !pw){ state.accountError = "Inserisci email e password."; render(); return; }
+    state.accountBusy = true; state.accountError = null; render();
+    supabaseSignIn(email, pw).then(data => {
+      state.accountBusy = false;
+      saveStudioAccount(accountFromAuthResponse(data));
+      state.needsStudioAccount = false; state.accountBuffer = null;
+      registraDispositivoCorrente().then(esito => {
+        if (esito && esito.consentito === false) state.deviceLimitBlock = esito;
+        render();
+      });
+    }).catch(err => { state.accountBusy = false; state.accountError = err.message; render(); });
+  }
+  else if (action === "account-sign-out"){
+    clearStudioAccount();
+    state.deviceLimitBlock = null;
+    state.needsStudioAccount = true; state.accountMode = "signin";
+    render();
+  }
+  else if (action === "device-limit-retry"){
+    state.accountBusy = true; render();
+    registraDispositivoCorrente().then(esito => {
+      state.accountBusy = false;
+      if (esito && esito.consentito === false){ state.deviceLimitBlock = esito; }
+      else { state.deviceLimitBlock = null; }
+      render();
+    });
+  }
+  else if (action === "remove-dispositivo"){
+    rimuoviDispositivoRemoto(btn.dataset.id).then(() => elencoDispositiviStudio()).then(list => { state.deviceList = list; render(); });
+  }
+  else if (action === "refresh-device-list"){
+    elencoDispositiviStudio().then(list => { state.deviceList = list; render(); });
+  }
+
   // --- primo avvio: crea accesso ---
   if (action === "setup-create"){
     const b = state.setupBuffer || {};
@@ -5411,15 +5678,12 @@ document.addEventListener("click", (e) => {
     if (confirm("Eliminare questo ago dall'archivio?")){ deleteNeedle(btn.dataset.id); render(); }
   }
   else if (action === "inv-cancel"){ state.showInkForm = false; state.showNeedleForm = false; state.showFornForm = false; state.fornLoadMode = false; state.fornLoadId = null; state.editBuffer = {}; render(); }
-  else if (action === "premium-show-unlock"){ state.showPremiumUnlock = true; state.premiumError = null; render(); }
-  else if (action === "premium-unlock"){
-    checkMasterPassword(state.premiumPw||"").then(ok => {
-      if (ok){ setPremiumUnlocked(true); state.showPremiumUnlock = false; state.premiumPw = ""; state.premiumError = null; render(); }
-      else { state.premiumError = "Password di sblocco errata."; render(); }
-    });
-  }
-  else if (action === "premium-relock"){ setPremiumUnlocked(false); render(); }
   else if (action === "toggle-privacy-blur"){ state.privacyBlur = !state.privacyBlur; render(); }
+  else if (action === "toggle-accordion"){
+    const id = btn.dataset.id;
+    state.accordionOpen = { ...(state.accordionOpen||{}), [id]: !(state.accordionOpen && state.accordionOpen[id]) };
+    render();
+  }
 
   /* ---------- AGENDA ---------- */
   else if (action === "new-appuntamento"){ state.apptBuffer = blankAppuntamento(state.agendaData); render(); }
@@ -5700,6 +5964,8 @@ document.addEventListener("click", (e) => {
 
 document.addEventListener("input", (e) => {
   if (e.target.matches("[data-import-field]")){ state.importPaste = e.target.value; return; }
+  const accountField = e.target.dataset.accountField;
+  if (accountField){ state.accountBuffer = { ...(state.accountBuffer||{}), [accountField]: e.target.value }; return; }
   const loginField = e.target.dataset.loginField;
   if (loginField){
     if (loginField === "studioId" || loginField === "pw" || loginField === "pw2"){
@@ -5719,8 +5985,6 @@ document.addEventListener("input", (e) => {
   if (studioField){ state.studioBuffer = { ...(state.studioBuffer||{}), [studioField]: e.target.value }; return; }
   const invField = e.target.dataset.invField;
   if (invField){ state.editBuffer = { ...(state.editBuffer||{}), [invField]: e.target.value }; return; }
-  const premiumField = e.target.dataset.premiumField;
-  if (premiumField === "pw"){ state.premiumPw = e.target.value; return; }
   const authField = e.target.dataset.fieldAuth;
   if (authField){ state.authBuffer = { ...(state.authBuffer||{}), [authField]: e.target.value }; return; }
   const backupField = e.target.dataset.fieldBackup;
@@ -6004,7 +6268,16 @@ function initRichiestaMode(){
   applyStudioConfig();
   await caricaModuliEsterni();   // testi aggiornabili senza ripubblicare l'app
   if (state.mode === "studio"){
-    if (authIsSet()){
+    // primo avvio in assoluto, con Supabase configurato: prima di tutto
+    // l'account studio (email+password), che identifica lo studio per
+    // l'abbonamento e il limite dispositivi. Se Supabase non è
+    // configurato, o il dispositivo ha già un'identità di licenza
+    // (anche solo anonima, da prima di questa funzione), si salta
+    // direttamente al percorso di sempre — nessuna rottura per chi già
+    // usa l'app.
+    if (SUPABASE_CONFIG.url && !hasLocalLicenseIdentity()){
+      state.needsStudioAccount = true;
+    } else if (authIsSet()){
       // sicurezza prima di tutto: se c'è un accesso, l'app parte bloccata.
       state.locked = true;
     } else if (!tourDismissed()){
@@ -6032,6 +6305,13 @@ function initRichiestaMode(){
       const codice = (params.get("codice") || "").trim().toUpperCase();
       if (codice) attivaGuestDaCodice(codice);
     }
+    // limite dispositivi: solo per studi con un vero account autenticato
+    // (registraDispositivoCorrente è un no-op innocuo altrimenti, o se
+    // Supabase/la rete non rispondono — non blocca mai l'uso offline).
+    if (state.mode === "studio" && !state.needsStudioAccount && loadStudioAccount()){
+      const esito = await registraDispositivoCorrente();
+      if (esito && esito.consentito === false) state.deviceLimitBlock = esito;
+    }
   }
 
   if (state.mode === "client") await initClientMode();
@@ -6045,11 +6325,29 @@ if ("serviceWorker" in navigator){
   });
 }
 
+/* Impostazioni a fisarmonica: era un'unica lista lunga di card, ora
+   raggruppate per tema, ogni gruppo apri/chiudi cliccando il titolo.
+   Più gruppi possono restare aperti insieme (nessun vincolo "uno alla
+   volta" — scelta implementativa, la lista lunga sparisce comunque). */
+function accOpen(id, title, subtitle){
+  if (!state.accordionOpen) state.accordionOpen = { branding: true };
+  const isOpen = !!state.accordionOpen[id];
+  return `
+  <div class="accordion">
+    <button class="accordion-header" data-action="toggle-accordion" data-id="${id}" aria-expanded="${isOpen}">
+      <span class="accordion-head-text"><b>${esc(title)}</b>${subtitle ? `<small>${esc(subtitle)}</small>` : ""}</span>
+      <span class="accordion-chevron ${isOpen?'open':''}">${icon("chevronDown",18)}</span>
+    </button>
+    <div class="accordion-body ${isOpen?'open':''}">`;
+}
+function accClose(){ return `</div></div>`; }
+
 function renderSettings(){
   const cfg = { ...STUDIO_DEFAULTS, ...loadStudioOverrides(), ...(state.studioBuffer||{}) };
   return `
   <div class="topbar"><div><h1>Impostazioni studio</h1><p>Identità, artisti e link di compilazione in studio</p></div></div>
   <div class="main-inner">
+    ${accOpen("branding", "Studio e branding", "Identità, logo, colori, font, firma, aftercare")}
     <div class="card">
       <h3 class="section-title">Setup studio</h3>
       <p class="section-desc">Personalizza l'app con l'identità del tuo studio. Le modifiche restano su questo dispositivo e si applicano subito.</p>
@@ -6130,6 +6428,8 @@ function renderSettings(){
       </div>
       ${state.studioSaved ? `<div class="callout ok" style="margin-top:12px;">Impostazioni salvate e applicate.</div>` : ""}
     </div>
+    ${accClose()}
+    ${accOpen("consenso", "Consenso e testi legali", "Modulo, versione firmata, nota sul ddl melanoma")}
     <div class="card">
       <h3 class="section-title">Modulo di consenso</h3>
       <p class="section-desc">Scegli la Regione in cui lavori: al modulo base si aggiunge quello che quella Regione richiede. Le voci ancora senza testo usano il modulo base.</p>
@@ -6190,6 +6490,8 @@ function renderSettings(){
       <div class="kv"><span>Conservazione consensi</span><b>Almeno ${STUDIO_CONFIG.retentionYears} anni</b></div>
       <div class="kv"><span>Dati clienti</span><b>Solo su questo dispositivo (offline-first) — nessuna sync consensi su server</b></div>
     </div>
+    ${accClose()}
+    ${accOpen("cliente", "Comunicazione con il cliente", "Link di compilazione, link preventivo pubblico")}
     <div class="card">
       <h3 class="section-title">Link di compilazione per il cliente</h3>
       <p class="section-desc">Genera un consenso vuoto e condividi il link/QR: il cliente lo compila sul proprio telefono, in studio (touch-free, mentre prepari). A fine compilazione il suo telefono mostra un codice/QR da farti vedere: scansionalo (o incollalo) da "Importa consenso" e lo ritrovi in "Archivio" pronto per la controfirma. Nessun dato passa da un server: il trasferimento è solo quel codice, letto direttamente dal tuo dispositivo.</p>
@@ -6207,6 +6509,8 @@ function renderSettings(){
       <div class="kv"><span>Notifica push (ntfy.sh)</span><b>${NOTIFY_CONFIG.ntfyTopic ? "Attiva" : "Non configurata"}</b></div>
       ${!NOTIFY_CONFIG.ntfyTopic ? `<div class="callout info" style="margin-top:10px;">Senza notifica dovrai controllare tu la sezione "Richieste" di tanto in tanto. Per riceverle push sul telefono, vedi le istruzioni su <span class="mono">NOTIFY_CONFIG</span> nel codice — due minuti, nessun account.</div>` : ""}
     </div>
+    ${accClose()}
+    ${accOpen("sicurezza", "Sicurezza e accesso", "Blocco locale del dispositivo, account studio, dispositivi attivi")}
     <div class="card">
       <h3 class="section-title">Accesso e credenziali</h3>
       <p class="section-desc">Proteggi l'app con un nome e una password: se perdi il dispositivo, nessuno può aprire l'archivio dei clienti.</p>
@@ -6224,19 +6528,33 @@ function renderSettings(){
       ${state.authError ? `<div class="callout warn" style="margin-top:12px;">${esc(state.authError)}</div>` : ""}
     </div>
 
+    ${loadStudioAccount() ? `
+    <div class="card">
+      <h3 class="section-title">Account studio e dispositivi</h3>
+      <div class="kv"><span>Account</span><b>${esc(loadStudioAccount().email||"")}</b></div>
+      <p class="section-desc" style="margin-top:10px;">Massimo 2 dispositivi attivi per questo studio (telefono + iPad, iPad + PC — la combinazione che preferisci). Per aggiungerne un altro, accedi con le stesse credenziali sul nuovo dispositivo; per liberare un posto, rimuovine uno da qui.</p>
+      <div class="btn-row">
+        <button class="btn btn-ghost btn-sm" data-action="refresh-device-list">${state.deviceList ? "Aggiorna elenco" : "Mostra dispositivi attivi"}</button>
+        <button class="btn btn-ghost btn-sm" data-action="account-sign-out">Esci da questo account</button>
+      </div>
+      ${state.deviceList ? `
+      <div class="inv-list" style="margin-top:12px;">
+        ${!state.deviceList.length ? `<p class="field hint">Nessun dispositivo registrato ancora (verrà aggiunto al prossimo avvio).</p>` : state.deviceList.map(d => `
+        <div class="inv-row">
+          <div class="inv-main"><b>${esc(d.nome_dispositivo || "Dispositivo")}</b><span class="inv-sub">${d.id === licenseIds().deviceId ? "Questo dispositivo · " : ""}ultimo uso ${fmtDateTime(d.ultimo_utilizzo)}</span></div>
+          <div class="inv-actions">${d.id !== licenseIds().deviceId ? `<button class="btn btn-ghost btn-sm" data-action="remove-dispositivo" data-id="${d.id}">Rimuovi</button>` : ""}</div>
+        </div>`).join("")}
+      </div>` : ""}
+    </div>` : ""}
+    ${accClose()}
+    ${accOpen("guida", "Guida", "Rivedi la presentazione iniziale")}
     <div class="card">
       <h3 class="section-title">Tour di benvenuto</h3>
       <p class="section-desc">Rivedi la presentazione iniziale dell'app, utile per mostrarla a un collaboratore.</p>
       <button class="btn btn-ghost" data-action="review-tour">Rivedi il tour</button>
     </div>
-
-    <div class="card">
-      <h3 class="section-title">Sezione consensi (Premium)</h3>
-      <div class="kv"><span>Stato</span><b>${premiumUnlocked() ? "Sbloccata (modalità test)" : "In vetrina (bloccata)"}</b></div>
-      <p class="section-desc" style="margin-top:10px;">${premiumUnlocked() ? "La sezione consensi è attiva su questo dispositivo. Puoi ri-bloccarla per vedere come appare al pubblico." : "La sezione consensi è mostrata come Premium. Sbloccala dalla schermata Consensi con la password di test."}</p>
-      ${premiumUnlocked() ? `<button class="btn btn-ghost" data-action="premium-relock">Ri-blocca (torna alla vetrina)</button>` : ""}
-    </div>
-
+    ${accClose()}
+    ${accOpen("licenza", "Licenza e piano", "Consensi gratuiti, abbonamento, guest artist")}
     <div class="card">
       <h3 class="section-title">Licenza e consensi gratuiti</h3>
       ${renderTrialProgress(licenseState())}
@@ -6254,7 +6572,8 @@ function renderSettings(){
     </div>
 
     ${renderGuestSettingsCard()}
-
+    ${accClose()}
+    ${accOpen("altro", "Altro", "Backup, ripristino, nota legale")}
     <div class="card">
       <h3 class="section-title">Backup e ripristino</h3>
       <p class="section-desc">La gestione dei backup e l'esportazione dei PDF per mese sono state spostate dove servono davvero: in <b>Archivio</b>, sotto "Backup e archiviazione".</p>
@@ -6265,8 +6584,9 @@ function renderSettings(){
 
     <div class="card">
       <h3 class="section-title">Nota legale</h3>
-      <div class="callout warn">I testi di questo modulo sono trascritti dal modulo cartaceo dello studio, non da un modello standard. Il ddl melanoma introdurrà anche un decreto ministeriale con requisiti propri, non ancora pubblicato: quando uscirà, confronta i due testi con un professionista e aggiorna <span class="mono">informativaVersion</span> se serve unificarli.</div>
+      <div class="callout warn">I testi di questo modulo sono trascritti dal modulo cartaceo dello studio, non da un modello standard. Il ddl melanoma introdurrà anche un decreto ministeriale con un consenso unico nazionale, non ancora operativo: finché non lo sarà, l'app continua a usare i moduli per regione già implementati (motore <span class="mono">MODULI_REGIONALI</span>), non serve fare nulla da parte dello studio. Quando il decreto sarà operativo, sarà un aggiornamento dell'app — non lo studio — a passare al consenso unico nazionale, sostituendo la logica "scegli per regione". I consensi già firmati prima del cambio restano storicizzati con la versione/riferimento regionale con cui sono stati firmati: lo gestisce già <span class="mono">informativaVersion</span>, la logica di archiviazione non cambia.</div>
     </div>
+    ${accClose()}
   </div>`;
 }
 

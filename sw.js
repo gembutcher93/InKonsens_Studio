@@ -23,11 +23,18 @@
    via ogni riferimento a "Podere 173" dai default, due livelli di
    credenziali chiariti nel README. manifest.json e theme-color
    aggiornati al nuovo tema scuro.
+   v28: rimosso del tutto il vecchio gate "Premium a password" (bloccava
+   l'accesso a tutti i dispositivi nuovi, bug reale trovato testando su
+   inkonsens-studio.pages.dev); account studio vero email+password via
+   Supabase Auth con limite di 2 dispositivi; bottom bar mobile;
+   "Richieste preventivo" tornata voce di menu di primo livello;
+   Impostazioni riorganizzate in blocchi a fisarmonica; testo ddl
+   melanoma riscritto.
 
    Nota: i dati (consensi, magazzino) NON passano da qui. Stanno in
    IndexedDB sul dispositivo e il service worker non li tocca mai.   */
 
-const CACHE = "inkconsent-v27";
+const CACHE = "inkconsent-v28";
 
 const PRECACHE = [
   "./",
