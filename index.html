@@ -877,6 +877,24 @@ function loadStudioOverrides(){
   catch(e){ return {}; }
 }
 function saveStudioOverrides(o){ localStorage.setItem(STUDIO_STORE_KEY, JSON.stringify(o)); }
+/* Stato "live" delle Impostazioni studio: defaults + salvato + bozza in
+   corso di modifica (state.studioBuffer), stessa fusione usata da
+   renderSettings — fattorizzata qui perché serve anche fuori dal render
+   (input/click handler dei campi Artisti, prompt11 Task 1). */
+function studioCfgLive(){ return { ...STUDIO_DEFAULTS, ...loadStudioOverrides(), ...(state.studioBuffer||{}) }; }
+/* Array di nomi da artistsText (indice 0 = titolare/unico tatuatore).
+   artistsText resta il formato di storage (compatibile con tutto il
+   codice esistente che legge STUDIO_CONFIG.artists), ma da questo giro
+   in Impostazioni non è più un campo di testo libero da separare a
+   virgole: un campo per nome, vedi renderArtistiFields. */
+/* NIENTE filter(Boolean) qui: a differenza di STUDIO_CONFIG.artists
+   (che scarta le voci vuote, vedi applyStudioConfig), questo array
+   alimenta campi indicizzati (data-artista-idx) nell'editor di
+   Impostazioni — filtrare sposterebbe gli indici sotto le dita
+   dell'utente mentre svuota un campo per riscriverlo, sovrascrivendo
+   per errore il tatuatore successivo. Le voci vuote spariscono da sole
+   dal conteggio reale/piano quando lette altrove via .filter(Boolean). */
+function artistiArray(cfg){ return (cfg.artistsText||"").split(",").map(s => s.trim()); }
 
 const STUDIO_CONFIG = {
   informativaVersion: "v2.0 · modulo studio",
@@ -2490,23 +2508,36 @@ async function notifyNewRichiesta(r){
    salvata in locale sul dispositivo del cliente (upsertRichiesta) più
    la notifica ntfy — questo è solo un canale IN PIÙ, mai l'unico, per
    restare offline-first anche qui. Niente foto (referenceImg) inviata:
-   resta solo sul dispositivo del cliente.                             */
+   resta solo sul dispositivo del cliente.
+   tatuatore_id (prompt11, Task 2): valorizzata SOLO quando il cliente
+   non ha cambiato scelta rispetto al link condiviso (vedi
+   tatuatoreSceltoId in blankRichiesta/set-lead-tatuatore) — altrimenti
+   null, la gestione lato studio resta comunque per NOME
+   (puoAprireRichiesta), questo id è solo il collegamento verso
+   licenza_tatuatori lato Supabase, mai l'unica fonte di verità. Se
+   quell'id non risulta ancora registrato lato server (dispositivo del
+   tatuatore mai stato online dopo la creazione del profilo, vedi
+   registraTatuatoreCorrente), l'insert fallirebbe per violazione della
+   foreign key: si ritenta subito senza, così la richiesta arriva
+   comunque allo studio, solo senza quel collegamento. */
 async function inviaRichiestaSupabase(r){
   const studioId = params.get("studio");
   if (!SUPABASE_CONFIG.url || !studioId) return;
+  const payload = { ...r };
+  delete payload.referenceImg;
+  const post = (tatuatoreId) => fetch(`${SUPABASE_CONFIG.url}/rest/v1/richieste`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "apikey": SUPABASE_CONFIG.anonKey,
+      "Authorization": `Bearer ${SUPABASE_CONFIG.anonKey}`,
+      "Prefer": "return=minimal",
+    },
+    body: JSON.stringify({ id: r.id, studio_id: studioId, tatuatore_id: tatuatoreId, payload }),
+  });
   try {
-    const payload = { ...r };
-    delete payload.referenceImg;
-    await fetch(`${SUPABASE_CONFIG.url}/rest/v1/richieste`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": SUPABASE_CONFIG.anonKey,
-        "Authorization": `Bearer ${SUPABASE_CONFIG.anonKey}`,
-        "Prefer": "return=minimal",
-      },
-      body: JSON.stringify({ id: r.id, studio_id: studioId, payload }),
-    });
+    const res = await post(r.tatuatoreSceltoId || null);
+    if (!res.ok && r.tatuatoreSceltoId) await post(null);
   } catch(e){ console.warn("Invio richiesta a Supabase fallito, resta comunque salvata in locale sul telefono del cliente:", e); }
 }
 
@@ -2565,6 +2596,7 @@ function blankRichiesta(){
     metodoPagamento: "",  // contanti | bonifico | satispay
     statoPagamento: "",   // da_saldare | pagata (riferito alla caparra, non a un prezzo totale che qui non esiste)
     tatuatoreScelto: "",  // nome scelto dal cliente nel form pubblico (STUDIO_CONFIG.artists), "" se un solo tatuatore o nessuna preferenza
+    tatuatoreSceltoId: "", // supabaseId del profilo (licenza_tatuatori), solo per popolare richieste.tatuatore_id lato Supabase — MAI usato per la logica locale (quella resta su tatuatoreScelto, il nome)
     creataInStudio: false, // true se creata dal tatuatore in Preventivi -> "Nuovo preventivo", non dal link pubblico
   };
 }
@@ -3984,9 +4016,22 @@ function buildClientLink(sessionId){
    richiesta a Supabase (prompt6, Task 8) sa a quale studio attaccarsi
    — è lo stesso id opaco già mostrato in Impostazioni -> "Licenza e
    piano" -> "Codice licenza studio", non un dato del cliente. */
+/* &tatuatore= (prompt11, Task 2): presente solo con più di un tatuatore
+   dichiarato, e solo se questo dispositivo ha un tatuatore attivo in
+   sessione (renderTatuatoreSwitch) — così il link/QR copiato dal
+   dispositivo di Marco porta già "Marco" precompilato nel form del
+   cliente (renderLeadStep1 lo preseleziona, resta comunque modificabile
+   se il cliente vuole parlare con qualcun altro). Nome, non ID Supabase:
+   tatuatoreScelto è già un nome ovunque nell'app (chip pubblici,
+   puoAprireRichiesta), un ID andrebbe comunque ritradotto in nome sul
+   dispositivo del cliente senza nessun vantaggio in più. */
 function buildLeadLink(){
   const studioParam = (SUPABASE_CONFIG.url && loadStudioAccount()) ? `&studio=${licenseIds().studioId}` : "";
-  return `${STUDIO_CONFIG.publicUrl}/?richiesta=1${studioParam}`;
+  const t = tatuatoreAttivo();
+  const tatuatoreParam = (t && STUDIO_CONFIG.artists.length > 1)
+    ? `&tatuatore=${encodeURIComponent(t.nome)}${t.supabaseId ? `&tatuatore_id=${t.supabaseId}` : ""}`
+    : "";
+  return `${STUDIO_CONFIG.publicUrl}/?richiesta=1${studioParam}${tatuatoreParam}`;
 }
 
 /* ============================================================
@@ -6959,6 +7004,20 @@ document.addEventListener("click", (e) => {
     state.studioBuffer = { ...(state.studioBuffer||{}), logoDataUrl: "" };
     render();
   }
+  else if (action === "add-artista"){
+    const arr = artistiArray(studioCfgLive());
+    if (arr.length < 5){
+      arr.push("");
+      state.studioBuffer = { ...(state.studioBuffer||{}), artistsText: arr.join(", ") };
+      render();
+    }
+  }
+  else if (action === "remove-artista"){
+    const arr = artistiArray(studioCfgLive());
+    arr.splice(parseInt(btn.dataset.idx, 10), 1);
+    state.studioBuffer = { ...(state.studioBuffer||{}), artistsText: arr.join(", ") };
+    render();
+  }
   else if (action === "do-export"){
     const pw = state.cifraBackup ? ((state.backupBuffer||{}).password || "").trim() : "";
     if (state.cifraBackup && !pw){ state.backupMsg = "Inserisci una password per il backup cifrato."; state.backupMsgType = "warn"; render(); return; }
@@ -7045,6 +7104,7 @@ document.addEventListener("click", (e) => {
   else if (action === "set-lead-tatuatore"){
     const nome = btn.dataset.nome;
     leadDraft.tatuatoreScelto = leadDraft.tatuatoreScelto === nome ? "" : nome;
+    leadDraft.tatuatoreSceltoId = ""; // tocco manuale: l'id precompilato dal link (se c'era) non è più affidabile
     renderLeadStepOnly();
   }
   else if (action === "toggle-stile"){
@@ -7111,6 +7171,13 @@ document.addEventListener("input", (e) => {
   if (leadField && leadDraft){ setLeadField(leadField, e.target.value); return; }
   const studioField = e.target.dataset.fieldStudio;
   if (studioField){ state.studioBuffer = { ...(state.studioBuffer||{}), [studioField]: e.target.value }; return; }
+  const artistaIdx = e.target.dataset.artistaIdx;
+  if (artistaIdx !== undefined){
+    const arr = artistiArray(studioCfgLive());
+    arr[parseInt(artistaIdx, 10)] = e.target.value;
+    state.studioBuffer = { ...(state.studioBuffer||{}), artistsText: arr.join(", ") };
+    return;
+  }
   const invField = e.target.dataset.invField;
   if (invField){ state.editBuffer = { ...(state.editBuffer||{}), [invField]: e.target.value }; return; }
   const authField = e.target.dataset.fieldAuth;
@@ -7431,6 +7498,15 @@ async function initClientMode(){
 }
 function initRichiestaMode(){
   leadDraft = blankRichiesta();
+  // prompt11, Task 2: link/QR condiviso da un tatuatore specifico (vedi
+  // buildLeadLink) — precompila la scelta, il cliente può comunque
+  // cambiarla nei chip di renderLeadStep1. Solo se il nome nel link
+  // corrisponde davvero a un artista dichiarato di questo studio.
+  const tParam = params.get("tatuatore");
+  if (tParam && STUDIO_CONFIG.artists.includes(tParam)){
+    leadDraft.tatuatoreScelto = tParam;
+    leadDraft.tatuatoreSceltoId = params.get("tatuatore_id") || "";
+  }
   state.leadStep = 1;
   render();
 }
@@ -7552,6 +7628,40 @@ function accOpen(id, title, subtitle){
 }
 function accClose(){ return `</div></div>`; }
 
+/* Campi separati per tatuatore (prompt11, Task 1) invece di un'unica
+   stringa a virgole: indice 0 è sempre il titolare/unico tatuatore
+   (sempre presente, nessuna sezione "aggiungi" per lui). Dal secondo in
+   poi ogni campo diventa un futuro profilo/login locale con relativo ID
+   opaco su Supabase — già gestito automaticamente da
+   assicuraProfiliTatuatori() non appena il nome compare in
+   STUDIO_CONFIG.artists, nulla da collegare qui in più. Il pulsante
+   "+ Aggiungi tatuatore" resta sempre visibile (confermato: il piano è
+   sempre derivato dal conteggio via pianoConsigliato(), mai un vincolo
+   indipendente legato a un abbonamento già pagato) fino al tetto
+   self-service di 5 nomi (AtelierPro) — oltre, solo contatto diretto,
+   vedi fuoriTettoTatuatori(). */
+function renderArtistiFields(cfg){
+  const artisti = artistiArray(cfg);
+  if (!artisti.length) artisti.push("");
+  const piano = pianoConsigliato();
+  return `
+  <div class="field">
+    <label>Titolare / tatuatore</label>
+    <input type="text" data-artista-idx="0" value="${esc(artisti[0]||"")}" placeholder="Nome titolare">
+  </div>
+  ${artisti.slice(1).map((nome, i) => `
+  <div class="field" style="display:flex;gap:8px;align-items:flex-end;">
+    <div style="flex:1;"><label>Tatuatore aggiuntivo</label><input type="text" data-artista-idx="${i+1}" value="${esc(nome)}" placeholder="Nome"></div>
+    <button class="btn btn-ghost btn-sm" data-action="remove-artista" data-idx="${i+1}" title="Rimuovi questo tatuatore">${icon("close",14)}</button>
+  </div>`).join("")}
+  <div class="field">
+    ${artisti.length < 5
+      ? `<button class="btn btn-ghost btn-sm" data-action="add-artista">${icon("plus",14)} Aggiungi tatuatore</button>`
+      : `<p class="hint">Massimo 5 tatuatori in self-service (AtelierPro). Per più tatuatori o più sedi, contattaci.</p>`}
+    <div class="hint">Piano consigliato in base al numero di tatuatori: <b>${esc(piano.nome)}</b> (${esc(piano.desc)}).</div>
+  </div>`;
+}
+
 function renderSettings(){
   const cfg = { ...STUDIO_DEFAULTS, ...loadStudioOverrides(), ...(state.studioBuffer||{}) };
   return `
@@ -7567,9 +7677,9 @@ function renderSettings(){
       </div>
       <div class="grid-2">
         <div class="field"><label>Sigla / logo testuale</label><input type="text" data-field-studio="studioMark" value="${esc(cfg.studioMark)}" maxlength="6" placeholder="Es. P173"><div class="hint">Massimo 6 caratteri, appare nel tondo in alto.</div></div>
-        <div class="field"><label>Artisti (separati da virgola)</label><input type="text" data-field-studio="artistsText" value="${esc(cfg.artistsText)}" placeholder="Nome1, Nome2"><div class="hint">Determina il piano consigliato: un tatuatore per voce.</div></div>
+        <div class="field"><label>Numero di sedi</label><input type="number" min="1" data-field-studio="numeroSedi" value="${esc(String(cfg.numeroSedi||1))}"><div class="hint">Più di 1 = multi-studio: niente piano self-service, solo contatto diretto per un preventivo.</div></div>
       </div>
-      <div class="field"><label>Numero di sedi</label><input type="number" min="1" data-field-studio="numeroSedi" value="${esc(String(cfg.numeroSedi||1))}" style="max-width:120px;"><div class="hint">Più di 1 = multi-studio: niente piano self-service, solo contatto diretto per un preventivo.</div></div>
+      ${renderArtistiFields(cfg)}
 
       <div class="subhead">Logo</div>
       <div class="field">
