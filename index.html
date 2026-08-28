@@ -938,13 +938,18 @@ function setTheme(t){
    e applica colori e font come CSS variables. Chiamata all'avvio e dopo ogni salvataggio. */
 function applyStudioConfig(){
   const o = { ...STUDIO_DEFAULTS, ...loadStudioOverrides() };
+  // megabugfixprompt: campi di ASPETTO GRAFICO (logo, colori, font,
+  // firma) non più da "o" (condiviso, STUDIO_STORE_KEY) ma dal profilo
+  // del tatuatore attivo — ognuno il proprio, STUDIO_DEFAULTS resta il
+  // fallback di fabbrica per chi non ha ancora personalizzato nulla.
+  const a = { ...STUDIO_DEFAULTS, ...aspettoAttivo() };
   STUDIO_CONFIG.studioName = o.studioName;
   document.title = o.studioName ? `InkConsent · ${o.studioName}` : "InkConsent";
   STUDIO_CONFIG.studioCity = o.studioCity;
   STUDIO_CONFIG.studioMark = o.studioMark;
   STUDIO_CONFIG.publicUrl = STUDIO_DEFAULTS.publicUrl; // fisso, ignora ogni override salvato in passato
   STUDIO_CONFIG.aftercareText = o.aftercareText || "";
-  STUDIO_CONFIG.logoDataUrl = o.logoDataUrl || "";
+  STUDIO_CONFIG.logoDataUrl = a.logoDataUrl || "";
   STUDIO_CONFIG.ragioneSociale = o.ragioneSociale || "";
   STUDIO_CONFIG.partitaIva = o.partitaIva || "";
   STUDIO_CONFIG.indirizzoStudio = o.indirizzoStudio || "";
@@ -954,8 +959,8 @@ function applyStudioConfig(){
   STUDIO_CONFIG.artists = o.artistsText.split(",").map(s => s.trim()).filter(Boolean);
   if (!STUDIO_CONFIG.artists.length) STUDIO_CONFIG.artists = ["Artista"];
   STUDIO_CONFIG.numeroSedi = Math.max(1, parseInt(o.numeroSedi, 10) || 1);
-  STUDIO_CONFIG.inkEffect = !!o.inkEffect;
-  STUDIO_CONFIG.signatureColor = o.signatureColor || "";
+  STUDIO_CONFIG.inkEffect = !!a.inkEffect;
+  STUDIO_CONFIG.signatureColor = a.signatureColor || "";
   STUDIO_CONFIG.giorniGuarigione = Math.max(1, parseInt(o.giorniGuarigione, 10) || 14);
   const theme = loadTheme();
   document.documentElement.setAttribute("data-theme", theme);
@@ -965,12 +970,12 @@ function applyStudioConfig(){
     r.removeProperty("--ink"); r.removeProperty("--stamp");
     r.removeProperty("--stencil"); r.removeProperty("--flesh");
   } else {
-    r.setProperty("--ink", o.colorInk);
-    r.setProperty("--stamp", o.colorStamp || "#241A30");
-    r.setProperty("--stencil", o.colorStencil);
-    r.setProperty("--flesh", o.colorFlesh);
+    r.setProperty("--ink", a.colorInk);
+    r.setProperty("--stamp", a.colorStamp || "#241A30");
+    r.setProperty("--stencil", a.colorStencil);
+    r.setProperty("--flesh", a.colorFlesh);
   }
-  const ft = FONT_THEMES[o.fontTheme] || FONT_THEMES.moderno;
+  const ft = FONT_THEMES[a.fontTheme] || FONT_THEMES.moderno;
   r.setProperty("--font-display", ft.display);
   r.setProperty("--font-body", ft.body);
   return o;
@@ -2359,6 +2364,37 @@ function rimuoviProfiloTatuatoreLocale(id){
 let ACTIVE_TATUATORE = null;
 function tatuatoreAttivo(){ return ACTIVE_TATUATORE ? getTatuatoreProfilo(ACTIVE_TATUATORE) : null; }
 function nomeTatuatoreAttivo(){ const t = tatuatoreAttivo(); return t ? t.nome : (STUDIO_CONFIG.artists[0] || ""); }
+/* Chi può vedere/toccare i dati di studio (nome, città, sigla, sedi,
+   lista tatuatori) — megabugfixprompt: prima chiunque fosse loggato,
+   incluso aggiungere/rimuovere colleghi. Solo il titolare, stesso
+   principio già usato per "Reimposta password"/"Accesso e credenziali"
+   (Minifix). Nessun tatuatoreAttivo() (percorso offline/senza scelta
+   profilo): invariato, nessuna restrizione. */
+function puoVedereDatiStudio(){
+  const attivo = tatuatoreAttivo();
+  return !attivo || !!attivo.isTitolare;
+}
+/* Aspetto grafico (logo, colori, font, firma) — megabugfixprompt: non
+   più condiviso in STUDIO_STORE_KEY (un tatuatore poteva cambiare il
+   tema di tutti con un tap), ma personale, salvato dentro il profilo
+   di ciascun tatuatore (TATUATORI_KEY, mai su Supabase, stesso posto
+   di username/hash). "Dati studio di base" (STUDIO_DEFAULTS) resta il
+   fallback per chi non ha ancora personalizzato nulla. */
+function aspettoAttivo(){ const t = tatuatoreAttivo(); return (t && t.aspetto) || {}; }
+function setAspettoTatuatore(id, patch){
+  const list = loadTatuatori();
+  const i = list.findIndex(t => t.id === id);
+  if (i < 0) return;
+  list[i] = { ...list[i], aspetto: { ...(list[i].aspetto||{}), ...patch } };
+  saveTatuatori(list);
+}
+function resetAspettoTatuatore(id){
+  const list = loadTatuatori();
+  const i = list.findIndex(t => t.id === id);
+  if (i < 0) return;
+  list[i] = { ...list[i], aspetto: {} };
+  saveTatuatori(list);
+}
 /* true se serve mostrare la schermata di scelta/switch. Due ruoli
    diversi a seconda che esista una cassaforte cifrata (prompt15, Task 5):
    - CON cassaforte: è anche il primo passaggio per sbloccare l'app —
@@ -6757,7 +6793,7 @@ document.addEventListener("click", (e) => {
     state.nuoveRichiesteBanner = []; state.railOpen = false; render();
   }
   else if (action === "cambia-tatuatore"){
-    ACTIVE_TATUATORE = null; render();
+    ACTIVE_TATUATORE = null; applyStudioConfig(); render();
   }
   else if (action === "reset-credenziali-tatuatore"){
     const list = loadTatuatori();
@@ -6834,6 +6870,7 @@ document.addEventListener("click", (e) => {
         }
       }
       ACTIVE_TATUATORE = id;
+      applyStudioConfig(); // megabugfixprompt: logo/colori/font/firma sono personali, si applicano al cambio profilo
       // CORREZIONE (prompt15fix, Task B, causa vera del bug): un
       // profilo sbloccato con successo qui non resettava mai
       // state.locked — restava true da boot (authIsSet() true per
@@ -7353,7 +7390,17 @@ document.addEventListener("click", (e) => {
   else if (action === "seduta-remove-needle"){ draft.seduta.aghi = (draft.seduta.aghi||[]).filter(x => x.id !== btn.dataset.id); upsertSession(draft); renderStepOnly(); }
   else if (action === "save-studio"){
     const primaArtisti = STUDIO_CONFIG.artists.slice();
-    saveStudioOverrides({ ...loadStudioOverrides(), ...(state.studioBuffer || {}) });
+    const buffer = { ...(state.studioBuffer || {}) };
+    if (!puoVedereDatiStudio()){
+      // megabugfixprompt: identità studio e lista tatuatori solo dal
+      // titolare — l'interfaccia già nasconde questi campi a chiunque
+      // altro, questo è solo il secondo strato (non fidarsi solo di
+      // cosa il DOM permette di toccare) sullo stesso modello di
+      // puoReimpostare/Minifix.
+      delete buffer.studioName; delete buffer.studioCity; delete buffer.studioMark;
+      delete buffer.numeroSedi; delete buffer.artistsText;
+    }
+    saveStudioOverrides({ ...loadStudioOverrides(), ...buffer });
     applyStudioConfig();
     state.studioBuffer = null; state.studioSaved = true; state.tatuatoreCapError = null;
     render();
@@ -7388,6 +7435,33 @@ document.addEventListener("click", (e) => {
       })();
     }
   }
+  else if (action === "save-aspetto"){
+    // megabugfixprompt: logo/colori/font/firma sono personali — salvati
+    // nel profilo del tatuatore attivo, non più in STUDIO_STORE_KEY
+    // condiviso. Senza un profilo attivo (percorso offline/senza
+    // scelta profilo, invariato da prima) ricade sul vecchio
+    // comportamento condiviso, per compatibilità con chi non è mai
+    // passato dalla scelta profilo.
+    const patch = state.aspettoBuffer || {};
+    const t = tatuatoreAttivo();
+    if (t) setAspettoTatuatore(t.id, patch);
+    else saveStudioOverrides({ ...loadStudioOverrides(), ...patch });
+    applyStudioConfig();
+    state.aspettoBuffer = null; state.aspettoSaved = true;
+    render();
+  }
+  else if (action === "reset-aspetto"){
+    const t = tatuatoreAttivo();
+    if (t) resetAspettoTatuatore(t.id);
+    else {
+      const o = loadStudioOverrides();
+      ["logoDataUrl","colorInk","colorStamp","colorStencil","colorFlesh","fontTheme","inkEffect","signatureColor"].forEach(k => delete o[k]);
+      saveStudioOverrides(o);
+    }
+    applyStudioConfig();
+    state.aspettoBuffer = null; state.aspettoSaved = false;
+    render();
+  }
   else if (action === "review-tour"){
     localStorage.removeItem(TOUR_KEY);
     state.showTour = true; state.tourStep = 0; state.tourDontShow = false;
@@ -7414,12 +7488,13 @@ document.addEventListener("click", (e) => {
   else if (action === "toggle-cifra-backup"){ state.cifraBackup = !state.cifraBackup; render(); }
   else if (action === "set-theme"){ setTheme(btn.dataset.v); render(); }
   else if (action === "toggle-ink-effect"){
-    const cfg = { ...STUDIO_DEFAULTS, ...loadStudioOverrides(), ...(state.studioBuffer||{}) };
-    state.studioBuffer = { ...(state.studioBuffer||{}), inkEffect: !cfg.inkEffect };
+    // megabugfixprompt: aspetto personale, non più studioBuffer condiviso
+    const acfg = { ...STUDIO_DEFAULTS, ...aspettoAttivo(), ...(state.aspettoBuffer||{}) };
+    state.aspettoBuffer = { ...(state.aspettoBuffer||{}), inkEffect: !acfg.inkEffect };
     render();
   }
   else if (action === "set-fonttheme"){
-    state.studioBuffer = { ...(state.studioBuffer||{}), fontTheme: btn.dataset.v };
+    state.aspettoBuffer = { ...(state.aspettoBuffer||{}), fontTheme: btn.dataset.v };
     const ft = FONT_THEMES[btn.dataset.v] || FONT_THEMES.classico;
     document.documentElement.style.setProperty("--font-display", ft.display);
     document.documentElement.style.setProperty("--font-body", ft.body);
@@ -7429,7 +7504,7 @@ document.addEventListener("click", (e) => {
   else if (action === "pick-reference"){ const inp = qs("#reference-file"); if (inp) inp.click(); }
   else if (action === "remove-reference"){ leadDraft.referenceImg = ""; renderLeadStepOnly(); }
   else if (action === "remove-logo"){
-    state.studioBuffer = { ...(state.studioBuffer||{}), logoDataUrl: "" };
+    state.aspettoBuffer = { ...(state.aspettoBuffer||{}), logoDataUrl: "" };
     render();
   }
   else if (action === "add-artista"){
@@ -7483,10 +7558,32 @@ document.addEventListener("click", (e) => {
     const inp = qs("#import-consensi-file");
     if (inp) inp.click();
   }
-  else if (action === "reset-studio"){
-    localStorage.removeItem(STUDIO_STORE_KEY);
+  else if (action === "reset-studio-richiedi"){
+    // megabugfixprompt, Task 2: azione distruttiva (identità studio +
+    // TUTTI i profili tatuatore) — solo titolare, e non un singolo tap:
+    // mostra prima una conferma esplicita a due passaggi.
+    if (!puoVedereDatiStudio()) return;
+    state.confirmResetStudio = true; render();
+  }
+  else if (action === "reset-studio-annulla"){
+    state.confirmResetStudio = false; render();
+  }
+  else if (action === "reset-studio-conferma"){
+    if (!puoVedereDatiStudio()){ state.confirmResetStudio = false; render(); return; }
+    // CORREZIONE (megabugfixprompt): prima svuotava TUTTO STUDIO_STORE_KEY,
+    // incluse regione/note/dati fiscali/aftercare — sezioni ormai in
+    // accordion separati, fuori scope per questo pulsante. Ora tocca solo
+    // identità studio + lista tatuatori, lo scopo dichiarato di questa
+    // card. Azzera anche TATUATORI_KEY (i profili, titolare compreso):
+    // è la stessa azione "tatuatori registrati" del bug originale, ora
+    // deliberata e confermata invece di un incidente a un tap.
+    const o = loadStudioOverrides();
+    delete o.studioName; delete o.studioCity; delete o.studioMark; delete o.numeroSedi; delete o.artistsText;
+    saveStudioOverrides(o);
+    saveTatuatori([]);
+    ACTIVE_TATUATORE = null;
     applyStudioConfig();
-    state.studioBuffer = null; state.studioSaved = false;
+    state.studioBuffer = null; state.studioSaved = false; state.confirmResetStudio = false;
     render();
   }
   else if (action === "open-lead"){ leadDraft = getRichiesta(btn.dataset.id); state.view = "lead-detail"; state.railOpen = false; render(); }
@@ -7606,6 +7703,8 @@ document.addEventListener("input", (e) => {
   if (leadField && leadDraft){ setLeadField(leadField, e.target.value); return; }
   const studioField = e.target.dataset.fieldStudio;
   if (studioField){ state.studioBuffer = { ...(state.studioBuffer||{}), [studioField]: e.target.value }; return; }
+  const aspettoField = e.target.dataset.fieldAspetto;
+  if (aspettoField){ state.aspettoBuffer = { ...(state.aspettoBuffer||{}), [aspettoField]: e.target.value }; return; }
   const artistaIdx = e.target.dataset.artistaIdx;
   if (artistaIdx !== undefined){
     const arr = artistiArray(studioCfgLive());
@@ -7662,6 +7761,8 @@ document.addEventListener("change", (e) => {
     state.studioBuffer = { ...(state.studioBuffer||{}), [studioField]: e.target.value };
     if (studioField === "regione"){ applyStudioConfig(); state.studioSaved = false; render(); return; }
   }
+  const aspettoFieldC = e.target.dataset.fieldAspetto;
+  if (aspettoFieldC){ state.aspettoBuffer = { ...(state.aspettoBuffer||{}), [aspettoFieldC]: e.target.value }; }
   const authField = e.target.dataset.fieldAuth;
   if (authField){ state.authBuffer = { ...(state.authBuffer||{}), [authField]: e.target.value }; }
   const backupField = e.target.dataset.fieldBackup;
@@ -7776,7 +7877,7 @@ document.addEventListener("change", (e) => {
         const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
         cv.getContext("2d").drawImage(img, 0, 0, w, h);
         const dataUrl = cv.toDataURL("image/png");
-        state.studioBuffer = { ...(state.studioBuffer||{}), logoDataUrl: dataUrl };
+        state.aspettoBuffer = { ...(state.aspettoBuffer||{}), logoDataUrl: dataUrl };
         render();
       };
       img.onerror = () => alert("Immagine non valida.");
@@ -8114,79 +8215,102 @@ function renderArtistiFields(cfg){
 
 function renderSettings(){
   const cfg = { ...STUDIO_DEFAULTS, ...loadStudioOverrides(), ...(state.studioBuffer||{}) };
+  // megabugfixprompt: aspetto grafico letto/scritto per il TATUATORE
+  // ATTIVO (aspettoAttivo), non più dallo stesso store condiviso di
+  // nome studio/città/tatuatori — vedi renderArtistiFields più sotto
+  // per la card "Dati studio", ora separata e riservata al titolare.
+  const acfg = { ...STUDIO_DEFAULTS, ...aspettoAttivo(), ...(state.aspettoBuffer||{}) };
+  const vedeDatiStudio = puoVedereDatiStudio();
   return `
   <div class="topbar"><div><h1>Impostazioni studio</h1><p>Identità, artisti e link di compilazione in studio</p></div></div>
   <div class="main-inner">
-    ${accOpen("branding", "Studio e branding", "Identità, logo, colori, font, firma")}
+    ${accOpen("branding", "Studio e branding", vedeDatiStudio ? "Identità, artisti, aspetto personale" : "Aspetto personale")}
+    ${vedeDatiStudio ? `
     <div class="card">
-      <h3 class="section-title">Setup studio</h3>
-      <p class="section-desc">Personalizza l'app con l'identità del tuo studio. Le modifiche restano su questo dispositivo e si applicano subito.</p>
+      <h3 class="section-title">Dati studio</h3>
+      <p class="section-desc">Identità dello studio e lista tatuatori — visibile e modificabile solo dal titolare. Le modifiche restano su questo dispositivo e si applicano subito.</p>
       <div class="grid-2">
         <div class="field"><label>Nome studio</label><input type="text" data-field-studio="studioName" value="${esc(cfg.studioName)}"></div>
         <div class="field"><label>Città</label><input type="text" data-field-studio="studioCity" value="${esc(cfg.studioCity)}"></div>
       </div>
       <div class="grid-2">
-        <div class="field"><label>Sigla / logo testuale</label><input type="text" data-field-studio="studioMark" value="${esc(cfg.studioMark)}" maxlength="6" placeholder="Es. P173"><div class="hint">Massimo 6 caratteri, appare nel tondo in alto.</div></div>
+        <div class="field"><label>Sigla / logo testuale</label><input type="text" data-field-studio="studioMark" value="${esc(cfg.studioMark)}" maxlength="6" placeholder="Es. P173"><div class="hint">Massimo 6 caratteri, appare nel tondo in alto se nessuno ha caricato un logo personale.</div></div>
         <div class="field"><label>Numero di sedi</label><input type="number" min="1" data-field-studio="numeroSedi" value="${esc(String(cfg.numeroSedi||1))}"><div class="hint">Più di 1 = multi-studio: niente piano self-service, solo contatto diretto per un preventivo.</div></div>
       </div>
       ${renderArtistiFields(cfg)}
-
+      <div class="btn-row">
+        <button class="btn btn-accent" data-action="save-studio">Salva e applica</button>
+        <button class="btn btn-ghost" data-action="reset-studio-richiedi">Ripristina default</button>
+      </div>
+      ${state.studioSaved ? `<div class="callout ok" style="margin-top:12px;">Impostazioni salvate e applicate.</div>` : ""}
+      ${state.tatuatoreCapError ? `<div class="callout warn" style="margin-top:12px;">${esc(state.tatuatoreCapError)}</div>` : ""}
+      ${state.confirmResetStudio ? `
+      <div class="callout warn" style="margin-top:12px;">
+        <b>Sicuro?</b> Cancella nome studio, città, sigla, numero sedi e TUTTI i profili tatuatore su questo dispositivo (titolare compreso) — non i dati già su Supabase, ma spariscono da qui. Azione irreversibile su questo dispositivo.
+        <div class="btn-row" style="margin-top:10px;">
+          <button class="btn btn-accent" style="background:var(--warn);border-color:var(--warn);" data-action="reset-studio-conferma">Sì, cancella tutto</button>
+          <button class="btn btn-ghost" data-action="reset-studio-annulla">Annulla</button>
+        </div>
+      </div>` : ""}
+    </div>` : ""}
+    <div class="card">
+      <h3 class="section-title">Aspetto grafico personale</h3>
+      <p class="section-desc">Logo, colori, font e firma sono personali: solo tuoi, non toccano il profilo degli altri tatuatori né i dati dello studio.</p>
       <div class="subhead">Logo</div>
       <div class="field">
         <div style="display:flex;align-items:center;gap:14px;">
-          <div class="logo-preview">${cfg.logoDataUrl ? `<img src="${cfg.logoDataUrl}" alt="logo">` : `<span class="mono">${esc(cfg.studioMark)}</span>`}</div>
+          <div class="logo-preview">${acfg.logoDataUrl ? `<img src="${acfg.logoDataUrl}" alt="logo">` : `<span class="mono">${esc(cfg.studioMark)}</span>`}</div>
           <div>
             <button class="btn btn-ghost btn-sm" data-action="pick-logo">Carica logo…</button>
-            ${cfg.logoDataUrl ? `<button class="btn btn-ghost btn-sm" data-action="remove-logo">Rimuovi</button>` : ""}
-            <div class="hint">PNG o JPG quadrato. Sostituisce la sigla nel tondo in alto e nella schermata di accesso.</div>
+            ${acfg.logoDataUrl ? `<button class="btn btn-ghost btn-sm" data-action="remove-logo">Rimuovi</button>` : ""}
+            <div class="hint">PNG o JPG quadrato. Sostituisce la sigla nel tondo in alto e nella schermata di accesso, solo per te.</div>
           </div>
           <input type="file" id="logo-file" accept="image/png,image/jpeg" style="display:none;">
         </div>
       </div>
 
-      <div class="subhead">Aspetto</div>
+      <div class="subhead">Tema</div>
       <div class="field">
-        <label>Tema</label>
         <div class="chip-grid" style="grid-template-columns:1fr 1fr;">
           <button class="chip ${loadTheme()!=='light'?'on':''}" data-action="set-theme" data-v="dark">Scuro (nativo)</button>
           <button class="chip ${loadTheme()==='light'?'on':''}" data-action="set-theme" data-v="light">Chiaro (lettura)</button>
         </div>
-        <div class="hint">Lo scuro è il tema di InkConsent e l'unico personalizzabile coi colori qui sotto. Il chiaro è un fallback fisso ad alta leggibilità, utile alla luce diretta, e non cambia con i colori dello studio.</div>
+        <div class="hint">Lo scuro è il tema di InkConsent e l'unico personalizzabile coi colori qui sotto. Il chiaro è un fallback fisso ad alta leggibilità, utile alla luce diretta, e non cambia con i colori. Vale per questo dispositivo, non è legato a un profilo.</div>
       </div>
       <div class="subhead">Colori (tema scuro)</div>
       <div class="grid-2">
-        <div class="field"><label>Colore testo principale</label><input type="color" data-field-studio="colorInk" value="${esc(cfg.colorInk)}" style="height:44px;padding:4px;"></div>
-        <div class="field"><label>Superficie scura (rail, badge)</label><input type="color" data-field-studio="colorStamp" value="${esc(cfg.colorStamp||'#241A30')}" style="height:44px;padding:4px;"></div>
+        <div class="field"><label>Colore testo principale</label><input type="color" data-field-aspetto="colorInk" value="${esc(acfg.colorInk)}" style="height:44px;padding:4px;"></div>
+        <div class="field"><label>Superficie scura (rail, badge)</label><input type="color" data-field-aspetto="colorStamp" value="${esc(acfg.colorStamp||'#241A30')}" style="height:44px;padding:4px;"></div>
       </div>
       <div class="grid-2">
-        <div class="field"><label>Accento — area consenso</label><input type="color" data-field-studio="colorStencil" value="${esc(cfg.colorStencil)}" style="height:44px;padding:4px;"></div>
-        <div class="field"><label>Accento — area preventivo</label><input type="color" data-field-studio="colorFlesh" value="${esc(cfg.colorFlesh)}" style="height:44px;padding:4px;"></div>
+        <div class="field"><label>Accento — area consenso</label><input type="color" data-field-aspetto="colorStencil" value="${esc(acfg.colorStencil)}" style="height:44px;padding:4px;"></div>
+        <div class="field"><label>Accento — area preventivo</label><input type="color" data-field-aspetto="colorFlesh" value="${esc(acfg.colorFlesh)}" style="height:44px;padding:4px;"></div>
       </div>
 
       <div class="subhead">Font</div>
       <div class="field">
         <div class="chip-grid">
-          ${Object.keys(FONT_THEMES).map(k => `<button class="chip ${(cfg.fontTheme||'moderno')===k?'on':''}" data-action="set-fonttheme" data-v="${k}">${FONT_THEMES[k].label}</button>`).join("")}
+          ${Object.keys(FONT_THEMES).map(k => `<button class="chip ${(acfg.fontTheme||'moderno')===k?'on':''}" data-action="set-fonttheme" data-v="${k}">${FONT_THEMES[k].label}</button>`).join("")}
         </div>
       </div>
 
       <div class="subhead">Firma</div>
       <div class="hq">
         <div class="hq-label">Effetto inchiostro sulla firma<br><span class="hint" style="text-transform:none;letter-spacing:0;">Il tratto touch diventa leggermente irregolare invece del nero uniforme da modulo. Resa solo visiva: il valore legale e il dato salvato non cambiano.</span></div>
-        <button class="sw ${cfg.inkEffect?'on':''}" role="switch" aria-checked="${!!cfg.inkEffect}" data-action="toggle-ink-effect"></button>
+        <button class="sw ${acfg.inkEffect?'on':''}" role="switch" aria-checked="${!!acfg.inkEffect}" data-action="toggle-ink-effect"></button>
       </div>
       <div class="field" style="margin-top:14px;max-width:200px;">
         <label>Colore firma</label>
-        <input type="color" data-field-studio="signatureColor" value="${esc(cfg.signatureColor || cfg.colorStencil)}" style="height:44px;padding:4px;">
+        <input type="color" data-field-aspetto="signatureColor" value="${esc(acfg.signatureColor || acfg.colorStencil)}" style="height:44px;padding:4px;">
         <div class="hint">Indipendente dai colori dell'app: di base segue l'accento, ma puoi sceglierne uno diverso solo per la firma.</div>
       </div>
 
       <div class="btn-row">
-        <button class="btn btn-accent" data-action="save-studio">Salva e applica</button>
-        <button class="btn btn-ghost" data-action="reset-studio">Ripristina default</button>
+        <button class="btn btn-accent" data-action="save-aspetto">Salva e applica</button>
+        <button class="btn btn-ghost" data-action="reset-aspetto">Ripristina il mio aspetto</button>
       </div>
-      ${state.studioSaved ? `<div class="callout ok" style="margin-top:12px;">Impostazioni salvate e applicate.</div>` : ""}
-      ${state.tatuatoreCapError ? `<div class="callout warn" style="margin-top:12px;">${esc(state.tatuatoreCapError)}</div>` : ""}
+      ${state.aspettoSaved ? `<div class="callout ok" style="margin-top:12px;">Aspetto salvato e applicato.</div>` : ""}
+      ${!tatuatoreAttivo() ? `<p class="field hint" style="margin-top:10px;">Nessun profilo tatuatore attivo su questo dispositivo: questa preferenza resta condivisa, come prima.</p>` : ""}
     </div>
     <div class="card">
       <h3 class="section-title">Icone magazzino</h3>
