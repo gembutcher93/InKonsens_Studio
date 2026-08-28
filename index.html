@@ -698,6 +698,18 @@ select{
 .sw.sw-no::after{left:3px;}
 .sw.sw-on{background:var(--warn);}
 .sw.sw-on::after{left:23px;}
+/* Interruttore binario puro (prompt16AB, Task 12) — per un sì/no vero,
+   MAI un questionario: niente stato centrato/neutro, a differenza di
+   .sw sopra. Prima "effetto inchiostro firma" riusava .sw con solo la
+   classe "on" (mai definita per .sw: restava sempre visivamente
+   neutro, nessun feedback reale di stato). Rosso/sinistra = spento,
+   verde/destra = acceso. */
+.swbin{position:relative;flex:none;width:50px;height:30px;border-radius:999px;border:none;padding:0;cursor:pointer;
+  background:var(--warn);transition:background .18s;}
+.swbin::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;
+  background:var(--paper-field);box-shadow:0 1px 3px rgba(0,0,0,.4);transition:left .18s;pointer-events:none;}
+.swbin.on{background:var(--ok);}
+.swbin.on::after{left:23px;}
 .hq-block{margin-top:18px;padding:15px 16px;border-radius:var(--radius-md);
   background:var(--warn-tint);border:1px solid rgba(226,105,76,.35);color:var(--warn);font-size:13px;line-height:1.55;}
 .hq-block b{color:#F0846A;}
@@ -949,7 +961,11 @@ function applyStudioConfig(){
   STUDIO_CONFIG.studioCity = o.studioCity;
   STUDIO_CONFIG.studioMark = o.studioMark;
   STUDIO_CONFIG.publicUrl = STUDIO_DEFAULTS.publicUrl; // fisso, ignora ogni override salvato in passato
-  STUDIO_CONFIG.aftercareText = o.aftercareText || "";
+  // prompt16AB, Task 11b: aftercare personale per tatuatore, non più
+  // condiviso — vedi aftercareAttivo() per la cascata (proprio ->
+  // titolare -> condiviso preesistente).
+  const ac = aftercareAttivo();
+  STUDIO_CONFIG.aftercareText = ac.text || "";
   STUDIO_CONFIG.logoDataUrl = a.logoDataUrl || "";
   // prompt16, Task 11c: ragione sociale/P.IVA personali per un tatuatore
   // aggiuntivo non-titolare (collaboratore con propria P.IVA) — MAI un
@@ -976,7 +992,7 @@ function applyStudioConfig(){
   STUDIO_CONFIG.numeroSedi = Math.max(1, parseInt(o.numeroSedi, 10) || 1);
   STUDIO_CONFIG.inkEffect = !!a.inkEffect;
   STUDIO_CONFIG.signatureColor = a.signatureColor || "";
-  STUDIO_CONFIG.giorniGuarigione = Math.max(1, parseInt(o.giorniGuarigione, 10) || 14);
+  STUDIO_CONFIG.giorniGuarigione = Math.max(1, parseInt(ac.giorni, 10) || 14);
   const theme = loadTheme();
   document.documentElement.setAttribute("data-theme", theme);
   const r = document.documentElement.style;
@@ -2436,6 +2452,45 @@ function resetAspettoTatuatore(id){
   list[i] = { ...list[i], aspetto: {} };
   saveTatuatori(list);
 }
+/* Aftercare personale (prompt16AB, Task 11b): campo a parte sul
+   profilo (t.aftercareText/t.aftercareGiorni), non dentro t.aspetto —
+   è un testo operativo, non una preferenza grafica, resta comunque
+   visibile/modificabile in "Comunicazione col cliente" da chiunque
+   (titolare incluso), non riservato come "Dati studio". Cascata:
+   - un profilo con t.aftercareText già impostato (anche stringa vuota:
+     "!== undefined" distingue "mai toccato" da "svuotato di proposito")
+     usa il proprio;
+   - il titolare senza personalizzazione ancora fatta eredita il testo
+     condiviso preesistente (STUDIO_STORE_KEY) come punto di partenza —
+     "diventa il suo di default", non si azzera al placeholder di fabbrica;
+   - un tatuatore aggiuntivo senza personalizzazione eredita quello
+     EFFETTIVO del titolare (che a sua volta può già essere personale o
+     ancora il condiviso) — copia, non riferimento: diverge appena uno
+     dei due salva il proprio. */
+function aftercareCondiviso(){
+  const o = loadStudioOverrides();
+  return { text: (o.aftercareText != null ? o.aftercareText : STUDIO_DEFAULTS.aftercareText), giorni: o.giorniGuarigione || STUDIO_DEFAULTS.giorniGuarigione };
+}
+function aftercareTitolare(){
+  const titolare = loadTatuatori().find(t => t.isTitolare);
+  if (titolare && titolare.aftercareText !== undefined){
+    return { text: titolare.aftercareText || "", giorni: titolare.aftercareGiorni || STUDIO_DEFAULTS.giorniGuarigione };
+  }
+  return aftercareCondiviso();
+}
+function aftercareAttivo(){
+  const t = tatuatoreAttivo();
+  if (!t) return aftercareCondiviso();
+  if (t.aftercareText !== undefined) return { text: t.aftercareText || "", giorni: t.aftercareGiorni || STUDIO_DEFAULTS.giorniGuarigione };
+  return t.isTitolare ? aftercareCondiviso() : aftercareTitolare();
+}
+function setAftercareTatuatore(id, text, giorni){
+  const list = loadTatuatori();
+  const i = list.findIndex(t => t.id === id);
+  if (i < 0) return;
+  list[i] = { ...list[i], aftercareText: text, aftercareGiorni: giorni };
+  saveTatuatori(list);
+}
 /* true se serve mostrare la schermata di scelta/switch. Due ruoli
    diversi a seconda che esista una cassaforte cifrata (prompt15, Task 5):
    - CON cassaforte: è anche il primo passaggio per sbloccare l'app —
@@ -2996,10 +3051,20 @@ async function caricaPacchettiIcone(){
     }
   } catch(e){ /* resta il pacchetto di base già incorporato */ }
 }
-function pacchettoIconeScelto(){ return loadStudioOverrides().iconPack || "default"; }
+/* prompt16AB, Task 11a: scelta personale per tatuatore (come nasce/
+   dispone gli articoli non cambia, resta condiviso — vedi README) —
+   salvata nello stesso posto di logo/colori/font/firma (t.aspetto),
+   riusa setAspettoTatuatore già esistente. Senza profilo attivo
+   (percorso offline) resta il vecchio comportamento condiviso. */
+function pacchettoIconeScelto(){
+  const t = tatuatoreAttivo();
+  if (t) return (t.aspetto && t.aspetto.iconPack) || "default";
+  return loadStudioOverrides().iconPack || "default";
+}
 function setPacchettoIcone(nome){
-  const o = loadStudioOverrides();
-  saveStudioOverrides({ ...o, iconPack: nome });
+  const t = tatuatoreAttivo();
+  if (t) setAspettoTatuatore(t.id, { iconPack: nome });
+  else saveStudioOverrides({ ...loadStudioOverrides(), iconPack: nome });
 }
 function pacchettoIconeAttivo(){
   return ICON_PACK_LIST.find(p => p.name === pacchettoIconeScelto()) || ICON_PACK_LIST[0] || { name: "default" };
@@ -7596,22 +7661,59 @@ document.addEventListener("click", (e) => {
     state.aspettoBuffer = null; state.aspettoSaved = false;
     render();
   }
+  else if (action === "toggle-sede-fiscale-coincide"){
+    const t = tatuatoreAttivo();
+    if (!t || t.isTitolare) return;
+    const attuale = (state.fiscaleBuffer && "sedeFiscaleCoincide" in state.fiscaleBuffer) ? state.fiscaleBuffer.sedeFiscaleCoincide : (t.sedeFiscaleCoincide !== false);
+    state.fiscaleBuffer = { ...(state.fiscaleBuffer||{}), sedeFiscaleCoincide: !attuale };
+    render();
+  }
   else if (action === "save-fiscale-personale"){
-    // prompt16, Task 11c: solo per un tatuatore non-titolare attivo —
-    // la card stessa non compare per il titolare, ma niente si fida
-    // solo del DOM (stesso principio Minifix/megabugfixprompt).
+    // prompt16, Task 11c/prompt16AB Task 13: solo per un tatuatore
+    // non-titolare attivo — la card stessa non compare per il
+    // titolare, ma niente si fida solo del DOM (stesso principio
+    // Minifix/megabugfixprompt).
     const t = tatuatoreAttivo();
     if (t && !t.isTitolare){
       const patch = state.fiscaleBuffer || {};
       const list = loadTatuatori();
       const i = list.findIndex(x => x.id === t.id);
       if (i >= 0){
-        list[i] = { ...list[i], ragioneSociale: (patch.ragioneSociale ?? list[i].ragioneSociale) || "", partitaIva: (patch.partitaIva ?? list[i].partitaIva) || "" };
+        const coincide = "sedeFiscaleCoincide" in patch ? patch.sedeFiscaleCoincide : (list[i].sedeFiscaleCoincide !== false);
+        list[i] = {
+          ...list[i],
+          ragioneSociale: (patch.ragioneSociale ?? list[i].ragioneSociale) || "",
+          partitaIva: (patch.partitaIva ?? list[i].partitaIva) || "",
+          sedeFiscaleCoincide: coincide,
+          // "coincide" letto dal vivo dallo studio a ogni uso (mai
+          // salvata una copia statica che potrebbe disallinearsi se lo
+          // studio cambia indirizzo dopo): salviamo solo la SCELTA
+          // personale, valorizziamo il campo testo solo quando è
+          // davvero indipendente.
+          sedeFiscale: coincide ? "" : ((patch.sedeFiscale ?? list[i].sedeFiscale) || ""),
+        };
         saveTatuatori(list);
       }
       applyStudioConfig();
     }
     state.fiscaleBuffer = null; state.fiscaleSaved = true;
+    render();
+  }
+  else if (action === "save-aftercare-personale"){
+    // prompt16AB, Task 11b: personale per QUALSIASI tatuatore attivo,
+    // titolare incluso (a differenza dei dati fiscali sopra, qui non
+    // c'è una card "condivisa" alternativa: da questo salvataggio in
+    // poi anche il testo del titolare diventa indipendente da
+    // STUDIO_STORE_KEY, coerente con "diventa il suo di default").
+    const t = tatuatoreAttivo();
+    const attuale = aftercareAttivo();
+    const patch = state.aftercareBuffer || {};
+    const testo = "text" in patch ? patch.text : attuale.text;
+    const giorni = Math.max(1, parseInt("giorni" in patch ? patch.giorni : attuale.giorni, 10) || 14);
+    if (t) setAftercareTatuatore(t.id, testo, giorni);
+    else saveStudioOverrides({ ...loadStudioOverrides(), aftercareText: testo, giorniGuarigione: giorni });
+    applyStudioConfig();
+    state.aftercareBuffer = null; state.aftercareSaved = true;
     render();
   }
   else if (action === "review-tour"){
@@ -7865,6 +7967,8 @@ document.addEventListener("input", (e) => {
   if (aspettoField){ state.aspettoBuffer = { ...(state.aspettoBuffer||{}), [aspettoField]: e.target.value }; return; }
   const fiscaleField = e.target.dataset.fieldFiscale;
   if (fiscaleField){ state.fiscaleBuffer = { ...(state.fiscaleBuffer||{}), [fiscaleField]: e.target.value }; return; }
+  const aftercareField = e.target.dataset.fieldAftercare;
+  if (aftercareField){ state.aftercareBuffer = { ...(state.aftercareBuffer||{}), [aftercareField]: e.target.value }; return; }
   const artistaIdx = e.target.dataset.artistaIdx;
   if (artistaIdx !== undefined){
     const arr = artistiArray(studioCfgLive());
@@ -8503,7 +8607,7 @@ function renderSettings(){
       <div class="subhead">Firma</div>
       <div class="hq">
         <div class="hq-label">Effetto inchiostro sulla firma<br><span class="hint" style="text-transform:none;letter-spacing:0;">Il tratto touch diventa leggermente irregolare invece del nero uniforme da modulo. Resa solo visiva: il valore legale e il dato salvato non cambiano.</span></div>
-        <button class="sw ${acfg.inkEffect?'on':''}" role="switch" aria-checked="${!!acfg.inkEffect}" data-action="toggle-ink-effect"></button>
+        <button class="swbin ${acfg.inkEffect?'on':''}" role="switch" aria-checked="${!!acfg.inkEffect}" data-action="toggle-ink-effect"></button>
       </div>
       <div class="field" style="margin-top:14px;max-width:200px;">
         <label>Colore firma</label>
@@ -8511,7 +8615,20 @@ function renderSettings(){
         <div class="hint">Indipendente dai colori dell'app: di base segue l'accento, ma puoi sceglierne uno diverso solo per la firma.</div>
       </div>
 
-      <div class="btn-row">
+      <div class="subhead">Icone magazzino</div>
+      <p class="section-desc">Il magazzino resta condiviso (stessi articoli, stesse quantità, visti da tutti) — questo cambia solo come LE VEDI tu, sul tuo profilo, senza toccare cosa vedono gli altri.</p>
+      <div class="field" style="max-width:260px;">
+        <label>Pacchetto icone</label>
+        <select data-action="set-icon-pack">
+          ${ICON_PACK_LIST.map(p => `<option value="${esc(p.name)}" ${pacchettoIconeScelto()===p.name?"selected":""}>${esc(p.name)}${p.format ? ` (${p.format})` : ""}</option>`).join("")}
+        </select>
+      </div>
+      <div class="disp-grid" style="grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px;margin-top:10px;">
+        ${CATEGORIE_FORNITURE.filter((c,i,arr) => arr.findIndex(x=>x.iconSlug===c.iconSlug)===i).map(c => `
+          <div class="disp-thumb sm" title="${esc(c.label)}"><img src="${catIconUrl(c.iconSlug)}" alt="${esc(c.label)}" onerror="${catIconOnerrorAttr(c.iconSlug)}"></div>`).join("")}
+      </div>
+
+      <div class="btn-row" style="margin-top:16px;">
         <button class="btn btn-accent" data-action="save-aspetto">Salva e applica</button>
         <button class="btn btn-ghost" data-action="reset-aspetto">Ripristina il mio aspetto</button>
       </div>
@@ -8526,8 +8643,16 @@ function renderSettings(){
       // del profilo (vedi action "save-studio"), qui solo modificabile.
       const t = tatuatoreAttivo();
       if (!t || t.isTitolare) return "";
-      const fcfg = { ragioneSociale: t.ragioneSociale || "", partitaIva: t.partitaIva || "", ...(state.fiscaleBuffer||{}) };
+      const fcfg = { ragioneSociale: t.ragioneSociale || "", partitaIva: t.partitaIva || "", sedeFiscale: t.sedeFiscale || "", sedeFiscaleCoincide: t.sedeFiscaleCoincide !== false, ...(state.fiscaleBuffer||{}) };
       const vuoto = !fcfg.ragioneSociale && !fcfg.partitaIva;
+      // prompt16AB, Task 13: sede FISCALE (domicilio del tatuatore con
+      // P.IVA propria) separata dalla sede OPERATIVA/studio (dove si
+      // lavora fisicamente, "indirizzoStudio" più sotto in "Dati studio
+      // sul consenso" — quella resta unica e condivisa, invariata).
+      // "Coincide" precompila leggendo dal vivo l'indirizzo studio
+      // corrente (sola lettura mentre attivo, così non disallinea mai
+      // due copie): se lo studio cambia indirizzo, questo segue da
+      // solo finché il tatuatore non lo scollega.
       return `
     <div class="card">
       <h3 class="section-title">Dati fiscali personali</h3>
@@ -8541,26 +8666,20 @@ function renderSettings(){
         <label>Partita IVA / Codice Fiscale</label>
         <input type="text" data-field-fiscale="partitaIva" value="${esc(fcfg.partitaIva)}" placeholder="Es. 01234567890">
       </div>
+      <div class="field">
+        <label>Sede fiscale</label>
+        <div class="hq" style="padding:8px 0;">
+          <div class="hq-label">La mia sede fiscale coincide con l'indirizzo dello studio<br><span class="hint" style="text-transform:none;letter-spacing:0;">Sede OPERATIVA (dove lavori fisicamente) — resta quella unica dello studio, non cambia qui. Disattiva solo se il tuo domicilio fiscale (P.IVA) è altrove.</span></div>
+          <button class="swbin ${fcfg.sedeFiscaleCoincide?'on':''}" role="switch" aria-checked="${!!fcfg.sedeFiscaleCoincide}" data-action="toggle-sede-fiscale-coincide"></button>
+        </div>
+        <input type="text" data-field-fiscale="sedeFiscale" value="${esc(fcfg.sedeFiscaleCoincide ? (STUDIO_CONFIG.indirizzoStudio||'') : fcfg.sedeFiscale)}" placeholder="Via, civico, CAP, città" ${fcfg.sedeFiscaleCoincide ? "disabled" : ""}>
+      </div>
       <div class="btn-row">
         <button class="btn btn-accent" data-action="save-fiscale-personale">Salva</button>
       </div>
       ${state.fiscaleSaved ? `<div class="callout ok" style="margin-top:12px;">Dati fiscali salvati.</div>` : ""}
     </div>`;
     })()}
-    <div class="card">
-      <h3 class="section-title">Icone magazzino</h3>
-      <p class="section-desc">Le icone delle categorie in Magazzino vengono da un pacchetto: puoi cambiarlo qui. Aggiungere un pacchetto nuovo in futuro non serve nessuna modifica al codice — solo una cartella con le stesse icone (vedi README).</p>
-      <div class="field" style="max-width:260px;">
-        <label>Pacchetto icone</label>
-        <select data-action="set-icon-pack">
-          ${ICON_PACK_LIST.map(p => `<option value="${esc(p.name)}" ${pacchettoIconeScelto()===p.name?"selected":""}>${esc(p.name)}${p.format ? ` (${p.format})` : ""}</option>`).join("")}
-        </select>
-      </div>
-      <div class="disp-grid" style="grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px;margin-top:10px;">
-        ${CATEGORIE_FORNITURE.filter((c,i,arr) => arr.findIndex(x=>x.iconSlug===c.iconSlug)===i).map(c => `
-          <div class="disp-thumb sm" title="${esc(c.label)}"><img src="${catIconUrl(c.iconSlug)}" alt="${esc(c.label)}" onerror="${catIconOnerrorAttr(c.iconSlug)}"></div>`).join("")}
-      </div>
-    </div>
     ${accClose()}
     ${accOpen("consenso", "Consenso e testi legali", "Modulo, versione firmata, nota sul ddl melanoma")}
     <div class="card">
@@ -8624,23 +8743,36 @@ function renderSettings(){
       <div class="kv"><span>Dati clienti</span><b>Solo su questo dispositivo (offline-first) — nessuna sync consensi su server</b></div>
     </div>
     ${accClose()}
-    ${accOpen("cliente", "Comunicazione con il cliente", "Aftercare")}
+    ${accOpen("cliente", "Comunicazione con il cliente", "Aftercare personale")}
+    ${(() => {
+      // prompt16AB, Task 11b: personale per tatuatore, non più
+      // condiviso — ognuno il proprio, indipendente dagli altri e dal
+      // titolare dopo il primo salvataggio (vedi aftercareAttivo per
+      // com'è precompilato la prima volta).
+      const acfg2 = { ...aftercareAttivo(), ...(state.aftercareBuffer||{}) };
+      const testo = state.aftercareBuffer && "text" in state.aftercareBuffer ? state.aftercareBuffer.text : acfg2.text;
+      const giorni = state.aftercareBuffer && "giorni" in state.aftercareBuffer ? state.aftercareBuffer.giorni : acfg2.giorni;
+      return `
     <div class="card">
       <h3 class="section-title">Messaggio aftercare (WhatsApp)</h3>
+      <p class="section-desc">Personale: il tuo, indipendente da quello degli altri tatuatori e del titolare.</p>
       <div class="field">
-        <textarea data-field-studio="aftercareText" rows="7" placeholder="Istruzioni per la cura…">${esc(cfg.aftercareText)}</textarea>
+        <textarea data-field-aftercare="text" rows="7" placeholder="Istruzioni per la cura…">${esc(testo)}</textarea>
         <div class="hint">Inviato al cliente dopo l'archiviazione con un tap. Usa <b>{nome}</b> per inserire il nome del cliente. Il messaggio include già un link a una pagina di avanzamento guarigione ("giorno X di N"), calcolata solo dalla data — nessun dato del cliente nel link.</div>
       </div>
       <div class="field" style="max-width:200px;">
         <label>Giorni di guarigione stimati</label>
-        <input type="number" min="1" max="90" data-field-studio="giorniGuarigione" value="${esc(String(cfg.giorniGuarigione||14))}">
+        <input type="number" min="1" max="90" data-field-aftercare="giorni" value="${esc(String(giorni||14))}">
         <div class="hint">Usati dalla barra "giorno X di N" nel link aftercare.</div>
       </div>
       <div class="btn-row">
-        <button class="btn btn-accent" data-action="save-studio">Salva e applica</button>
+        <button class="btn btn-accent" data-action="save-aftercare-personale">Salva e applica</button>
       </div>
+      ${state.aftercareSaved ? `<div class="callout ok" style="margin-top:12px;">Aftercare salvato.</div>` : ""}
+      ${!tatuatoreAttivo() ? `<p class="field hint" style="margin-top:10px;">Nessun profilo tatuatore attivo su questo dispositivo: questa preferenza resta condivisa, come prima.</p>` : ""}
       <p class="field hint" style="margin-top:14px;">Il link/QR di compilazione consenso si è spostato: lo trovi ora dentro "Nuovo consenso" (scegliendo "Invia il link al cliente"). Il link pubblico "Richiedi preventivo" invece è in "Preventivi" nel menu, insieme alle richieste ricevute.</p>
-    </div>
+    </div>`;
+    })()}
     ${accClose()}
     ${accOpen("sicurezza", "Sicurezza e accesso", "Blocco locale del dispositivo, account studio, dispositivi attivi")}
     ${(() => {
