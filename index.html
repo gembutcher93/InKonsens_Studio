@@ -2602,7 +2602,16 @@ function avviaPollingRichieste(){
 
 function blankRichiesta(){
   return {
-    id: uid(),
+    // prompt12b: richieste.id su Supabase è tipizzato uuid — uid() (sotto)
+    // genera stringhe tipo Date.now().toString(36), non UUID, e l'insert
+    // falliva sempre con "invalid input syntax for type uuid" (22P02).
+    // uuidv4() è lo stesso generatore già usato per blankTatuatoreProfilo
+    // e per gli id di licenza: valido dalla creazione, nessuna conversione
+    // al momento dell'invio. dedup/riferimenti locali (upsertRichiesta,
+    // getRichiesta, pollRichiesteSupabase) confrontano l'id per uguaglianza
+    // di stringa, format-agnostici — nessun altro punto del codice fa
+    // assunzioni sulla forma di richiesta.id.
+    id: uuidv4(),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     status: "nuova",
