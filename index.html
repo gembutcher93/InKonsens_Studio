@@ -6578,6 +6578,7 @@ document.addEventListener("click", (e) => {
           if (esito && esito.consentito === false) state.deviceLimitBlock = esito;
           render();
         });
+        refreshLicenseFromSupabase(); // prompt15fix, Task B: piano vero subito dopo il login, non solo al prossimo boot
         return;
       }
       // altrimenti: prova gratuita non ancora avviata da nessuna parte
@@ -6780,16 +6781,33 @@ document.addEventListener("click", (e) => {
         let sbloccato = false;
         if (conCassaforte){
           try { await apriArchivio(await apriConTatuatore(vault, id, pw)); sbloccato = true; }
-          catch(e){ /* nessuna busta per questo profilo, o password sbagliata: prova col vecchio hash sotto */ }
+          catch(e){ /* nessuna busta per questo profilo, o password sbagliata: prova la busta condivisa sotto */ }
+          // CORREZIONE (prompt15fix, Task B): il titolare non aveva
+          // ancora una busta personale (profilo claimato prima di
+          // introdurla) — la SUA password personale è però la STESSA
+          // scelta durante l'onboarding per la busta condivisa
+          // (bustaPw, vedi action "trial-start"), quindi tentarla qui è
+          // un vero sblocco legittimo, non un giro attorno alla
+          // sicurezza: stessa password, stessa persona. Senza questo
+          // tentativo, il titolare restava bloccato su "usa lo sblocco
+          // d'emergenza" con la STESSA password che aveva appena
+          // digitato correttamente.
+          if (!sbloccato){
+            try { await apriArchivio(await apriConPassword(vault, pw)); sbloccato = true; }
+            catch(e){ /* password condivisa diversa da quella di questo profilo: prova col vecchio hash sotto */ }
+          }
         }
-        if (!sbloccato){
+        if (sbloccato){
+          if (conCassaforte && DEK) await aggiungiBustaTatuatore(vault, DEK, id, pw); // autoripara: crea/aggiorna la busta personale
+        } else {
           const ok = await verificaCredenzialiTatuatore(id, pw);
           if (!ok){
             state.tatuatoreSwitchBusy = false; state.tatuatoreSwitchError = "Password sbagliata."; render(); return;
           }
           if (conCassaforte && !DEK){
-            // hash corretto ma nessuna busta e nessuno ha ancora
-            // sbloccato in questa sessione: da qui non si ricava il DEK.
+            // hash corretto ma nessuna busta (né personale né condivisa
+            // con questa password) e nessuno ha ancora sbloccato in
+            // questa sessione: da qui non si ricava il DEK davvero.
             state.tatuatoreSwitchBusy = false;
             state.tatuatoreSwitchError = "Password corretta, ma l'archivio non risulta ancora sbloccato su questo dispositivo. Usa lo sblocco d'emergenza qui sotto.";
             render(); return;
@@ -6800,6 +6818,15 @@ document.addEventListener("click", (e) => {
         }
       }
       ACTIVE_TATUATORE = id;
+      // CORREZIONE (prompt15fix, Task B, causa vera del bug): un
+      // profilo sbloccato con successo qui non resettava mai
+      // state.locked — restava true da boot (authIsSet() true per
+      // qualunque studio con cassaforte), quindi al render successivo
+      // il dispatcher, con serveSceltaTatuatore() ora falso
+      // (ACTIVE_TATUATORE impostato), cadeva dritto sulla vecchia
+      // schermata "accedi con ID studio" invece di entrare in app —
+      // sembrava un loop di sblocco d'emergenza, non lo era.
+      state.locked = false; state.forceEmergencyUnlock = false;
       const t = tatuatoreAttivo();
       const esitoT = await registraTatuatoreCorrente(t);
       if (esitoT && esitoT.consentito === false){
@@ -6810,6 +6837,13 @@ document.addEventListener("click", (e) => {
       state.tatuatoreSwitchPick = null; state.tatuatoreSwitchBuffer = null;
       state.deviceLimitBlock = (esitoD && esitoD.consentito === false) ? esitoD : null;
       render();
+      // prompt15fix, Task B: questo è un vero "apertura app" (sblocco
+      // riuscito) — il refresh automatico di Task 2/3 scattava solo al
+      // boot iniziale e al ritorno in primo piano, mai qui: uno studio
+      // appena attivato su Supabase restava con la stima vecchia finché
+      // non si ricaricava la pagina da capo. Diretto, senza throttle:
+      // è un evento raro (un login/sblocco), non un polling.
+      refreshLicenseFromSupabase();
     })();
   }
 
@@ -7948,17 +7982,18 @@ function initRichiestaMode(){
       const codice = (params.get("codice") || "").trim().toUpperCase();
       if (codice) attivaGuestDaCodice(codice);
     }
-    // limite dispositivi: solo per studi con un vero account autenticato
-    // (registraDispositivoCorrente è un no-op innocuo altrimenti, o se
-    // Supabase/la rete non rispondono — non blocca mai l'uso offline).
-    // Con più di un tatuatore la registrazione dispositivo/tatuatore
-    // parte solo DOPO la scelta (vedi renderTatuatoreSwitch, action
-    // "tatuatore-login"): qui serve sapere già chi è attivo, cosa che
-    // a boot appena partito non è ancora possibile con più tatuatori.
-    if (state.mode === "studio" && !state.needsStudioAccount && loadStudioAccount() && assicuraProfiliTatuatori().filter(tatuatoreAbilitato).length <= 1){
-      const esito = await registraDispositivoCorrente();
-      if (esito && esito.consentito === false) state.deviceLimitBlock = esito;
-    }
+    // CORREZIONE (prompt15fix, Task A): questa chiamata al boot occupava
+    // uno slot dispositivo per QUALSIASI caricamento della pagina con una
+    // sessione valida — incluso il semplice link di conferma email
+    // aperto per sbaglio in un browser diverso da quello dell'app
+    // installata, mai davvero "usato". Un "dispositivo fantasma" mai
+    // collegato a nessun tatuatore, orfano finché non lo si cancellava a
+    // mano. Da Task 5 la registrazione avviene già al momento giusto —
+    // un vero utilizzo, non il solo caricamento pagina — dentro
+    // tatuatore-claim/tatuatore-login (chi sta lavorando ora) e dentro
+    // trial-start/account-signin: ridondante qui per SoloPro/trial dopo
+    // Task 5 (ci si passa comunque da lì), dannosa per chi la pagina la
+    // vede solo di striscio senza mai aprire l'app davvero. Rimossa.
     // "realtime" pragmatico per le richieste preventivo (prompt6, Task
     // 8-9): parte una volta sola, non blocca il boot, no-op se Supabase
     // non è configurato — vedi avviaPollingRichieste.
