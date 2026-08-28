@@ -85,11 +85,23 @@
    da "non risposto"; avviso backup mancante in layout verticale
    (testo sopra, bottone a piena larghezza sotto) invece di testo-
    sinistra/bottone-destra sulla stessa riga.
+   v34: nuovi tatuatori registrati su Supabase (licenza_tatuatori) subito
+   quando il nome viene aggiunto in Impostazioni, non solo al primo
+   switch — il tetto del piano attivo lo applica già registra_tatuatore()
+   lato server; richieste preventivo: titolare vede e apre sempre tutto,
+   un tatuatore vede tutte le richieste dello studio ma apre/prende in
+   carico solo quelle indirizzate a lui (o senza preferenza); barra
+   "consensi gratuiti" in Impostazioni sostituita da "Abbonamento
+   attivo" quando un piano a pagamento è attivo, invece di continuare a
+   mostrare un conteggio contro un limite che non si applica più;
+   questionario sanitario: partenza neutra (tondino centrato, grigio),
+   tocco a sinistra/destra decide esplicitamente no/sì, legenda sopra
+   il gruppo di interruttori.
 
    Nota: i dati (consensi, magazzino) NON passano da qui. Stanno in
    IndexedDB sul dispositivo e il service worker non li tocca mai.   */
 
-const CACHE = "inkconsent-v33";
+const CACHE = "inkconsent-v34";
 
 const PRECACHE = [
   "./",

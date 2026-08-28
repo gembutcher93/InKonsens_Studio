@@ -30,7 +30,48 @@ dispositivo (mai inviati altrove) e chiamate `fetch` dirette alle API
 REST di Supabase quando serve la licenza. Nessun tracciamento, nessun
 analytics di terze parti.
 
-## Novità dell'ultimo giro (nono giro): rifiniture UI
+## Novità dell'ultimo giro (decimo giro): gestione tatuatori, richieste per-destinatario
+
+Nessuna modifica a Supabase (tabelle/funzioni già pronte dai giri
+precedenti) — solo wiring lato client e logica di visibilità.
+
+- **Nuovi tatuatori registrati subito, non solo al primo switch.** I
+  campi "Artisti" in Impostazioni restano quello che sono sempre stati
+  (testo separato da virgola, decisione confermata per non avere due
+  fonti di verità sullo stesso dato) — ma da questo giro, ogni nome
+  NUOVO registra subito il proprio profilo su Supabase
+  (`licenza_tatuatori`), con il tetto del piano attivo applicato da
+  `registra_tatuatore()` lato server (1 in trial/SoloPro, 3 StudioPro,
+  5 AtelierPro) — chi supera il tetto vede subito il messaggio di
+  limite, non un campo bloccato in attesa di un piano che non può
+  dichiarare in anticipo.
+- **Richieste preventivo: chi può aprirle.** Il titolare vede e apre
+  sempre tutte le richieste dello studio. Un tatuatore (in uno studio
+  con più di un artista) vede comunque tutte le richieste, ma può
+  aprire/prendere in carico solo quelle indirizzate a lui dal cliente
+  (o senza preferenza indicata) — per le altre il bottone resta
+  visibile ma disattivato. Per Trial/SoloPro il comportamento non
+  cambia (un solo tatuatore = sempre lui). Il collegamento resta quello
+  già scelto nel form pubblico (il cliente sceglie per nome, non un
+  link/QR separato per tatuatore — più semplice e coerente con una
+  sola vetrina online per studio).
+- **Barra "consensi gratuiti" corretta su piano attivo.** Il gate vero
+  (server-side) già ignorava il limite con un abbonamento attivo, ma la
+  card "Licenza e consensi gratuiti" in Impostazioni continuava a
+  mostrare "X di 10", fuorviante per chi paga già. Ora mostra
+  "Abbonamento attivo — consensi illimitati".
+- **Questionario sanitario: partenza davvero neutra.** Tondino
+  centrato, sfondo grigio, nessuna risposta implicita. Tocco sulla metà
+  sinistra dell'interruttore = "no" (verde), metà destra = "sì"
+  (rosso) — non più un singolo tap che alterna. Legenda "No"/"Sì"
+  sopra il gruppo, cosi' il significato non dipende solo dal colore.
+
+Verificato con Chrome headless: stato neutro iniziale e zone di tocco
+del questionario, sostituzione della barra abbonamento, visibilità/
+blocco delle richieste con più tatuatori simulati — tutto confermato,
+zero errori console.
+
+## Novità del nono giro: rifiniture UI
 
 Giro di sola interfaccia, nessuna modifica a Supabase/logica di
 licenza.

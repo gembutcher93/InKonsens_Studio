@@ -428,11 +428,17 @@ select{
 .lead-main{flex:1;min-width:0;}
 .lead-main b{font-size:14.5px;}
 .lead-main span{display:block;font-size:12px;color:var(--ink-faint);}
+/* Richiesta indirizzata a un altro tatuatore (prompt11, Task 2): resta
+   leggibile per tutti (il titolare vede sempre tutto), ma non apribile
+   da chi non è il destinatario — niente cursore/hover da azione. */
+.lead-row-locked{cursor:default;opacity:.72;}
+.lead-row-locked:hover{border-color:var(--line-soft);}
 .wa-btn{
   all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
   background:#25D366;color:#fff;padding:8px 12px;border-radius:var(--radius);font-size:12.5px;font-weight:600;
 }
 .wa-btn:hover{background:#1fb958;}
+.wa-btn.disabled{background:var(--paper-field);color:var(--ink-faint);cursor:not-allowed;}
 .lead-status{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:4px 9px;border-radius:20px;border:1px solid currentColor;}
 .lead-status.nuova{color:var(--flesh);}
 .lead-status.contattato{color:var(--stencil);}
@@ -669,19 +675,28 @@ select{
 .hq{display:flex;align-items:center;gap:14px;padding:12px 4px;border-bottom:1px solid var(--line-soft);}
 .hq:last-of-type{border-bottom:none;}
 .hq-label{flex:1;font-size:13.5px;line-height:1.45;color:var(--ink);}
-/* Verde = risposta "no" (nessun problema dichiarato), rosso = "sì"
-   (condizione presente, blocca il flusso — vedi bloccato in
-   renderStepSanitario), violetto neutro = non ancora risposto: prima
-   di questo giro "no" e "non risposto" erano quasi lo stesso grigio,
-   difficile capire a colpo d'occhio cosa restava da compilare
-   (prompt10, Task 3). */
-.sw{position:relative;flex:none;width:50px;height:30px;border-radius:999px;background:var(--ok);
-  transition:background .18s;cursor:pointer;border:none;padding:0;}
-.sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;
-  background:var(--paper-field);box-shadow:0 1px 3px rgba(0,0,0,.4);transition:transform .18s;}
-.sw.on{background:var(--warn);}
-.sw.on::after{transform:translateX(20px);}
-.sw.unset{background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 2px rgba(150,101,154,.4);}
+/* Tre stati veri, non solo due colori (prompt10 Task 3 + correzione
+   prompt11 Task 3): partenza NEUTRA, tondino al centro, sfondo grigio
+   — non dà più l'impressione di una risposta già data. Tocco sulla
+   metà sinistra dell'interruttore = "no" (nessun problema, verde,
+   tondino a sinistra); metà destra = "sì" (condizione presente, rosso,
+   blocca il flusso — vedi bloccato in renderStepSanitario, tondino a
+   destra). Due bottoni invisibili sovrapposti (.sw-zone) invece di un
+   singolo tap che alterna, cosi' la direzione del tocco è sempre
+   quella che decide, non "che tocco è questo". */
+.hq-legend{display:flex;justify-content:flex-end;gap:34px;padding:0 4px 6px;
+  font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint);}
+.hq-legend span:first-child{margin-right:auto;}
+.sw{position:relative;flex:none;width:50px;height:30px;border-radius:999px;background:rgba(255,255,255,.14);
+  transition:background .18s;border:none;padding:0;}
+.sw::after{content:"";position:absolute;top:3px;left:13px;width:24px;height:24px;border-radius:50%;
+  background:var(--paper-field);box-shadow:0 1px 3px rgba(0,0,0,.4);transition:left .18s;pointer-events:none;}
+.sw-zone{all:unset;position:absolute;top:0;bottom:0;width:50%;cursor:pointer;}
+.sw-zone-no{left:0;} .sw-zone-si{right:0;}
+.sw.sw-no{background:var(--ok);}
+.sw.sw-no::after{left:3px;}
+.sw.sw-on{background:var(--warn);}
+.sw.sw-on::after{left:23px;}
 .hq-block{margin-top:18px;padding:15px 16px;border-radius:var(--radius-md);
   background:var(--warn-tint);border:1px solid rgba(226,105,76,.35);color:var(--warn);font-size:13px;line-height:1.55;}
 .hq-block b{color:#F0846A;}
@@ -2211,8 +2226,13 @@ BIG_STORES.push(TATUATORI_KEY);
 function loadTatuatori(){ return readStore(TATUATORI_KEY, []); }
 function saveTatuatori(list){ writeStore(TATUATORI_KEY, list); }
 function getTatuatoreProfilo(id){ return loadTatuatori().find(t => t.id === id) || null; }
-function blankTatuatoreProfilo(nome){
-  return { id: uuidv4(), nome, username: "", salt: "", hash: "", supabaseId: uuidv4(), createdAt: new Date().toISOString() };
+/* isTitolare: true SOLO per il profilo creato durante l'onboarding
+   (trial-start) — usato per dare sempre accesso pieno alle richieste
+   preventivo indipendentemente da chi sono indirizzate (prompt11,
+   Task 2), coerente col resto dell'app dove il titolare vede/gestisce
+   sempre tutto (agenda condivisa, contabilità...). */
+function blankTatuatoreProfilo(nome, isTitolare){
+  return { id: uuidv4(), nome, username: "", salt: "", hash: "", supabaseId: uuidv4(), isTitolare: !!isTitolare, createdAt: new Date().toISOString() };
 }
 /* Crea (o ritrova) un profilo per ogni nome già dichiarato in
    Impostazioni -> "Artisti": esiste subito per poter contare/attribuire,
@@ -2224,8 +2244,8 @@ function assicuraProfiliTatuatori(){
   const nomi = STUDIO_CONFIG.artists || [];
   const list = loadTatuatori();
   let changed = false;
-  nomi.forEach(nome => {
-    if (!list.some(t => t.nome === nome)){ list.push(blankTatuatoreProfilo(nome)); changed = true; }
+  nomi.forEach((nome, i) => {
+    if (!list.some(t => t.nome === nome)){ list.push(blankTatuatoreProfilo(nome, i === 0)); changed = true; }
   });
   if (changed) saveTatuatori(list);
   return list.filter(t => nomi.includes(t.nome));
@@ -2261,6 +2281,24 @@ function nomeTatuatoreAttivo(){ const t = tatuatoreAttivo(); return t ? t.nome :
    tatuatore dichiarato e nessuno ancora attivo in questa sessione. */
 function serveSceltaTatuatore(){
   return assicuraProfiliTatuatori().length > 1 && !ACTIVE_TATUATORE;
+}
+/* Accesso pieno alle richieste preventivo (prompt11, Task 2): sempre
+   vero per il titolare, e sempre vero anche con un solo tatuatore
+   (SoloPro/trial — "un solo tatuatore = sempre lui", comportamento
+   invariato). Con più tatuatori, vero solo per il profilo marcato
+   isTitolare — non per gli altri, che vedono tutto ma agiscono solo
+   sulle richieste indirizzate a loro (vedi puoAprireRichiesta). */
+function accessoPienoRichieste(){
+  if (assicuraProfiliTatuatori().length <= 1) return true;
+  const t = tatuatoreAttivo();
+  return !!(t && t.isTitolare);
+}
+/* Una richiesta senza tatuatore scelto dal cliente resta aperta a
+   chiunque la prenda in carico (nessuna preferenza espressa). */
+function puoAprireRichiesta(r){
+  if (accessoPienoRichieste()) return true;
+  if (!r.tatuatoreScelto) return true;
+  return r.tatuatoreScelto === nomeTatuatoreAttivo();
 }
 
 /* Registra (o rinnova) il tatuatore attivo su Supabase — conteggio
@@ -6068,15 +6106,26 @@ function renderLeads(){
       <div class="arch-empty">
         <b>Nessuna richiesta ancora</b>
         Condividi il link qui sopra, oppure crea subito un preventivo con "Nuovo preventivo" mentre parli col cliente in studio.
-      </div>` : leads.map(l => `
-      <div class="lead-row" data-action="open-lead" data-id="${l.id}">
+      </div>` : leads.map(l => {
+        // Il titolare vede e apre sempre tutto; un tatuatore vede tutte
+        // le richieste dello studio ma può aprire/prendere in carico
+        // solo quelle indirizzate a lui (o senza preferenza indicata dal
+        // cliente) — prompt11, Task 2.
+        const puoAprire = puoAprireRichiesta(l);
+        return `
+      <div class="lead-row ${puoAprire?'':'lead-row-locked'}" ${puoAprire ? `data-action="open-lead" data-id="${l.id}"` : ""}>
         <div class="lead-main">
           <b>${esc(l.cliente.cognome)} ${esc(l.cliente.nome)}</b>
-          <span>${l.stile.map(esc).join(", ") || "Stile non indicato"} · ${fmtDateTime(l.createdAt)}${l.creataInStudio ? " · creato in studio" : ""}</span>
+          <span>${l.stile.map(esc).join(", ") || "Stile non indicato"} · ${fmtDateTime(l.createdAt)}${l.creataInStudio ? " · creato in studio" : ""}${l.tatuatoreScelto ? " · per " + esc(l.tatuatoreScelto) : ""}</span>
         </div>
         <span class="lead-status ${LEAD_STATUS[l.status].cls}">${LEAD_STATUS[l.status].label}</span>
-        ${l.cliente.telefono ? `<a class="wa-btn" href="${waLink(l.cliente.telefono, waMessageFor(l))}" target="_blank" rel="noopener" onclick="event.stopPropagation()">WhatsApp</a>` : ""}
-      </div>`).join("")}
+        ${l.cliente.telefono
+          ? (puoAprire
+              ? `<a class="wa-btn" href="${waLink(l.cliente.telefono, waMessageFor(l))}" target="_blank" rel="noopener" onclick="event.stopPropagation()">WhatsApp</a>`
+              : `<span class="wa-btn disabled" title="Indirizzata a ${esc(l.tatuatoreScelto)}: solo lei/lui può prenderla in carico">${icon("lock",13)} WhatsApp</span>`)
+          : ""}
+      </div>`;
+      }).join("")}
   </div>`;
 }
 
@@ -6525,12 +6574,10 @@ document.addEventListener("click", (e) => {
   else if (action === "toggle-privacy"){ draft.privacyConsenso = !draft.privacyConsenso; renderStepOnly(); }
   else if (action === "toggle-disegno"){ draft.disegnoConfermato = !draft.disegnoConfermato; renderStepOnly(); }
   else if (action === "toggle-schedatecnica"){ draft.seduta.schedaTecnicaAllegata = !draft.seduta.schedaTecnicaAllegata; renderStepOnly(); }
-  else if (action === "set-sanitario"){ draft.sanitario[btn.dataset.q] = btn.dataset.v; renderStepOnly(); }
-  else if (action === "toggle-sanitario"){
-    const q = btn.dataset.q, cur = draft.sanitario[q];
-    // primo tocco = "sì" (segnala la condizione), secondo = "no", poi alterna
-    draft.sanitario[q] = cur === "si" ? "no" : "si";
-    if (draft.sanitario[q] !== "si" && !HEALTH_QUESTIONS.some(x => draft.sanitario[x.id] === "si")) draft.sanitarioOverride = false;
+  else if (action === "set-sanitario"){
+    const q = btn.dataset.q;
+    draft.sanitario[q] = btn.dataset.v;
+    if (!HEALTH_QUESTIONS.some(x => draft.sanitario[x.id] === "si")) draft.sanitarioOverride = false;
     renderStepOnly();
   }
   else if (action === "sanitario-override"){ draft.sanitarioOverride = true; renderStepOnly(); }
@@ -6839,10 +6886,34 @@ document.addEventListener("click", (e) => {
     state.lastRemoteId = s.id; render();
   }
   else if (action === "save-studio"){
+    const primaArtisti = STUDIO_CONFIG.artists.slice();
     saveStudioOverrides({ ...loadStudioOverrides(), ...(state.studioBuffer || {}) });
     applyStudioConfig();
-    state.studioBuffer = null; state.studioSaved = true;
+    state.studioBuffer = null; state.studioSaved = true; state.tatuatoreCapError = null;
     render();
+    // Nuovi nomi in "Artisti" (prompt11, Task 1): un campo separato non
+    // c'era mai — è ancora la stessa stringa separata da virgola di
+    // sempre, ma ogni nome NUOVO registra subito il suo profilo su
+    // Supabase (licenza_tatuatori), col tetto del piano attivo
+    // applicato da registra_tatuatore() lato server (1 in trial/
+    // SoloPro, 3 StudioPro, 5 AtelierPro) — niente campo bloccato in
+    // attesa di un piano, il limite vero lo fa già il server.
+    const dopoArtisti = STUDIO_CONFIG.artists.slice();
+    const nuovi = dopoArtisti.filter(n => !primaArtisti.includes(n));
+    if (nuovi.length){
+      const profili = assicuraProfiliTatuatori();
+      (async () => {
+        for (const nome of nuovi){
+          const p = profili.find(t => t.nome === nome);
+          if (!p) continue;
+          const esito = await registraTatuatoreCorrente(p);
+          if (esito && esito.consentito === false){
+            state.tatuatoreCapError = esito.messaggio || "Tetto tatuatori del piano raggiunto.";
+          }
+        }
+        render();
+      })();
+    }
   }
   else if (action === "review-tour"){
     localStorage.removeItem(TOUR_KEY);
@@ -7566,6 +7637,7 @@ function renderSettings(){
         <button class="btn btn-ghost" data-action="reset-studio">Ripristina default</button>
       </div>
       ${state.studioSaved ? `<div class="callout ok" style="margin-top:12px;">Impostazioni salvate e applicate.</div>` : ""}
+      ${state.tatuatoreCapError ? `<div class="callout warn" style="margin-top:12px;">${esc(state.tatuatoreCapError)}</div>` : ""}
     </div>
     <div class="card">
       <h3 class="section-title">Icone magazzino</h3>
@@ -7720,7 +7792,9 @@ function renderSettings(){
     ${accOpen("licenza", "Licenza e piano", "Consensi gratuiti, abbonamento, guest artist")}
     <div class="card">
       <h3 class="section-title">Licenza e consensi gratuiti</h3>
-      ${renderTrialProgress(licenseState())}
+      ${subscriptionActive()
+        ? `<div class="trial-bar trial-ok"><div class="trial-bar-top"><span>${icon("check",14)} Abbonamento attivo</span></div><p class="trial-note" style="margin-top:2px;">Consensi illimitati (piano ${esc(pianoConsigliato().nome)}) — il limite di ${FREE_CONSENSI_LIMIT} gratuiti non si applica più.</p></div>`
+        : renderTrialProgress(licenseState())}
       <div class="kv"><span>Abbonamento</span><b>${subscriptionActive() ? "Attivo" : "Non attivo"}</b></div>
       <div class="kv"><span>Piano consigliato</span><b>${esc(pianoConsigliato().nome)} <span class="field hint" style="display:inline;">(${esc(pianoConsigliato().desc)})</span></b></div>
       <p class="section-desc" style="margin-top:10px;">Oltre i ${FREE_CONSENSI_LIMIT} consensi gratuiti per questo studio/dispositivo, serve l'abbonamento per continuare ad archiviarne di nuovi. Le bozze non consumano la soglia.</p>
@@ -8078,12 +8152,16 @@ function renderStepSanitario(ctx){
   ${renderErrors(2)}
   <h3 class="section-title">Questionario sanitario</h3>
   <p class="section-desc">Sposta l'interruttore su ogni voce. Se una condizione è presente, il tatuaggio potrebbe non essere eseguibile: se ne parla con il tatuatore prima di proseguire.</p>
+  <div class="hq-legend"><span>No</span><span>Sì</span></div>
   ${HEALTH_QUESTIONS.map(q => {
     const val = draft.sanitario[q.id];
-    const cls = val === 'si' ? 'on' : (val === 'no' ? '' : 'unset');
+    const cls = val === 'si' ? 'sw-on' : (val === 'no' ? 'sw-no' : '');
     return `<div class="hq">
       <div class="hq-label">${esc(q.label)}</div>
-      <button class="sw ${cls}" role="switch" aria-checked="${val==='si'}" data-action="toggle-sanitario" data-q="${q.id}" title="${val==='si'?'Sì':val==='no'?'No':'Da rispondere'}"></button>
+      <div class="sw ${cls}" role="switch" aria-checked="${val==='si'}" title="${val==='si'?'Sì':val==='no'?'No':'Da rispondere'}">
+        <button class="sw-zone sw-zone-no" data-action="set-sanitario" data-q="${q.id}" data-v="no" aria-label="No, nessun problema"></button>
+        <button class="sw-zone sw-zone-si" data-action="set-sanitario" data-q="${q.id}" data-v="si" aria-label="Sì, condizione presente"></button>
+      </div>
     </div>`;
   }).join("")}
   ${bloccato ? `<div class="hq-block">
