@@ -2414,6 +2414,21 @@ function rimuoviProfiloTatuatoreLocale(id){
   rimuoviBustaTatuatore(id); // pulizia della busta cassaforte, se ne aveva una (prompt15, Task 5)
   if (ACTIVE_TATUATORE === id) ACTIVE_TATUATORE = null;
 }
+/* FixStupidomautile: unico punto di verità per "elimina tatuatore" —
+   pulizia locale (profilo + busta cassaforte) e su Supabase (RPC
+   rimuovi_tatuatore) nello stesso momento. Prima esistevano due
+   implementazioni separate ("Dati studio" e "Sicurezza e accesso") che
+   potevano disallinearsi; ora entrambe le interfacce chiamano questa. */
+function eliminaTatuatoreCompleto(id){
+  const t = getTatuatoreProfilo(id);
+  if (!t || t.isTitolare) return;
+  const ov = loadStudioOverrides();
+  const nomiRimasti = artistiArray(ov).filter(n => n.trim() && n.trim() !== t.nome);
+  saveStudioOverrides({ ...ov, artistsText: nomiRimasti.join(", ") });
+  rimuoviProfiloTatuatoreLocale(id);
+  applyStudioConfig();
+  if (t.supabaseId) rimuoviTatuatoreRemoto(t.supabaseId).catch(() => {});
+}
 
 /* Chi sta lavorando ora su questo dispositivo condiviso: solo in
    memoria (come DEK), sparisce a ogni blocco/sblocco — un dispositivo
@@ -7055,13 +7070,15 @@ document.addEventListener("click", (e) => {
     const t = getTatuatoreProfilo(id);
     if (!t || t.isTitolare) return;
     if (!confirm(`Rimuovere ${t.nome}? Il profilo (credenziali locali e registrazione su Supabase) viene cancellato. Consensi già firmati da lui restano nell'archivio, invariati.`)) return;
-    const ov = loadStudioOverrides();
-    const nomiRimasti = artistiArray(ov).filter(n => n.trim() && n.trim() !== t.nome);
-    saveStudioOverrides({ ...ov, artistsText: nomiRimasti.join(", ") });
-    rimuoviProfiloTatuatoreLocale(id);
-    applyStudioConfig();
+    eliminaTatuatoreCompleto(id);
+    // Se c'è un draft aperto in "Dati studio" con un artistsText ormai
+    // superato (nome appena eliminato ancora presente), scartalo: la
+    // prossima lettura ricade sul valore salvato, già ripulito sopra.
+    if (state.studioBuffer && "artistsText" in state.studioBuffer){
+      const { artistsText, ...rest } = state.studioBuffer;
+      state.studioBuffer = rest;
+    }
     render();
-    if (t.supabaseId) rimuoviTatuatoreRemoto(t.supabaseId).catch(() => {});
   }
   else if (action === "tatuatore-claim" || action === "tatuatore-login"){
     const id = state.tatuatoreSwitchPick;
@@ -7865,8 +7882,30 @@ document.addEventListener("click", (e) => {
     }
   }
   else if (action === "remove-artista"){
+    // FixStupidomautile: se il nome in questa riga corrisponde a un
+    // profilo tatuatore già esistente (salvato/registrato), eliminarlo
+    // da qui deve fare la STESSA cosa che fa "Rimuovi" in "Sicurezza e
+    // accesso" (pulizia locale + RPC Supabase), non solo togliere il
+    // nome dal testo in bozza — altrimenti la riga su Supabase resta
+    // orfana, bloccando poi la ri-creazione dello stesso nome.
     const arr = artistiArray(studioCfgLive());
-    arr.splice(parseInt(btn.dataset.idx, 10), 1);
+    const idx = parseInt(btn.dataset.idx, 10);
+    const nome = (arr[idx] || "").trim();
+    const esistente = nome && loadTatuatori().find(t => t.nome === nome && !t.isTitolare);
+    if (esistente){
+      if (!puoVedereDatiStudio()) return;
+      if (!confirm(`Rimuovere ${esistente.nome}? Il profilo (credenziali locali e registrazione su Supabase) viene cancellato. Consensi già firmati da lui restano nell'archivio, invariati.`)) return;
+      eliminaTatuatoreCompleto(esistente.id);
+      if (state.studioBuffer && "artistsText" in state.studioBuffer){
+        const { artistsText, ...rest } = state.studioBuffer;
+        state.studioBuffer = rest;
+      }
+      render();
+      return;
+    }
+    // Nome mai stato un profilo vero (bozza non ancora salvata): niente
+    // da ripulire su Supabase, resta il semplice splice dal testo bozza.
+    arr.splice(idx, 1);
     state.studioBuffer = { ...(state.studioBuffer||{}), artistsText: arr.join(", ") };
     render();
   }
