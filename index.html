@@ -7039,6 +7039,30 @@ document.addEventListener("click", (e) => {
     if (ACTIVE_TATUATORE === btn.dataset.id) ACTIVE_TATUATORE = null;
     render();
   }
+  else if (action === "rimuovi-tatuatore"){
+    // PromptFixFinal, Task 2 + 3: rimozione VERA — locale (profilo +
+    // busta cassaforte, già gestito da rimuoviProfiloTatuatoreLocale,
+    // prompt15 Task 5) e su Supabase nello stesso momento (RPC già
+    // esistente rimuovi_tatuatore, mai collegata a nessun bottone prima
+    // d'ora), così non serve più disattivarla a mano dal pannello.
+    // Nessun vicolo cieco possibile da qui in poi: un profilo "a metà"
+    // (mai registrato con successo, Task 3) è comunque un profilo
+    // normale in questa lista, quindi sempre rimovibile allo stesso
+    // modo — la RPC su un id mai esistito su Supabase torna
+    // semplicemente "niente da cancellare" (found=false), non un errore.
+    const id = btn.dataset.id;
+    if (!puoVedereDatiStudio()) return;
+    const t = getTatuatoreProfilo(id);
+    if (!t || t.isTitolare) return;
+    if (!confirm(`Rimuovere ${t.nome}? Il profilo (credenziali locali e registrazione su Supabase) viene cancellato. Consensi già firmati da lui restano nell'archivio, invariati.`)) return;
+    const ov = loadStudioOverrides();
+    const nomiRimasti = artistiArray(ov).filter(n => n.trim() && n.trim() !== t.nome);
+    saveStudioOverrides({ ...ov, artistsText: nomiRimasti.join(", ") });
+    rimuoviProfiloTatuatoreLocale(id);
+    applyStudioConfig();
+    render();
+    if (t.supabaseId) rimuoviTatuatoreRemoto(t.supabaseId).catch(() => {});
+  }
   else if (action === "tatuatore-claim" || action === "tatuatore-login"){
     const id = state.tatuatoreSwitchPick;
     const b = state.tatuatoreSwitchBuffer || {};
@@ -7454,6 +7478,7 @@ document.addEventListener("click", (e) => {
   }
   else if (action === "inv-cancel"){ state.showInkForm = false; state.showNeedleForm = false; state.showFornForm = false; state.fornLoadMode = false; state.fornLoadId = null; state.editBuffer = {}; render(); }
   else if (action === "toggle-privacy-blur"){ state.privacyBlur = !state.privacyBlur; render(); }
+  else if (action === "toggle-mostra-id-licenza"){ state.mostraIdLicenza = !state.mostraIdLicenza; render(); }
   else if (action === "toggle-accordion"){
     const id = btn.dataset.id;
     state.accordionOpen = { ...(state.accordionOpen||{}), [id]: !(state.accordionOpen && state.accordionOpen[id]) };
@@ -7623,6 +7648,14 @@ document.addEventListener("click", (e) => {
   else if (action === "seduta-remove-ink"){ draft.seduta.inchiostri = (draft.seduta.inchiostri||[]).filter(x => x.id !== btn.dataset.id); upsertSession(draft); renderStepOnly(); }
   else if (action === "seduta-remove-needle"){ draft.seduta.aghi = (draft.seduta.aghi||[]).filter(x => x.id !== btn.dataset.id); upsertSession(draft); renderStepOnly(); }
   else if (action === "save-studio"){
+    // CORREZIONE (PromptFixFinal, Task 3 aggiunta): stesso controllo del
+    // bottone disabilitato, ripetuto qui — non fidarsi solo del DOM,
+    // stesso principio già usato altrove (puoVedereDatiStudio,
+    // puoReimpostare). renderArtistiFields va richiamata per essere
+    // certi che il flag rifletta il buffer più recente, non un giro
+    // di render precedente.
+    renderArtistiFields(studioCfgLive());
+    if (artistiScelteMancanti) return;
     const primaArtisti = STUDIO_CONFIG.artists.slice();
     const buffer = { ...(state.studioBuffer || {}) };
     // prompt16, Task 11c: scelta Dipendente/Partita IVA per i nomi nuovi
@@ -7659,12 +7692,14 @@ document.addEventListener("click", (e) => {
       // prompt16, Task 11c: "Dipendente" copia SUBITO ragione sociale/
       // P.IVA del titolare nel nuovo profilo — copia indipendente, non
       // un riferimento: da qui in poi il tatuatore la modifica per
-      // conto suo senza toccare quella del titolare. "Partita IVA
-      // propria" (o scelta non fatta, default comunque "dipendente" per
-      // non forzare un passaggio in più su un caso già comune) lascia i
-      // campi come sono già sul profilo appena creato (vuoti).
+      // conto suo senza toccare quella del titolare. CORREZIONE
+      // (PromptFixFinal, Task 3): NESSUN default più su "dipendente" —
+      // il bottone Salva è disabilitato finché la scelta non è
+      // esplicita (vedi artistiScelteMancanti), quindi se per qualche
+      // motivo arriviamo qui senza una scelta registrata, meglio non
+      // copiare nulla che copiare senza consenso.
       nuovi.forEach(nome => {
-        if ((nuoviTatuatoriTipo[nome] || "dipendente") !== "dipendente") return;
+        if (nuoviTatuatoriTipo[nome] !== "dipendente") return;
         const p = profili.find(t => t.nome === nome);
         if (!p) return;
         const list = loadTatuatori();
@@ -8087,6 +8122,20 @@ document.addEventListener("change", (e) => {
   }
   const aspettoFieldC = e.target.dataset.fieldAspetto;
   if (aspettoFieldC){ state.aspettoBuffer = { ...(state.aspettoBuffer||{}), [aspettoFieldC]: e.target.value }; }
+  const artistaIdxC = e.target.dataset.artistaIdx;
+  if (artistaIdxC !== undefined){
+    // CORREZIONE (PromptFixFinal, Task 3, fix del timing): l'evento
+    // "input" sopra aggiorna il buffer ma non ridisegna — lo switch
+    // Dipendente/Partita IVA (che dipende dal nome appena scritto)
+    // poteva restare invisibile fino al prossimo render qualunque.
+    // "change" scatta al blur, che avviene comunque PRIMA del click su
+    // "Salva e applica" (il click sposta il focus) — abbastanza presto
+    // perché lo switch compaia sempre in tempo utile. Il bottone
+    // disabilitato (artistiScelteMancanti) resta comunque la vera rete
+    // di sicurezza, non questo redraw.
+    render();
+    return;
+  }
   const authField = e.target.dataset.fieldAuth;
   if (authField){ state.authBuffer = { ...(state.authBuffer||{}), [authField]: e.target.value }; }
   const backupField = e.target.dataset.fieldBackup;
@@ -8544,6 +8593,12 @@ function accClose(){ return `</div></div>`; }
    salvataggio. I campi già scritti restano comunque editabili/
    rimovibili anche oltre il tetto (es. dopo un downgrade) — si blocca
    solo l'AGGIUNTA di altri. */
+/* true se almeno un nome nuovo (non ancora un profilo esistente) non ha
+   ancora una scelta esplicita Dipendente/Partita IVA — letta da
+   renderSettings per disabilitare "Salva e applica" (PromptFixFinal,
+   Task 3 aggiunta): previene alla radice il vicolo cieco del bug
+   originale, indipendentemente da qualunque timing di render. */
+let artistiScelteMancanti = false;
 function renderArtistiFields(cfg){
   const artisti = artistiArray(cfg);
   if (!artisti.length) artisti.push("");
@@ -8551,12 +8606,8 @@ function renderArtistiFields(cfg){
   const tetto = tettoTatuatoriReale();
   const nomiVeri = artisti.filter(s => s.trim()).length;
   const alTetto = nomiVeri >= tetto;
-  return `
-  <div class="field">
-    <label>Titolare / tatuatore</label>
-    <input type="text" data-artista-idx="0" value="${esc(artisti[0]||"")}" placeholder="Nome titolare">
-  </div>
-  ${artisti.slice(1).map((nome, i) => {
+  let mancanti = false;
+  const corpo = artisti.slice(1).map((nome, i) => {
     // prompt16, Task 11c: lo switch Dipendente/Partita IVA compare solo
     // finché il profilo non esiste ancora (nome nuovo, mai salvato) — è
     // una scelta fatta UNA VOLTA alla creazione (copia indipendente dei
@@ -8564,7 +8615,14 @@ function renderArtistiFields(cfg){
     // dopo, P.IVA e ragione sociale si modificano dal profilo del
     // singolo tatuatore, vedi renderDatiFiscaliPersonali.
     const esisteGia = nome.trim() && loadTatuatori().some(t => t.nome === nome.trim());
-    const tipo = (state.studioBuffer && state.studioBuffer.nuoviTatuatoriTipo && state.studioBuffer.nuoviTatuatoriTipo[nome.trim()]) || "dipendente";
+    // CORREZIONE (PromptFixFinal, Task 3): NESSUN default più — prima
+    // "dipendente" appariva già selezionato, quindi un salvataggio
+    // prima che l'utente notasse/toccasse lo switch copiava comunque i
+    // dati del titolare senza una scelta reale fatta. Ora resta null
+    // (nessuna delle due evidenziata) finché non si clicca davvero.
+    const tipo = (state.studioBuffer && state.studioBuffer.nuoviTatuatoriTipo && state.studioBuffer.nuoviTatuatoriTipo[nome.trim()]) || null;
+    const scelseManca = !esisteGia && !!nome.trim() && !tipo;
+    if (scelseManca) mancanti = true;
     return `
   <div class="field" style="display:flex;gap:8px;align-items:flex-end;">
     <div style="flex:1;"><label>Tatuatore aggiuntivo</label><input type="text" data-artista-idx="${i+1}" value="${esc(nome)}" placeholder="Nome"></div>
@@ -8577,8 +8635,16 @@ function renderArtistiFields(cfg){
       <button class="chip ${tipo==='piva'?'on':''}" data-action="set-artista-tipo" data-nome="${esc(nome.trim())}" data-v="piva">Ha una propria Partita IVA</button>
     </div>
     <div class="hint">"Dipendente dello studio": eredita subito una copia di ragione sociale/P.IVA del titolare, poi modificabile in autonomia dal nuovo tatuatore. "Ha una propria Partita IVA": parte vuoto, sarà lui a compilarlo al primo accesso.</div>
+    ${scelseManca ? `<p class="hint" style="color:var(--warn);">Scegli una delle due opzioni per poter salvare.</p>` : ""}
   </div>` : ""}`;
-  }).join("")}
+  }).join("");
+  artistiScelteMancanti = mancanti;
+  return `
+  <div class="field">
+    <label>Titolare / tatuatore</label>
+    <input type="text" data-artista-idx="0" value="${esc(artisti[0]||"")}" placeholder="Nome titolare">
+  </div>
+  ${corpo}
   <div class="field">
     ${artisti.length >= 5
       ? `<p class="hint">Massimo 5 tatuatori in self-service (AtelierPro). Per più tatuatori o più sedi, contattaci.</p>`
@@ -8616,9 +8682,10 @@ function renderSettings(){
       </div>
       ${renderArtistiFields(cfg)}
       <div class="btn-row">
-        <button class="btn btn-accent" data-action="save-studio">Salva e applica</button>
+        <button class="btn btn-accent" data-action="save-studio" ${artistiScelteMancanti ? "disabled" : ""}>Salva e applica</button>
         <button class="btn btn-ghost" data-action="reset-studio-richiedi">Ripristina default</button>
       </div>
+      ${artistiScelteMancanti ? `<p class="field hint" style="color:var(--warn);margin-top:8px;">Scegli Dipendente/Partita IVA per ogni nuovo tatuatore prima di salvare.</p>` : ""}
       ${state.studioSaved ? `<div class="callout ok" style="margin-top:12px;">Impostazioni salvate e applicate.</div>` : ""}
       ${state.tatuatoreCapError ? `<div class="callout warn" style="margin-top:12px;">${esc(state.tatuatoreCapError)}</div>` : ""}
       ${state.confirmResetStudio ? `
@@ -8803,12 +8870,40 @@ function renderSettings(){
       ${!moduloAttivo().verificato ? `<div class="callout warn" style="margin-top:12px;"><b>Testo non ancora verificato per questa Regione.</b> Il modulo base è trascritto da quello in uso in ${esc(MODULO_BASE.nome_origine)}. Prima di usarlo altrove fallo controllare, e aggiungi il testo regionale in <span class="mono">consensi.json</span>.</div>` : ""}
       <div class="callout info" style="margin-top:12px;">Ogni consenso registra la versione del testo con cui è stato firmato: aggiornare il modulo non cambia quelli già archiviati.</div>
     </div>
+    ${(() => {
+      // PromptFixFinal, Task 4: sostituito il testo generico "dati solo
+      // su questo dispositivo" (già ripetuto altrove nell'app — Sicurezza
+      // e accesso, onboarding) con informazioni DINAMICHE, specifiche
+      // della regione selezionata — verificato in Task 5 che SOGLIE_ETA
+      // è davvero differenziato per regione, non un valore fisso.
+      const reg = STUDIO_CONFIG.regione || "";
+      const nomeReg = (REGIONI_IT.find(x => x[0] === reg) || [])[1] || "";
+      const s = sogliaRegione(reg);
+      const sogliaTxt = !reg
+        ? "Nessuna Regione selezionata: si applica il minimo nazionale"
+        : (s.tat === s.pier
+            ? `${s.tat || FLOOR_ASSOLUTO} anni (tatuaggio e piercing)`
+            : `${s.tat || FLOOR_ASSOLUTO} anni tatuaggio · ${s.pier || FLOOR_ASSOLUTO} anni piercing`)
+          + (s.lobo ? ` · lobo da ${s.lobo}` : "")
+          + (!s.verificata ? " (regola prudenziale, soglia regionale da verificare)" : "");
+      const r = reg ? MODULI_REGIONALI[reg] : null;
+      const extra = r ? [...(r.avvertenze||[]), ...(r.avvertenzePiercing||[])] : [];
+      return `
     <div class="card">
       <h3 class="section-title">Stato</h3>
       <div class="kv"><span>Versione informativa attiva</span><b class="mono">${esc(moduloAttivo().etichetta)}</b></div>
       <div class="kv"><span>Conservazione consensi</span><b>Almeno ${STUDIO_CONFIG.retentionYears} anni</b></div>
-      <div class="kv"><span>Dati clienti</span><b>Solo su questo dispositivo (offline-first) — nessuna sync consensi su server</b></div>
-    </div>
+      <div class="kv"><span>Età minima${nomeReg ? " · " + esc(nomeReg) : ""}</span><b>${sogliaTxt}</b></div>
+      ${s.presenza ? `<div class="kv"><span>Presenza genitore</span><b>Richiesta di persona, non basta la firma</b></div>` : ""}
+      ${extra.length ? `
+      <div class="field" style="margin-top:10px;">
+        <label>${esc(nomeReg)} richiede in più rispetto al modulo base</label>
+        <ul style="margin:6px 0 0;padding-left:18px;font-size:13px;line-height:1.5;color:var(--ink);">
+          ${extra.map(riga => `<li>${esc(riga)}</li>`).join("")}
+        </ul>
+      </div>` : (reg ? `<p class="field hint" style="margin-top:10px;">${esc(nomeReg)}: nessun requisito aggiuntivo verificato oltre al modulo base.</p>` : "")}
+    </div>`;
+    })()}
     ${accClose()}
     ${accOpen("cliente", "Comunicazione con il cliente", "Aftercare personale")}
     ${(() => {
@@ -8899,7 +8994,10 @@ function renderSettings(){
         ${assicuraProfiliTatuatori().map(t => `
         <div class="inv-row">
           <div class="inv-main"><b>${esc(t.nome)}</b><span class="inv-sub">${!tatuatoreAbilitato(t) ? "In attesa: il piano attuale non lo ammette ancora" : (t.hash ? "Profilo attivo" + (t.username ? " · " + esc(t.username) : "") : "Nessuna credenziale impostata ancora")}${tatuatoreAttivo() && tatuatoreAttivo().id === t.id ? " · in uso ora" : ""}</span></div>
-          <div class="inv-actions">${t.hash && puoReimpostare(t) ? `<button class="btn btn-ghost btn-sm" data-action="reset-credenziali-tatuatore" data-id="${t.id}">Reimposta password</button>` : ""}</div>
+          <div class="inv-actions">
+            ${t.hash && puoReimpostare(t) ? `<button class="btn btn-ghost btn-sm" data-action="reset-credenziali-tatuatore" data-id="${t.id}">Reimposta password</button>` : ""}
+            ${puoVedereDatiStudio() && !t.isTitolare ? `<button class="btn btn-ghost btn-sm" data-action="rimuovi-tatuatore" data-id="${t.id}" title="Rimuove il profilo qui e su Supabase">${icon("trash",14)} Rimuovi</button>` : ""}
+          </div>
         </div>`).join("")}
       </div>
       <div class="btn-row" style="margin-top:12px;">
@@ -8950,9 +9048,25 @@ function renderSettings(){
       ${state.trialManualError ? `<div class="callout warn" style="margin-top:12px;">${esc(state.trialManualError)}</div>` : ""}
       ${state.trialManualOk ? `<div class="callout ok" style="margin-top:12px;">Fatto: la licenza dello studio esiste ora su Supabase.</div>` : ""}
       ${!SUPABASE_CONFIG.url ? `<div class="callout info" style="margin-top:12px;">Supabase non configurato: lo stato abbonamento resta solo su questo dispositivo. Configuralo in <span class="mono">SUPABASE_CONFIG</span> per gestirlo da un pannello unico e per gli studi con più dispositivi.</div>` : ""}
-      <div class="kv" style="margin-top:10px;"><span>Codice licenza studio</span><b class="mono" style="font-size:11px;word-break:break-all;">${esc(licenseIds().studioId)}</b></div>
-      <div class="kv"><span>Codice licenza dispositivo</span><b class="mono" style="font-size:11px;word-break:break-all;">${esc(licenseIds().deviceId)}</b></div>
-      <p class="field hint" style="margin-top:6px;">Servono solo per attivare l'abbonamento dal pannello Supabase (tabella <span class="mono">licenza_studi</span>, colonna <span class="mono">id</span>): non sono dati del cliente e non identificano nessuno.</p>
+      ${(() => {
+        // PromptFixFinal, Task 1: nascosti di default, stesso principio
+        // della "vetrina spenta" già in uso (bottone esplicito prima di
+        // mostrare) — una lista di codici sempre a vista genera solo
+        // ansia/confusione in chi non li conosce, servono solo di rado
+        // (assistenza al telefono). Un bottone unico per tutto il
+        // blocco, più semplice di uno per riga.
+        const t = tatuatoreAttivo();
+        const mostra = !!state.mostraIdLicenza;
+        const mascherato = "••••••••••••••••••••";
+        return `
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="btn btn-ghost btn-sm" data-action="toggle-mostra-id-licenza">${icon("eyeOff",14)} ${mostra ? "Nascondi i codici" : "Mostra i codici"}</button>
+      </div>
+      <div class="kv" style="margin-top:10px;"><span>Codice licenza studio</span><b class="mono" style="font-size:11px;word-break:break-all;">${mostra ? esc(licenseIds().studioId) : mascherato}</b></div>
+      <div class="kv"><span>Codice licenza dispositivo</span><b class="mono" style="font-size:11px;word-break:break-all;">${mostra ? esc(licenseIds().deviceId) : mascherato}</b></div>
+      ${t ? `<div class="kv"><span>Codice licenza tatuatore (${esc(t.nome)})</span><b class="mono" style="font-size:11px;word-break:break-all;">${mostra ? esc(t.supabaseId||"—") : mascherato}</b></div>` : ""}
+      <p class="field hint" style="margin-top:6px;">Servono solo per attivare l'abbonamento o per assistenza dal pannello Supabase: non sono dati del cliente e non identificano nessuno.</p>`;
+      })()}
     </div>
 
     ${renderGuestSettingsCard()}
