@@ -6432,11 +6432,34 @@ document.addEventListener("click", (e) => {
     // licenza_tatuatori, non cambia come si registra il dispositivo.
     const profilo = assicuraProfiliTatuatori().find(t => t.nome === titolare);
     Promise.resolve(profilo ? setCredenzialiTatuatore(profilo.id, titolare, password) : null).then(() => {
-      supabaseAvviaTrial(telefono, titolare, studioName, citta, profilo ? profilo.supabaseId : null).then(() => {
+      supabaseAvviaTrial(telefono, titolare, studioName, citta, profilo ? profilo.supabaseId : null).then(async () => {
         clearPendingTrialSignup();
         const acc = loadStudioAccount();
         if (acc) saveStudioAccount({ ...acc, telefono, titolare });
         state.trialBusy = false; state.needsTrialChoice = false; state.trialBuffer = null;
+        // prompt14: la stessa password del titolare diventa QUI, in
+        // automatico, anche lo sblocco/cassaforte locale del vecchio
+        // sistema (AUTH_KEY + creaCassaforteEMigra) — non più un terzo
+        // modulo separato "Crea l'accesso allo studio" (ID+password+
+        // conferma) che duplicava questo stesso lavoro e lasciava il
+        // profilo tatuatore a metà finché non veniva compilato anche
+        // quello. "ID studio" = nome dello studio: è lo stesso testo già
+        // mostrato come titolo della schermata di sblocco (renderLockScreen),
+        // quindi resta un dato che il titolare riconosce, non uno a caso
+        // mai visto. Le 12 parole di recupero restano necessarie (unico
+        // modo self-service per riaprire l'archivio se la password si
+        // perde): mostrate una volta subito dopo, riusando la fase
+        // "recovery" già pronta in renderFirstRunSetup — non un login
+        // separato, solo "trascrivi e conferma". if(!authIsSet()) evita
+        // di ricreare la cassaforte se questo flusso girasse due volte.
+        if (!authIsSet()){
+          try {
+            await setAuth(studioName, password, null);
+            state.recoveryPhrase = await creaCassaforteEMigra(password);
+            chiediPersistenza();
+            state.needsSetup = true; state.setupPhase = "recovery"; state.recoverySaved = false;
+          } catch(e){ console.warn("Creazione cassaforte locale fallita:", e); }
+        }
         state.showPostOnboardingNotice = true;
         registraDispositivoCorrente().then(esito => {
           if (esito && esito.consentito === false) state.deviceLimitBlock = esito;
