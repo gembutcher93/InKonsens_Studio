@@ -2392,6 +2392,19 @@ function puoAprireRichiesta(r){
   if (!r.tatuatoreScelto) return true;
   return r.tatuatoreScelto === nomeTatuatoreAttivo();
 }
+/* Chi può reimpostare la password LOCALE di un profilo tatuatore
+   (Minifix, Task A.1): solo se stesso, o il titolare per chiunque —
+   mai un tatuatore pari verso un collega. Prima il bottone "Reimposta
+   password" era disponibile per ogni profilo a chiunque fosse loggato,
+   di fatto lasciando che chiunque cambiasse la password di un altro
+   (e, con la cassaforte multi-busta, ne "rubasse" di fatto lo sblocco
+   personale). Nessun tatuatoreAttivo() (percorso offline/senza scelta
+   profilo): comportamento invariato, nessuna restrizione da applicare. */
+function puoReimpostare(t){
+  const attivo = tatuatoreAttivo();
+  if (!attivo) return true;
+  return attivo.id === t.id || !!attivo.isTitolare;
+}
 
 /* Registra (o rinnova) il tatuatore attivo su Supabase — conteggio
    contro il tetto del piano, mai un blocco locale: no-op innocuo se
@@ -6749,7 +6762,10 @@ document.addEventListener("click", (e) => {
   else if (action === "reset-credenziali-tatuatore"){
     const list = loadTatuatori();
     const i = list.findIndex(t => t.id === btn.dataset.id);
-    if (i >= 0){ list[i] = { ...list[i], username: "", salt: "", hash: "" }; saveTatuatori(list); }
+    // Minifix, Task A.1: stesso controllo del bottone (nascosto se non
+    // consentito) ripetuto qui — solo sé stessi, o il titolare per
+    // chiunque, mai un pari verso un collega.
+    if (i >= 0 && puoReimpostare(list[i])){ list[i] = { ...list[i], username: "", salt: "", hash: "" }; saveTatuatori(list); }
     if (ACTIVE_TATUATORE === btn.dataset.id) ACTIVE_TATUATORE = null;
     render();
   }
@@ -8268,6 +8284,18 @@ function renderSettings(){
     </div>
     ${accClose()}
     ${accOpen("sicurezza", "Sicurezza e accesso", "Blocco locale del dispositivo, account studio, dispositivi attivi")}
+    ${(() => {
+      // CORREZIONE (Minifix, Task A.2): questa sezione tocca la password
+      // condivisa/di emergenza (AUTH_KEY) che sblocca l'archivio per
+      // TUTTI, non solo per chi la modifica — prima era visibile e
+      // modificabile da qualunque profilo loggato, non solo dal
+      // titolare. Un tatuatore normale che vuole "sbloccare" resta
+      // servito dal link "Sblocco d'emergenza" nella schermata di
+      // scelta profilo (tatuatore-emergenza), non da qui.
+      const attivo = tatuatoreAttivo();
+      const puoVedere = !attivo || attivo.isTitolare;
+      if (!puoVedere) return "";
+      return `
     <div class="card">
       <h3 class="section-title">Accesso e credenziali</h3>
       <p class="section-desc">Proteggi l'app con un nome e una password: se perdi il dispositivo, nessuno può aprire l'archivio dei clienti.</p>
@@ -8283,7 +8311,8 @@ function renderSettings(){
       </div>
       ${state.authSaved ? `<div class="callout ok" style="margin-top:12px;">Credenziali aggiornate.</div>` : ""}
       ${state.authError ? `<div class="callout warn" style="margin-top:12px;">${esc(state.authError)}</div>` : ""}
-    </div>
+    </div>`;
+    })()}
 
     ${loadStudioAccount() ? `
     <div class="card">
@@ -8312,7 +8341,7 @@ function renderSettings(){
         ${assicuraProfiliTatuatori().map(t => `
         <div class="inv-row">
           <div class="inv-main"><b>${esc(t.nome)}</b><span class="inv-sub">${!tatuatoreAbilitato(t) ? "In attesa: il piano attuale non lo ammette ancora" : (t.hash ? "Profilo attivo" + (t.username ? " · " + esc(t.username) : "") : "Nessuna credenziale impostata ancora")}${tatuatoreAttivo() && tatuatoreAttivo().id === t.id ? " · in uso ora" : ""}</span></div>
-          <div class="inv-actions">${t.hash ? `<button class="btn btn-ghost btn-sm" data-action="reset-credenziali-tatuatore" data-id="${t.id}">Reimposta password</button>` : ""}</div>
+          <div class="inv-actions">${t.hash && puoReimpostare(t) ? `<button class="btn btn-ghost btn-sm" data-action="reset-credenziali-tatuatore" data-id="${t.id}">Reimposta password</button>` : ""}</div>
         </div>`).join("")}
       </div>
       <div class="btn-row" style="margin-top:12px;">
