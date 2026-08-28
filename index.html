@@ -1710,6 +1710,34 @@ async function rifaiBustaPassword(vault, dek, nuovaPassword){
   return vault;
 }
 
+/* Buste per-tatuatore (prompt15, Task 5): stesso principio di bustaPw/
+   bustaFrase/bustaSupporto sopra — stessa chiave (DEK), serrature
+   diverse — così ogni tatuatore sblocca l'UNICO archivio condiviso con
+   la propria password personale, mai con una password "di studio"
+   condivisa da tutti. Nessuna perdita di dati possibile: perdere la
+   propria busta significa solo perdere la propria scorciatoia, non un
+   pezzo di archivio (vedi discussione in chat prima di questo giro) —
+   basta che UNA busta qualsiasi (un collega, la frase di recupero,
+   l'assistenza) funzioni ancora. */
+async function apriConTatuatore(vault, tatuatoreId, password){
+  const entry = (vault.tatuatori||[]).find(t => t.id === tatuatoreId);
+  if (!entry) throw new Error("NESSUNA_BUSTA_TATUATORE");
+  return apriBusta(entry.busta, await kekDa(password, unb64(entry.salt)));
+}
+async function aggiungiBustaTatuatore(vault, dek, tatuatoreId, password){
+  const salt = randomBytes(16);
+  const busta = await chiudiBusta(dek, await kekDa(password, salt));
+  vault.tatuatori = (vault.tatuatori||[]).filter(t => t.id !== tatuatoreId);
+  vault.tatuatori.push({ id: tatuatoreId, salt: b64(salt), busta });
+  saveVault(vault);
+}
+function rimuoviBustaTatuatore(tatuatoreId){
+  const vault = loadVault();
+  if (!vault || !vault.tatuatori) return;
+  vault.tatuatori = vault.tatuatori.filter(t => t.id !== tatuatoreId);
+  saveVault(vault);
+}
+
 /* ---------- cifratura dell'archivio ---------- */
 async function cifraConDek(dek, oggetto){
   const iv = randomBytes(12);
@@ -1835,7 +1863,13 @@ function writeStore(key, val){
 function flushStores(){
   Object.keys(_wq).forEach(k => { clearTimeout(_wq[k]); delete _wq[k]; if (_mem[k] !== undefined) idbSet(k, _mem[k]); });
 }
-document.addEventListener("visibilitychange", () => { if (document.hidden) flushStores(); });
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) flushStores();
+  // prompt15, Task 2: ritorno in primo piano = occasione per accorgersi
+  // di un piano cambiato a mano su Supabase, non solo il tap manuale su
+  // "Verifica abbonamento".
+  else if (state.mode === "studio") refreshLicenseSeServeIl();
+});
 window.addEventListener("pagehide", flushStores);
 
 /* ---------- consensi ---------- */
@@ -2240,9 +2274,23 @@ async function rimuoviDispositivoRemoto(deviceId){
    nessuna schermata di scelta, comportamento invariato rispetto
    a prima di questo giro. */
 const TATUATORI_KEY = "inkconsent_tatuatori_v1";
-BIG_STORES.push(TATUATORI_KEY);
-function loadTatuatori(){ return readStore(TATUATORI_KEY, []); }
-function saveTatuatori(list){ writeStore(TATUATORI_KEY, list); }
+/* NON in BIG_STORES apposta (prompt15, Task 5): a differenza degli altri
+   store, questi profili — nomi, hash password, id opachi, MAI dati del
+   cliente — devono restare leggibili PRIMA di sbloccare la cassaforte,
+   per poter mostrare "chi sta lavorando ora" come primo passaggio
+   dell'app (vedi serveSceltaTatuatore), invece di richiedere prima una
+   password condivisa "di cancello". Stessa ragione per cui AUTH_KEY è
+   sempre stato in chiaro. Migrazione una tantum sotto: installazioni
+   precedenti a questo giro avevano questi dati nell'archivio cifrato
+   (leggibile solo con DEK già impostato) — dal primo sblocco riuscito
+   dopo questo fix si riscrivono da soli in chiaro, nessun intervento
+   manuale richiesto. */
+function loadTatuatori(){
+  try { return JSON.parse(localStorage.getItem(TATUATORI_KEY)) || []; } catch(e){ return []; }
+}
+function saveTatuatori(list){
+  try { localStorage.setItem(TATUATORI_KEY, JSON.stringify(list)); } catch(e){}
+}
 function getTatuatoreProfilo(id){ return loadTatuatori().find(t => t.id === id) || null; }
 /* isTitolare: true SOLO per il profilo creato durante l'onboarding
    (trial-start) — usato per dare sempre accesso pieno alle richieste
@@ -2301,6 +2349,7 @@ async function verificaCredenzialiTatuatore(id, password){
 }
 function rimuoviProfiloTatuatoreLocale(id){
   saveTatuatori(loadTatuatori().filter(t => t.id !== id));
+  rimuoviBustaTatuatore(id); // pulizia della busta cassaforte, se ne aveva una (prompt15, Task 5)
   if (ACTIVE_TATUATORE === id) ACTIVE_TATUATORE = null;
 }
 
@@ -2310,10 +2359,20 @@ function rimuoviProfiloTatuatoreLocale(id){
 let ACTIVE_TATUATORE = null;
 function tatuatoreAttivo(){ return ACTIVE_TATUATORE ? getTatuatoreProfilo(ACTIVE_TATUATORE) : null; }
 function nomeTatuatoreAttivo(){ const t = tatuatoreAttivo(); return t ? t.nome : (STUDIO_CONFIG.artists[0] || ""); }
-/* true se serve mostrare la schermata di scelta/switch: più di un
-   tatuatore dichiarato e nessuno ancora attivo in questa sessione. */
+/* true se serve mostrare la schermata di scelta/switch. Due ruoli
+   diversi a seconda che esista una cassaforte cifrata (prompt15, Task 5):
+   - CON cassaforte: è anche il primo passaggio per sbloccare l'app —
+     serve con UN tatuatore solo pure (sblocca con la SUA busta/password,
+     mai una condivisa prima di lui), non solo per attribuzione con più
+     di uno. Vedi apriConTatuatore/aggiungiBustaTatuatore.
+   - SENZA cassaforte (percorso offline puro, mai passato da uno sblocco
+     cifrato): comportamento invariato di sempre, solo discriminante di
+     attribuzione con più di un tatuatore — nessuno sblocco coinvolto,
+     resta il vecchio state.locked/renderLockScreen a proteggere i dati. */
 function serveSceltaTatuatore(){
-  return assicuraProfiliTatuatori().filter(tatuatoreAbilitato).length > 1 && !ACTIVE_TATUATORE;
+  if (ACTIVE_TATUATORE) return false;
+  const abilitati = assicuraProfiliTatuatori().filter(tatuatoreAbilitato).length;
+  return vaultEsiste() ? abilitati >= 1 : abilitati > 1;
 }
 /* Accesso pieno alle richieste preventivo (prompt11, Task 2): sempre
    vero per il titolare, e sempre vero anche con un solo tatuatore
@@ -2394,8 +2453,62 @@ const SERVER_LICENSE_CACHE_KEY = "inkconsent_server_license_cache_v1";
 function loadServerLicenseCache(){ try { return JSON.parse(localStorage.getItem(SERVER_LICENSE_CACHE_KEY)); } catch(e){ return null; } }
 function saveServerLicenseCache(r){
   if (!r || typeof r.count_totale !== "number") return;
-  try { localStorage.setItem(SERVER_LICENSE_CACHE_KEY, JSON.stringify({ count_totale: r.count_totale, fetchedAt: Date.now() })); } catch(e){}
+  try { localStorage.setItem(SERVER_LICENSE_CACHE_KEY, JSON.stringify({ count_totale: r.count_totale, piano: r.piano || null, fetchedAt: Date.now() })); } catch(e){}
 }
+/* Piano DAVVERO attivo su Supabase (prompt15, Task 2), non solo quello
+   consigliato dal conteggio locale di "Artisti" — cambiato a mano su
+   Supabase (es. SoloPro -> StudioPro) non si vedeva mai qui finché non
+   cambiava anche il numero di tatuatori dichiarati in Impostazioni.
+   null se non ancora sincronizzato (Supabase non configurato, mai
+   collegato, o studio ancora senza piano assegnato: in quel caso resta
+   corretto ricadere sul consigliato). */
+function pianoReale(){
+  const cache = loadServerLicenseCache();
+  if (!cache || !cache.piano) return null;
+  return PIANI.find(p => p.id === cache.piano) || null;
+}
+/* Piano da mostrare/usare per i limiti reali (guest, testi "piano
+   attuale"): quello vero se lo conosciamo già, altrimenti la stima da
+   conteggio locale — mai il contrario, altrimenti un piano pagato più
+   alto del conteggio locale (caso comune: paghi PRIMA di dichiarare
+   tutti i tatuatori) resterebbe invisibile. pianoConsigliato() resta
+   la funzione giusta per il suo scopo originale, immutato: "in base a
+   quanti tatuatori hai scritto, ti servirebbe...", usata nel form di
+   attivazione piano prima ancora che uno risulti attivo. */
+function pianoAttivo(){ return pianoReale() || pianoConsigliato(); }
+/* Tetto reale di tatuatori per il piano ATTIVO (prompt15, Task 6) —
+   stessa logica di registra_tatuatore() lato Supabase: senza un vero
+   abbonamento (trial, scaduto, sospeso) il tetto prudenziale resta 1,
+   qualunque sia il piano consigliato dal conteggio locale. Usata per
+   disattivare "+ Aggiungi tatuatore" PRIMA di far scrivere un nome che
+   verrebbe comunque rifiutato dal server, non più solo dopo. */
+function tettoTatuatoriReale(){
+  if (!subscriptionActive()) return 1;
+  const p = pianoReale();
+  return p ? p.maxArtisti : 1;
+}
+/* Applica il risultato di get_stato_licenza/register_consenso_firmato:
+   aggiorna subscriptionActive + cache, e rileva un'attivazione/upgrade
+   rispetto all'ultimo stato noto (prompt15, Task 3) — non al primissimo
+   sync in assoluto (prev null: quello è "scopro per la prima volta",
+   non "è appena cambiato", niente banner sorpresa per chi è già
+   abbonato da tempo e collega Supabase solo ora). */
+function applyLicenseResult(r){
+  if (!r) return;
+  const prev = loadServerLicenseCache();
+  const eraAttivo = subscriptionActive();
+  if (typeof r.abbonamento_attivo === "boolean") setSubscriptionActive(r.abbonamento_attivo);
+  saveServerLicenseCache(r);
+  const pianoCambiato = !!(prev && r.piano && prev.piano !== r.piano);
+  if (prev && r.abbonamento_attivo && (!eraAttivo || pianoCambiato)){
+    const info = PIANI.find(p => p.id === r.piano);
+    state.planUpgradedBanner = (info && info.nome) || r.piano || "a pagamento";
+    render();
+    clearTimeout(planUpgradedBannerTimer);
+    planUpgradedBannerTimer = setTimeout(() => { state.planUpgradedBanner = null; render(); }, 8000);
+  }
+}
+let planUpgradedBannerTimer = null;
 function licenseState(){
   const localCount = consensiArchiviatiCount();
   const cache = loadServerLicenseCache();
@@ -2442,8 +2555,7 @@ async function syncLicenseOnFinalize(){
     if (!res.ok) return;
     const rows = await res.json();
     const r = Array.isArray(rows) ? rows[0] : rows;
-    if (r && typeof r.abbonamento_attivo === "boolean") setSubscriptionActive(r.abbonamento_attivo);
-    saveServerLicenseCache(r);
+    applyLicenseResult(r);
   } catch(e){ console.warn("Sync licenza fallita, resta valido il conteggio locale:", e); }
 }
 /* Richiama lo stato abbonamento da Supabase senza registrare nulla:
@@ -2467,10 +2579,22 @@ async function refreshLicenseFromSupabase(){
     if (!res.ok) return null;
     const rows = await res.json();
     const r = Array.isArray(rows) ? rows[0] : rows;
-    if (r && typeof r.abbonamento_attivo === "boolean") setSubscriptionActive(r.abbonamento_attivo);
-    saveServerLicenseCache(r);
+    applyLicenseResult(r);
     return r || null;
   } catch(e){ console.warn("Verifica licenza fallita:", e); return null; }
+}
+/* Refresh automatico all'apertura app/ritorno in primo piano (prompt15,
+   Task 2) — non un controllo continuo: throttle di 5 minuti tra un
+   tentativo e l'altro, così tornare rapidamente sull'app (switch tra
+   schede/app) non spara una chiamata di rete ogni volta. */
+const LICENSE_AUTO_REFRESH_MS = 5 * 60 * 1000;
+let lastLicenseAutoRefresh = 0;
+function refreshLicenseSeServeIl(){
+  if (!SUPABASE_CONFIG.url || !loadStudioAccount()) return;
+  const now = Date.now();
+  if (now - lastLicenseAutoRefresh < LICENSE_AUTO_REFRESH_MS) return;
+  lastLicenseAutoRefresh = now;
+  refreshLicenseFromSupabase();
 }
 
 /* ============================================================
@@ -2576,6 +2700,19 @@ async function inviaRichiestaSupabase(r){
    arrivano senza dover ricaricare la pagina. */
 let richiestePollingTimer = null;
 let richiesteBannerTimer = null;
+/* Delete-on-fetch (prompt15, Task 1): il dato di contatto del cliente
+   resta su Supabase SOLO nella finestra tra invio e primo download da
+   parte di un dispositivo dello studio — non fino alla gestione manuale
+   ("nuovo" -> "contattato"/"chiusa"). Non esiste un'identità Supabase
+   per singolo tatuatore (tutti i dispositivi dello studio condividono
+   la stessa sessione auth.uid()), quindi "il dispositivo del tatuatore
+   destinatario" non è distinguibile lato server da un altro dispositivo
+   dello stesso studio: il fetch-poi-delete scatta per QUALSIASI
+   dispositivo dello studio arrivi prima a scaricarla, stesso principio
+   di "titolare vede tutto" (già solo per-dispositivo, nessuna sync
+   multi-device oggi — vedi README). Cancella anche righe già note
+   localmente ma ancora presenti sul server (un delete precedente può
+   essere fallito per rete): non solo le "nuove" di questo giro. */
 async function pollRichiesteSupabase(){
   if (!SUPABASE_CONFIG.url) return;
   const token = await validStudioAccessToken();
@@ -2599,6 +2736,13 @@ async function pollRichiesteSupabase(){
       // di sommarsi a un timer già in corsa.
       clearTimeout(richiesteBannerTimer);
       richiesteBannerTimer = setTimeout(() => { state.nuoveRichiesteBanner = []; render(); }, 8000);
+    }
+    const daCancellare = rows.filter(row => row.id).map(row => row.id);
+    if (daCancellare.length){
+      fetch(`${SUPABASE_CONFIG.url}/rest/v1/richieste?id=in.(${daCancellare.join(",")})`, {
+        method: "DELETE",
+        headers: { "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${token}` },
+      }).catch(e => console.warn("Pulizia richieste su Supabase fallita, resta comunque salvata in locale:", e));
     }
   } catch(e){ console.warn("Controllo nuove richieste fallito:", e); }
 }
@@ -3054,7 +3198,7 @@ function upsertGuestInvite(g){
    'multi-studio' non è self-service: qui prendiamo comunque il tetto
    più alto come riferimento, il resto si decide via contatto diretto. */
 const GUEST_LIMITI = { solopro: 4, studiopro: 10, atelierpro: 20, "multi-studio": 20 };
-function guestLimiteAnnuo(){ return GUEST_LIMITI[pianoConsigliato().id] ?? 4; }
+function guestLimiteAnnuo(){ return GUEST_LIMITI[pianoAttivo().id] ?? 4; }
 function invitiGeneratiQuestAnno(){
   const anno = String(new Date().getFullYear());
   return loadGuestInvites().filter(g => (g.createdAt||"").slice(0,4) === anno).length;
@@ -3122,6 +3266,19 @@ function vaultEsiste(){ const v = loadVault(); return !!(v && v.bustaPw); }
 async function apriArchivio(dek){
   DEK = dek || null;
   try { await hydrateStores(); } catch(e){ console.warn("Archivio non caricato:", e); }
+  // migrazione una tantum (prompt15, Task 5): TATUATORI_KEY non è più
+  // cifrato da questo giro (deve restare leggibile PRIMA dello sblocco,
+  // per mostrare "chi sta lavorando ora" come primo passaggio) — ma le
+  // installazioni precedenti a questo fix potrebbero averlo ancora
+  // nell'archivio cifrato di prima. Ora che DEK è disponibile si legge
+  // una volta da lì e si riscrive in chiaro: da questo momento in poi
+  // loadTatuatori() lo trova sempre subito, senza aspettare uno sblocco.
+  if (DEK && !localStorage.getItem(TATUATORI_KEY)){
+    try {
+      const vecchio = await idbGet(TATUATORI_KEY);
+      if (Array.isArray(vecchio) && vecchio.length) saveTatuatori(vecchio);
+    } catch(e){}
+  }
 }
 async function creaCassaforteEMigra(password){
   await apriArchivio(null);                 // prima leggo quello che c'e' in chiaro
@@ -3537,8 +3694,14 @@ function render(){
   else if (state.showTour) root.innerHTML = renderTour();
   else if (state.needsTerms) root.innerHTML = renderTerms();
   else if (state.needsSetup) root.innerHTML = renderFirstRunSetup();
+  // prompt15, Task 5: la scelta profilo viene PRIMA del vecchio blocco
+  // condiviso — è lei stessa lo sblocco quando esiste una cassaforte
+  // (vedi serveSceltaTatuatore). "Sblocco d'emergenza" nella schermata
+  // stessa forza temporaneamente il vecchio schermo per chi resta
+  // bloccato (password personale dimenticata e nessun collega
+  // disponibile), non più un passaggio obbligato per tutti.
+  else if (!(guestSessionState() && !guestSessionState().scaduto) && serveSceltaTatuatore() && !state.forceEmergencyUnlock) root.innerHTML = renderTatuatoreSwitch();
   else if (state.locked) root.innerHTML = renderLockScreen();
-  else if (!(guestSessionState() && !guestSessionState().scaduto) && serveSceltaTatuatore()) root.innerHTML = renderTatuatoreSwitch();
   else if ((guestSessionState()||{}).scaduto) root.innerHTML = renderGuestGate();
   else if (state.deviceLimitBlock) root.innerHTML = renderDeviceLimitBlock();
   else root.innerHTML = renderStudioShell();
@@ -3807,10 +3970,17 @@ function renderDeviceLimitBlock(){
    (primo utilizzo) mostra invece un mini modulo per sceglierle sul
    momento — non serve una gestione separata in Impostazioni per
    iniziare, anche se resta comunque disponibile lì. */
+/* prompt15, Task 5: questa schermata è ora anche il PRIMO passaggio per
+   aprire l'app (non più una password "di studio" condivisa prima di
+   arrivarci, vedi renderLockScreen/state.locked, spostata dopo nel
+   dispatcher e riservata al recupero d'emergenza). Ogni tatuatore
+   sblocca l'archivio con la PROPRIA password, mai quella di un altro:
+   vedi apriConTatuatore/aggiungiBustaTatuatore. */
 function renderTatuatoreSwitch(){
   const profili = assicuraProfiliTatuatori().filter(tatuatoreAbilitato);
   const pickId = state.tatuatoreSwitchPick;
   const picked = pickId ? getTatuatoreProfilo(pickId) : null;
+  const emergenzaDisponibile = vaultEsiste() && authIsSet();
   if (picked){
     const primaVolta = !picked.hash;
     return `
@@ -3818,7 +3988,7 @@ function renderTatuatoreSwitch(){
       <div class="lock-card ${state.tatuatoreSwitchError ? 'shake' : ''}">
         <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
         <h2 class="lock-title">${esc(picked.nome)}</h2>
-        <p class="lock-sub">${primaVolta ? "Prima volta: scegli username e password per il tuo profilo su questo dispositivo." : "Inserisci la tua password per continuare come " + esc(picked.nome) + "."}</p>
+        <p class="lock-sub">${primaVolta ? "Prima volta: scegli username e password personali per sbloccare l'app su questo dispositivo." : "Inserisci la tua password per sbloccare l'app come " + esc(picked.nome) + "."}</p>
         ${state.tatuatoreSwitchError ? `<p class="lock-err">${esc(state.tatuatoreSwitchError)}</p>` : ""}
         <div class="login-fields">
           ${primaVolta ? `<input type="text" class="login-input" placeholder="Username" value="${esc((state.tatuatoreSwitchBuffer||{}).username||'')}" data-tatswitch-field="username" autocomplete="off">` : ""}
@@ -3829,7 +3999,8 @@ function renderTatuatoreSwitch(){
           <button class="btn btn-accent" data-action="${primaVolta ? 'tatuatore-claim' : 'tatuatore-login'}" ${state.tatuatoreSwitchBusy ? "disabled" : ""}>${state.tatuatoreSwitchBusy ? "Un momento…" : (primaVolta ? "Imposta e continua" : "Continua")}</button>
         </div>
         <p class="lock-hint"><a data-action="tatuatore-pick-back">← Non sono ${esc(picked.nome)}</a></p>
-        <div class="callout info" style="margin-top:16px;text-align:left;">Questa password sblocca solo il TUO profilo su questo dispositivo condiviso: resta sempre e solo locale, non va mai su Supabase — usane una diversa da quella dell'account studio e da quella di sblocco generale del dispositivo.</div>
+        <div class="callout info" style="margin-top:16px;text-align:left;">Questa password sblocca solo il TUO profilo su questo dispositivo condiviso: resta sempre e solo locale, non va mai su Supabase — usane una diversa da quella dell'account studio.</div>
+        ${emergenzaDisponibile ? `<p class="lock-hint" style="margin-top:10px;"><a data-action="tatuatore-emergenza">Problemi ad accedere? Sblocco d'emergenza</a></p>` : ""}
       </div>
     </div>`;
   }
@@ -3838,10 +4009,11 @@ function renderTatuatoreSwitch(){
     <div class="lock-card">
       <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
       <h2 class="lock-title">Chi sta lavorando ora?</h2>
-      <p class="lock-sub">Scegli il tuo nome: serve ad attribuirti correttamente consensi, appuntamenti e conteggio compensi.</p>
+      <p class="lock-sub">Scegli il tuo nome per sbloccare l'app con la tua password personale.</p>
       <div class="tatswitch-grid">
         ${profili.map(t => `<button class="btn btn-ghost tatswitch-btn" data-action="tatuatore-pick" data-id="${t.id}">${esc(t.nome)}${!t.hash ? ' <small>(nuovo)</small>' : ''}</button>`).join("")}
       </div>
+      ${emergenzaDisponibile ? `<p class="lock-hint" style="margin-top:14px;"><a data-action="tatuatore-emergenza">Problemi ad accedere? Sblocco d'emergenza</a></p>` : ""}
     </div>
   </div>`;
 }
@@ -3959,6 +4131,7 @@ function renderLockScreen(){
       </div>
       <p class="lock-hint">Password dimenticata? <a href="#" data-action="show-recovery">Usa le 12 parole</a> oppure <a href="#" data-action="login-restore-pick">ripristina da un backup</a>.</p>
       <input type="file" id="login-restore-file" accept="application/json,.json" style="display:none;">
+      ${state.forceEmergencyUnlock ? `<p class="lock-hint" style="margin-top:10px;"><a href="#" data-action="tatuatore-emergenza-annulla">← Torna alla scelta del profilo</a></p>` : ""}
     </div>
   </div>`;
 }
@@ -4098,6 +4271,20 @@ function renderRichiesteBanner(){
     <button class="btn btn-ghost btn-sm" data-action="dismiss-richieste-banner" onclick="event.stopPropagation()">${icon("close",14)}</button>
   </div>`;
 }
+/* Banner di conferma attivazione/upgrade piano (prompt15, Task 3): solo
+   quando applyLicenseResult rileva un vero cambiamento rispetto
+   all'ultimo stato noto (mai al primo sync in assoluto), non un
+   avviso permanente — sparisce da solo dopo qualche secondo, stesso
+   pattern del toast richieste sopra. */
+function renderPlanUpgradedBanner(){
+  if (!state.planUpgradedBanner) return "";
+  return `
+  <div class="richieste-toast" data-action="dismiss-plan-upgraded-banner" style="border-color:var(--ok, #6fae82);">
+    ${icon("check",18)}
+    <span>Piano ${esc(state.planUpgradedBanner)} attivato!</span>
+    <button class="btn btn-ghost btn-sm" data-action="dismiss-plan-upgraded-banner" onclick="event.stopPropagation()">${icon("close",14)}</button>
+  </div>`;
+}
 
 /* Avviso non bloccante dopo il primo onboarding (prompt9, Task 2):
    nome studio/città/titolare sono obbligatori subito, il resto (P.IVA,
@@ -4125,6 +4312,7 @@ function renderStudioShell(){
   return `
   <div class="shell">
     ${renderRichiesteBanner()}
+    ${renderPlanUpgradedBanner()}
     ${renderPostOnboardingNotice()}
     <div class="rail-backdrop ${state.railOpen ? "show" : ""}" data-action="toggle-rail"></div>
     <nav class="rail ${state.railOpen ? "open" : ""}" id="rail">
@@ -4202,8 +4390,13 @@ const NAV_SECTIONS = [
       { view: "statistiche", icon: "chartBar", label: "Statistiche" },
     ] },
   { id: "account", label: "Account", icon: "gear", accent: "stencil", items: [
-      { view: "paywall", icon: "lock", label: "Licenza e piano" },
+      // prompt15, Task 4: Impostazioni per prima (comportamento
+      // predefinito entrando in "Account", coerente col rail laterale
+      // che va già dritto lì) — "Licenza e piano" resta raggiungibile
+      // come scorciatoia dalla riga dei tab, solo non più la prima cosa
+      // mostrata: è un'azione occasionale, non quotidiana.
       { view: "settings", icon: "gear", label: "Impostazioni" },
+      { view: "paywall", icon: "lock", label: "Licenza e piano" },
     ] },
 ];
 function sezioneDellaVista(view){
@@ -4290,7 +4483,7 @@ function renderPaywall(){
     <div class="premium-card">
       <div class="premium-badge">${st.count}/${st.limit}</div>
       <div class="premium-lock">${icon("lock",26)}</div>
-      <h2 class="premium-title">${inBlocco ? `Sei nel piano gratuito: hai usato ${st.count} di ${st.limit} consensi` : (subscriptionActive() ? "Abbonamento attivo" : `Piano gratuito: ${st.count} di ${st.limit} consensi usati`)}</h2>
+      <h2 class="premium-title">${inBlocco ? `Sei nel piano gratuito: hai usato ${st.count} di ${st.limit} consensi` : (subscriptionActive() ? `Piano ${esc(pianoAttivo().nome)} attivo` : `Piano gratuito: ${st.count} di ${st.limit} consensi usati`)}</h2>
       <p class="premium-desc">
         ${inBlocco
           ? "Il consenso che stai compilando resta salvato come bozza: non perdi nulla. Per controfirmarlo e archiviarlo serve un abbonamento attivo per questo studio."
@@ -4301,7 +4494,8 @@ function renderPaywall(){
     <div class="disp-grid">
       ${PIANI.map(p => `
         <div class="disp-card">
-          ${p.id === consigliato.id ? `<div class="disp-badge stk-top" style="margin-bottom:8px;">Consigliato per te</div>` : ""}
+          ${subscriptionActive() && pianoReale() && pianoReale().id === p.id ? `<div class="disp-badge stk-top" style="margin-bottom:8px;">${icon("check",13)} Piano attivo</div>`
+            : p.id === consigliato.id ? `<div class="disp-badge stk-top" style="margin-bottom:8px;">Consigliato per te</div>` : ""}
           <div class="disp-info">
             <div class="disp-name">${esc(p.nome)}</div>
             <div class="disp-cat">${esc(p.desc)}</div>
@@ -4824,7 +5018,7 @@ function renderGuestSettingsCard(){
     <div class="card">
       <h3 class="section-title">Guest artist</h3>
       <p class="section-desc">Codice/link a tempo per un artista ospite: durante la validità vede agenda e magazzino come voi, e i consensi che firma restano archiviati qui, normalmente. Non è un vero account separato — resta comunque un'app a dispositivo singolo, vedi il commento nel codice per i limiti di questo approccio.</p>
-      <div class="kv"><span>Inviti generati quest'anno</span><b>${usati} di ${limite}</b> (piano ${esc(pianoConsigliato().nome)})</div>
+      <div class="kv"><span>Inviti generati quest'anno</span><b>${usati} di ${limite}</b> (piano ${esc(pianoAttivo().nome)})</div>
       ${guest && !guest.scaduto ? `<div class="callout ok" style="margin-top:10px;">Guest attivo su questo dispositivo: <b>${esc(guest.nomeGuest)}</b>, fino al ${fmtDate(guest.dataFine)}. <button class="btn btn-ghost btn-sm" data-action="exit-guest-mode" style="margin-left:8px;">Esci dalla modalità guest</button></div>` : ""}
       ${buf ? `
       <div class="inv-form">
@@ -4837,7 +5031,7 @@ function renderGuestSettingsCard(){
           <button class="btn btn-primary btn-sm" data-action="save-guest-invite" ${usati >= limite ? "disabled" : ""}>Genera invito</button>
           <button class="btn btn-ghost btn-sm" data-action="cancel-guest-invite">Annulla</button>
         </div>
-        ${usati >= limite ? `<p class="field hint" style="color:var(--warn);">Limite annuo raggiunto per il piano ${esc(pianoConsigliato().nome)}.</p>` : ""}
+        ${usati >= limite ? `<p class="field hint" style="color:var(--warn);">Limite annuo raggiunto per il piano ${esc(pianoAttivo().nome)}.</p>` : ""}
       </div>` : `<button class="btn btn-ghost btn-sm" style="margin-top:10px;" data-action="new-guest-invite" ${usati >= limite ? "disabled" : ""}>+ Genera invito</button>`}
 
       ${inviti.length ? `
@@ -6458,6 +6652,17 @@ document.addEventListener("click", (e) => {
             state.recoveryPhrase = await creaCassaforteEMigra(password);
             chiediPersistenza();
             state.needsSetup = true; state.setupPhase = "recovery"; state.recoverySaved = false;
+            // prompt15, Task 5: oltre alla busta condivisa sopra (resta
+            // solo come recupero d'emergenza), il titolare ottiene SUBITO
+            // anche la propria busta personale — stessa password appena
+            // scelta, ma è la SUA, non quella "di studio" da condividere
+            // con chi arriverà dopo. DEK è già in memoria da
+            // creaCassaforteEMigra, nessun sblocco separato da rifare.
+            if (profilo) await aggiungiBustaTatuatore(loadVault(), DEK, profilo.id, password);
+            // già identificato in questo stesso passaggio: evita di
+            // richiedere di nuovo nome+password un secondo dopo, appena
+            // finita l'onboarding, alla prima schermata "chi sei".
+            ACTIVE_TATUATORE = profilo ? profilo.id : null;
           } catch(e){ console.warn("Creazione cassaforte locale fallita:", e); }
         }
         state.showPostOnboardingNotice = true;
@@ -6511,7 +6716,17 @@ document.addEventListener("click", (e) => {
   else if (action === "tatuatore-pick-back"){
     state.tatuatoreSwitchPick = null; state.tatuatoreSwitchError = null; render();
   }
+  else if (action === "tatuatore-emergenza"){
+    // prompt15, Task 5: forza temporaneamente il vecchio schermo
+    // condiviso (state.locked, già true da boot se authIsSet()) come
+    // via di recupero — non più il passaggio obbligato di sempre.
+    state.forceEmergencyUnlock = true; render();
+  }
+  else if (action === "tatuatore-emergenza-annulla"){
+    state.forceEmergencyUnlock = false; render();
+  }
   else if (action === "dismiss-richieste-banner"){ clearTimeout(richiesteBannerTimer); state.nuoveRichiesteBanner = []; render(); }
+  else if (action === "dismiss-plan-upgraded-banner"){ clearTimeout(planUpgradedBannerTimer); state.planUpgradedBanner = null; render(); }
   else if (action === "dismiss-post-onboarding-notice"){ state.showPostOnboardingNotice = false; render(); }
   else if (action === "goto-richieste-da-banner"){
     clearTimeout(richiesteBannerTimer);
@@ -6541,19 +6756,47 @@ document.addEventListener("click", (e) => {
     const id = state.tatuatoreSwitchPick;
     const b = state.tatuatoreSwitchBuffer || {};
     (async () => {
+      const conCassaforte = vaultEsiste();
+      const vault = conCassaforte ? loadVault() : null;
       if (action === "tatuatore-claim"){
         const username = (b.username||"").trim(), pw = b.password||"", pw2 = b.password2||"";
         if (!username){ state.tatuatoreSwitchError = "Inserisci uno username."; render(); return; }
         if (pw.length < 4){ state.tatuatoreSwitchError = "La password deve avere almeno 4 caratteri."; render(); return; }
         if (pw !== pw2){ state.tatuatoreSwitchError = "Le due password non coincidono."; render(); return; }
+        // prompt15, Task 5: creare la PROPRIA busta della cassaforte
+        // richiede che qualcuno l'abbia già sbloccata in questa sessione
+        // (DEK già in memoria) — chi sblocca per primo "invita" gli
+        // altri, nessuna chiave si inventa dal nulla senza il DEK vero.
+        if (conCassaforte && !DEK){
+          state.tatuatoreSwitchError = "Fai sbloccare prima l'app a un collega già attivo su questo dispositivo, oppure usa lo sblocco d'emergenza qui sotto.";
+          render(); return;
+        }
         state.tatuatoreSwitchBusy = true; render();
         await setCredenzialiTatuatore(id, username, pw);
+        if (conCassaforte && DEK) await aggiungiBustaTatuatore(vault, DEK, id, pw);
       } else {
         const pw = b.password||"";
         state.tatuatoreSwitchBusy = true; render();
-        const ok = await verificaCredenzialiTatuatore(id, pw);
-        if (!ok){
-          state.tatuatoreSwitchBusy = false; state.tatuatoreSwitchError = "Password sbagliata."; render(); return;
+        let sbloccato = false;
+        if (conCassaforte){
+          try { await apriArchivio(await apriConTatuatore(vault, id, pw)); sbloccato = true; }
+          catch(e){ /* nessuna busta per questo profilo, o password sbagliata: prova col vecchio hash sotto */ }
+        }
+        if (!sbloccato){
+          const ok = await verificaCredenzialiTatuatore(id, pw);
+          if (!ok){
+            state.tatuatoreSwitchBusy = false; state.tatuatoreSwitchError = "Password sbagliata."; render(); return;
+          }
+          if (conCassaforte && !DEK){
+            // hash corretto ma nessuna busta e nessuno ha ancora
+            // sbloccato in questa sessione: da qui non si ricava il DEK.
+            state.tatuatoreSwitchBusy = false;
+            state.tatuatoreSwitchError = "Password corretta, ma l'archivio non risulta ancora sbloccato su questo dispositivo. Usa lo sblocco d'emergenza qui sotto.";
+            render(); return;
+          }
+          // DEK già disponibile (sbloccato da un collega in questa
+          // sessione): autoripara creando ORA la busta per questo profilo.
+          if (conCassaforte && DEK) await aggiungiBustaTatuatore(vault, DEK, id, pw);
         }
       }
       ACTIVE_TATUATORE = id;
@@ -6644,7 +6887,7 @@ document.addEventListener("click", (e) => {
         state.loginError = "Password corretta ma l'archivio non si apre. Usa le 12 parole.";
         state.loginPw = ""; render(); return;
       }
-      state.locked = false; state.loginId = ""; state.loginPw = ""; state.loginError = null;
+      state.locked = false; state.forceEmergencyUnlock = false; state.loginId = ""; state.loginPw = ""; state.loginError = null;
       render();
     })();
     return;
@@ -6686,7 +6929,7 @@ document.addEventListener("click", (e) => {
       delete vault.daRinnovare;
       saveVault(vault);
       await setAuth(a.studioId || "studio", pw, null);
-      state.recoveryMode = false; state.recoveryReset = false; state.locked = false;
+      state.recoveryMode = false; state.recoveryReset = false; state.locked = false; state.forceEmergencyUnlock = false;
       state.loginError = null; state.recoveryNewPw = ""; state.recoveryNewPw2 = "";
       render();
     })();
@@ -7557,7 +7800,7 @@ document.addEventListener("change", (e) => {
         state.backupMsg = `Ripristinati ${res.sessions} consensi e ${res.richieste} richieste.`;
         state.backupMsgType = "ok";
         applyStudioConfig();
-        if (loadAuth()) state.locked = false; // già dentro, non ri-bloccare ora
+        if (loadAuth()){ state.locked = false; state.forceEmergencyUnlock = false; } // già dentro, non ri-bloccare ora
         render();
       } catch(err){
         if (err.message === "PASSWORD_REQUIRED" || err.message === "WRONG_PASSWORD"){
@@ -7720,6 +7963,10 @@ function initRichiestaMode(){
     // 8-9): parte una volta sola, non blocca il boot, no-op se Supabase
     // non è configurato — vedi avviaPollingRichieste.
     if (state.mode === "studio" && FEATURES.richieste) avviaPollingRichieste();
+    // prompt15, Task 2: controllo piano/licenza all'apertura dell'app,
+    // non solo al tap manuale su "Verifica abbonamento" — non blocca il
+    // boot, no-op senza Supabase/account.
+    if (state.mode === "studio") refreshLicenseSeServeIl();
   }
 
   if (state.mode === "client") await initClientMode();
@@ -7768,16 +8015,23 @@ function accClose(){ return `</div></div>`; }
    poi ogni campo diventa un futuro profilo/login locale con relativo ID
    opaco su Supabase — già gestito automaticamente da
    assicuraProfiliTatuatori() non appena il nome compare in
-   STUDIO_CONFIG.artists, nulla da collegare qui in più. Il pulsante
-   "+ Aggiungi tatuatore" resta sempre visibile (confermato: il piano è
-   sempre derivato dal conteggio via pianoConsigliato(), mai un vincolo
-   indipendente legato a un abbonamento già pagato) fino al tetto
-   self-service di 5 nomi (AtelierPro) — oltre, solo contatto diretto,
-   vedi fuoriTettoTatuatori(). */
+   STUDIO_CONFIG.artists, nulla da collegare qui in più.
+   CORREZIONE (prompt15, Task 6): "+ Aggiungi tatuatore" era sempre
+   cliccabile fino al tetto self-service di 5, lasciando scrivere un
+   nome che poi registra_tatuatore() rifiutava lato server ("troppi
+   dispositivi collegati") — bloccato solo DOPO. Ora si disattiva PRIMA,
+   appena il conteggio raggiunge il tetto vero del piano ATTIVO (non il
+   consigliato), con la spiegazione già visibile invece di scoprirlo al
+   salvataggio. I campi già scritti restano comunque editabili/
+   rimovibili anche oltre il tetto (es. dopo un downgrade) — si blocca
+   solo l'AGGIUNTA di altri. */
 function renderArtistiFields(cfg){
   const artisti = artistiArray(cfg);
   if (!artisti.length) artisti.push("");
   const piano = pianoConsigliato();
+  const tetto = tettoTatuatoriReale();
+  const nomiVeri = artisti.filter(s => s.trim()).length;
+  const alTetto = nomiVeri >= tetto;
   return `
   <div class="field">
     <label>Titolare / tatuatore</label>
@@ -7789,9 +8043,12 @@ function renderArtistiFields(cfg){
     <button class="btn btn-ghost btn-sm" data-action="remove-artista" data-idx="${i+1}" title="Rimuovi questo tatuatore">${icon("close",14)}</button>
   </div>`).join("")}
   <div class="field">
-    ${artisti.length < 5
-      ? `<button class="btn btn-ghost btn-sm" data-action="add-artista">${icon("plus",14)} Aggiungi tatuatore</button>`
-      : `<p class="hint">Massimo 5 tatuatori in self-service (AtelierPro). Per più tatuatori o più sedi, contattaci.</p>`}
+    ${artisti.length >= 5
+      ? `<p class="hint">Massimo 5 tatuatori in self-service (AtelierPro). Per più tatuatori o più sedi, contattaci.</p>`
+      : alTetto
+        ? `<button class="btn btn-ghost btn-sm" disabled title="Piano attuale: ${esc(pianoAttivo().nome)}, massimo ${tetto} tatuator${tetto===1?'e':'i'}">${icon("plus",14)} Aggiungi tatuatore</button>
+           <p class="hint" style="color:var(--warn);">Disponibile da un piano superiore a ${esc(pianoAttivo().nome)}: <a data-action="nav" data-view="paywall">vedi i piani</a>.</p>`
+        : `<button class="btn btn-ghost btn-sm" data-action="add-artista">${icon("plus",14)} Aggiungi tatuatore</button>`}
     <div class="hint">Piano consigliato in base al numero di tatuatori: <b>${esc(piano.nome)}</b> (${esc(piano.desc)}).</div>
   </div>`;
 }
@@ -8031,10 +8288,11 @@ function renderSettings(){
     <div class="card">
       <h3 class="section-title">Licenza e consensi gratuiti</h3>
       ${subscriptionActive()
-        ? `<div class="trial-bar trial-ok"><div class="trial-bar-top"><span>${icon("check",14)} Abbonamento attivo</span></div><p class="trial-note" style="margin-top:2px;">Consensi illimitati (piano ${esc(pianoConsigliato().nome)}) — il limite di ${FREE_CONSENSI_LIMIT} gratuiti non si applica più.</p></div>`
+        ? `<div class="trial-bar trial-ok"><div class="trial-bar-top"><span>${icon("check",14)} Abbonamento attivo</span></div><p class="trial-note" style="margin-top:2px;">Consensi illimitati (piano ${esc(pianoAttivo().nome)}) — il limite di ${FREE_CONSENSI_LIMIT} gratuiti non si applica più.</p></div>`
         : renderTrialProgress(licenseState())}
       <div class="kv"><span>Abbonamento</span><b>${subscriptionActive() ? "Attivo" : "Non attivo"}</b></div>
-      <div class="kv"><span>Piano consigliato</span><b>${esc(pianoConsigliato().nome)} <span class="field hint" style="display:inline;">(${esc(pianoConsigliato().desc)})</span></b></div>
+      <div class="kv"><span>${subscriptionActive() ? "Piano attivo" : "Piano consigliato"}</span><b>${esc(pianoAttivo().nome)} <span class="field hint" style="display:inline;">(${esc(pianoAttivo().desc)})</span></b></div>
+      ${subscriptionActive() && pianoConsigliato().id !== pianoAttivo().id ? `<div class="kv"><span>Piano consigliato dal conteggio "Artisti"</span><b>${esc(pianoConsigliato().nome)}</b></div><p class="field hint">Diverso dal piano attivo: aggiorna "Artisti" sopra se hai già aggiunto (o tolto) tatuatori rispetto a quanto risulta pagato.</p>` : ""}
       <p class="section-desc" style="margin-top:10px;">Oltre i ${FREE_CONSENSI_LIMIT} consensi gratuiti per questo studio/dispositivo, serve l'abbonamento per continuare ad archiviarne di nuovi. Le bozze non consumano la soglia.</p>
       <div class="btn-row" style="margin-top:10px;">
         <button class="btn btn-accent" data-action="nav" data-view="paywall">Vedi i piani</button>

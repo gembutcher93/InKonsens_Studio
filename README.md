@@ -896,7 +896,18 @@ cliente) nome/cognome, telefono, email, stile e descrizione del
 tatuaggio richiesto — **mai foto di riferimento**, quelle restano solo
 sul dispositivo del cliente. La tabella `richieste` è leggibile
 **solo** dallo studio proprietario autenticato (RLS su `auth.uid()`),
-mai da altri studi né in forma anonima. Se preferisci restare
+mai da altri studi né in forma anonima.
+
+**Finestra di permanenza sul server** (prompt15, Task 1 — delete-on-fetch
+reale): il dato di contatto del cliente resta su Supabase **solo** tra
+l'invio della richiesta e il primo download da un dispositivo dello
+studio (`pollRichiesteSupabase` cancella la riga appena l'ha salvata in
+locale) — non fino a quando il tatuatore la "gestisce" manualmente
+(nuovo → contattato/chiusa, che resta invece uno stato solo locale). Se
+nessun dispositivo la scarica mai, la riga non si autocancella da sola:
+non esiste ancora un cleanup lato server per quel caso limite.
+
+Se preferisci restare
 interamente locali anche per questo, non eseguire il blocco 6 del file
 sopra: l'app continua a funzionare, la richiesta resta solo sul
 telefono del cliente più la notifica ntfy (se configurata) — nessun
