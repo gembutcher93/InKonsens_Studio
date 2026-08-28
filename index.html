@@ -5107,6 +5107,64 @@ function renderWaitlist(){
 }
 
 /* ============================================================
+   SIMULATORE COSTO DIPENDENTE (promptFeature) — strumento di
+   trattativa per il titolare, NON un cedolino ufficiale. STATELESS per
+   scelta: il netto inserito e il risultato vivono solo in state.simDip
+   (oggetto in memoria, mai passato a writeStore/saveX) — spariscono
+   alla chiusura della schermata o al reload, nessuna scrittura locale
+   né su Supabase. Percentuali parametriche generiche, non legate a un
+   CCNL specifico: il disclaimer sotto lo dice esplicitamente, non va
+   mai tolto né alleggerito.
+   ============================================================ */
+const SIM_DIPENDENTE_PARAM = {
+  lordoMin: 1.36, lordoMax: 1.42,       // lordo ≈ netto × [min,max]
+  inpsAziendaMin: 0.30, inpsAziendaMax: 0.32,
+  tfr: 0.0691,
+  // INAIL: varia molto per settore/rischio (dermografia = rischio
+  // puntura/taglio), nessun valore ufficiale unico — stima
+  // volutamente prudente, va verificata col proprio consulente.
+  inailMin: 0.015, inailMax: 0.03,
+};
+function calcolaCostoDipendente(netto){
+  if (!(netto > 0)) return null;
+  const p = SIM_DIPENDENTE_PARAM;
+  const lordoMin = netto * p.lordoMin, lordoMax = netto * p.lordoMax;
+  const aliquotaMin = p.inpsAziendaMin + p.tfr + p.inailMin;
+  const aliquotaMax = p.inpsAziendaMax + p.tfr + p.inailMax;
+  const costiFissiMin = lordoMin * aliquotaMin, costiFissiMax = lordoMax * aliquotaMax;
+  return {
+    lordoMin, lordoMax,
+    trattenuteMin: lordoMin - netto, trattenuteMax: lordoMax - netto,
+    costiFissiMin, costiFissiMax,
+    costoTotaleMin: lordoMin + costiFissiMin, costoTotaleMax: lordoMax + costiFissiMax,
+  };
+}
+function renderSimulatoreDipendente(){
+  const netto = parseFloat(state.simDipNetto) || 0;
+  const r = calcolaCostoDipendente(netto);
+  const eur = (n) => `€ ${n.toFixed(0)}`;
+  const forbice = (min, max) => `${eur(min)} – ${eur(max)}`;
+  return `
+    <div class="card">
+      <h3 class="section-title">Simulatore costo dipendente</h3>
+      <p class="section-desc">Strumento di trattativa per stimare il costo aziendale di un'assunzione a partire dal netto richiesto dal candidato — NON un cedolino ufficiale, nessun dato viene salvato: sparisce lasciando questa schermata.</p>
+      <div class="field" style="max-width:260px;">
+        <label>Netto mensile desiderato dal candidato (€)</label>
+        <input type="number" min="0" step="1" data-action="input-sim-netto" value="${state.simDipNetto||""}" placeholder="Es. 1500">
+      </div>
+      ${r ? `
+      <div class="disp-summary" style="margin-top:14px;">
+        <div class="disp-stat"><span>Costo totale mensile stimato</span><b>${forbice(r.costoTotaleMin, r.costoTotaleMax)}</b><small>lordo + costi fissi studio</small></div>
+      </div>
+      <div class="kv"><span>Lordo stimato</span><b>${forbice(r.lordoMin, r.lordoMax)}</b></div>
+      <div class="kv"><span>Trattenute stimate (INPS/IRPEF dipendente)</span><b>${forbice(r.trattenuteMin, r.trattenuteMax)}</b></div>
+      <div class="kv"><span>Costi fissi studio (INPS azienda + TFR + INAIL)</span><b>${forbice(r.costiFissiMin, r.costiFissiMax)}</b></div>
+      ` : `<p class="field hint" style="margin-top:10px;">Inserisci il netto mensile per vedere la stima.</p>`}
+      <div class="callout warn" style="margin-top:16px;font-size:12px;line-height:1.55;">I valori sono calcolati su medie parametriche generiche e possono variare in base al contratto collettivo realmente applicato dallo studio (esistono più versioni del CCNL Acconciatura/Estetica/Tatuaggio/Piercing, firmate da sigle datoriali/sindacali diverse — verifica quale si applica al tuo caso), alle addizionali regionali/comunali e alla situazione fiscale individuale del dipendente. Se il titolare opera in regime forfettario, ricorda che le spese per il personale dipendente non possono superare complessivamente 20.000€ lordi annui, pena l'uscita dal regime l'anno successivo. Percentuali aggiornate al ${new Date().getFullYear()} — vanno riverificate almeno una volta l'anno o quando si è a conoscenza di una variazione normativa. Questo strumento è puramente indicativo, non sostituisce il preventivo di un consulente del lavoro.</div>
+    </div>`;
+}
+
+/* ============================================================
    CONTABILITÀ — caparre (dal preventivo), movimenti manuali, spese
    materiali (già in Magazzino), percentuali per artista, chiusura
    periodica. Tutto locale, niente su Supabase — vedi README.
@@ -5220,6 +5278,8 @@ function renderContabilita(){
       <p class="section-desc">Se lavori come tatuatore singolo ospite in uno studio non tuo, indica qui la percentuale da versare al titolare che ti ospita. Lascia vuoto se lo studio è tuo: nessuna trattenuta, solo le tue spese.</p>
       <div class="field" style="max-width:220px;"><label>Percentuale verso il titolare ospitante</label><input type="number" min="0" max="100" data-action="input-perc-ospitante" placeholder="vuoto = studio tuo" value="${percentualeVersoTitolareOspitante()}"></div>
     </div>` : ""}
+
+    ${renderSimulatoreDipendente()}
   </div>`;
 }
 
@@ -8070,6 +8130,13 @@ document.addEventListener("change", (e) => {
   }
   if (selAction === "input-perc-ospitante"){
     setPercentualeVersoTitolareOspitante(e.target.value.trim());
+    return;
+  }
+  if (selAction === "input-sim-netto"){
+    // promptFeature: stateless apposta — solo in state (mai
+    // writeStore/saveX), sparisce lasciando la schermata.
+    state.simDipNetto = e.target.value;
+    render();
     return;
   }
   if (selAction === "set-icon-pack"){
