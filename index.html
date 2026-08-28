@@ -2575,6 +2575,7 @@ async function inviaRichiestaSupabase(r){
    selettivo del Task 6) — stesso risultato pratico del realtime vero:
    arrivano senza dover ricaricare la pagina. */
 let richiestePollingTimer = null;
+let richiesteBannerTimer = null;
 async function pollRichiesteSupabase(){
   if (!SUPABASE_CONFIG.url) return;
   const token = await validStudioAccessToken();
@@ -2591,6 +2592,13 @@ async function pollRichiesteSupabase(){
       saveRichieste([...nuove, ...loadRichieste()]);
       state.nuoveRichiesteBanner = [...(state.nuoveRichiesteBanner||[]), ...nuove];
       render();
+      // prompt13, Task 1: il toast sparisce da solo se non interagito —
+      // il badge sul menu (derivato da loadRichieste() per status, non
+      // da questo stato) resta comunque aggiornato indipendentemente.
+      // Un nuovo giro di polling durante l'attesa riparte da capo invece
+      // di sommarsi a un timer già in corsa.
+      clearTimeout(richiesteBannerTimer);
+      richiesteBannerTimer = setTimeout(() => { state.nuoveRichiesteBanner = []; render(); }, 8000);
     }
   } catch(e){ console.warn("Controllo nuove richieste fallito:", e); }
 }
@@ -3764,11 +3772,14 @@ function renderTrialChoice(){
         <input type="text" class="login-input" placeholder="Città" value="${esc(campoTrial('citta', pending))}" data-trial-field="citta" autocomplete="address-level2">
         <input type="text" class="login-input" placeholder="Nome e cognome del titolare" value="${esc(campoTrial('titolare', pending))}" data-trial-field="titolare" autocomplete="name">
         <input type="tel" class="login-input" placeholder="Telefono" value="${esc(campoTrial('telefono', pending))}" data-trial-field="telefono" autocomplete="tel">
+        <input type="password" class="login-input" placeholder="Password locale (per te, su questo dispositivo)" value="${esc((state.trialBuffer||{}).password||'')}" data-trial-field="password" autocomplete="new-password">
+        <input type="password" class="login-input" placeholder="Ripeti password" value="${esc((state.trialBuffer||{}).password2||'')}" data-trial-field="password2" autocomplete="new-password">
       </div>
       <div class="btn-row" style="justify-content:center;">
         <button class="btn btn-accent" data-action="trial-start" ${state.trialBusy ? "disabled" : ""}>${state.trialBusy ? "Un momento…" : "Inizia la prova gratuita"}</button>
       </div>
       <p class="lock-hint">Il titolare sarà anche il primo tatuatore registrato per questo studio. Il piano resta gratuito finché non richiedi tu l'attivazione (vedi "Licenza e piano" più avanti nelle Impostazioni) — nessun addebito automatico.</p>
+      <div class="callout info" style="margin-top:16px;text-align:left;">Questa password sblocca solo il TUO profilo su questo dispositivo condiviso: resta sempre e solo locale, non va mai su Supabase — usane una diversa da quella dell'account studio.</div>
     </div>
   </div>`;
 }
@@ -4237,7 +4248,13 @@ function renderStudioView(){
   if (state.view === "contabilita") return renderContabilita();
   if (state.view === "guest-consensi") return renderGuestConsensi();
   if (state.view === "paywall") return renderPaywall();
+  // ordine importante: un draft già aperto (open-session, lead-to-consenso,
+  // ecc.) vince sempre sulle schermate di scelta/attesa di "Nuovo consenso"
+  // — evita che un flag rimasto true da un giro precedente (prompt13,
+  // Task 4) nasconda un consenso che si sta davvero aprendo.
   if (state.view === "form" && draft) return renderStudioForm();
+  if (state.view === "form" && state.consensoWaitRemote) return renderConsensoWaitRemote();
+  if (state.view === "form" && state.consensoEntryChoice) return renderConsensoEntryChoice();
   if (state.view === "leads") return renderLeads();
   if (state.view === "lead-new" && leadDraft) return renderLeadNew();
   if (state.view === "lead-detail" && leadDraft) return renderLeadDetail();
@@ -6381,8 +6398,22 @@ document.addEventListener("click", (e) => {
     const titolare = campoTrial("titolare", pending).trim();
     const studioName = campoTrial("studioName", pending).trim();
     const citta = campoTrial("citta", pending).trim();
+    const password = ((state.trialBuffer||{}).password || "");
+    const password2 = ((state.trialBuffer||{}).password2 || "");
     if (!titolare || !studioName || !citta){
       state.trialError = "Nome studio, città e titolare sono obbligatori.";
+      render(); return;
+    }
+    // prompt13, Task 3: la password locale del titolare si raccoglie QUI,
+    // nello stesso passaggio — non più un secondo "login" percepito come
+    // separato la prima volta che sceglie se stesso in "chi sta lavorando
+    // ora" (vedi setCredenzialiTatuatore più sotto).
+    if (!password || password.length < 4){
+      state.trialError = "Scegli una password locale di almeno 4 caratteri.";
+      render(); return;
+    }
+    if (password !== password2){
+      state.trialError = "Le due password non coincidono.";
       render(); return;
     }
     state.trialBusy = true; state.trialError = null; render();
@@ -6400,17 +6431,19 @@ document.addEventListener("click", (e) => {
     // (confermato), il profilo serve solo a registrare l'identità su
     // licenza_tatuatori, non cambia come si registra il dispositivo.
     const profilo = assicuraProfiliTatuatori().find(t => t.nome === titolare);
-    supabaseAvviaTrial(telefono, titolare, studioName, citta, profilo ? profilo.supabaseId : null).then(() => {
-      clearPendingTrialSignup();
-      const acc = loadStudioAccount();
-      if (acc) saveStudioAccount({ ...acc, telefono, titolare });
-      state.trialBusy = false; state.needsTrialChoice = false; state.trialBuffer = null;
-      state.showPostOnboardingNotice = true;
-      registraDispositivoCorrente().then(esito => {
-        if (esito && esito.consentito === false) state.deviceLimitBlock = esito;
-        render();
-      });
-    }).catch(err => { state.trialBusy = false; state.trialError = err.message; render(); });
+    Promise.resolve(profilo ? setCredenzialiTatuatore(profilo.id, titolare, password) : null).then(() => {
+      supabaseAvviaTrial(telefono, titolare, studioName, citta, profilo ? profilo.supabaseId : null).then(() => {
+        clearPendingTrialSignup();
+        const acc = loadStudioAccount();
+        if (acc) saveStudioAccount({ ...acc, telefono, titolare });
+        state.trialBusy = false; state.needsTrialChoice = false; state.trialBuffer = null;
+        state.showPostOnboardingNotice = true;
+        registraDispositivoCorrente().then(esito => {
+          if (esito && esito.consentito === false) state.deviceLimitBlock = esito;
+          render();
+        });
+      }).catch(err => { state.trialBusy = false; state.trialError = err.message; render(); });
+    });
   }
   else if (action === "trial-start-manual"){
     const acc = loadStudioAccount() || {};
@@ -6455,9 +6488,22 @@ document.addEventListener("click", (e) => {
   else if (action === "tatuatore-pick-back"){
     state.tatuatoreSwitchPick = null; state.tatuatoreSwitchError = null; render();
   }
-  else if (action === "dismiss-richieste-banner"){ state.nuoveRichiesteBanner = []; render(); }
+  else if (action === "dismiss-richieste-banner"){ clearTimeout(richiesteBannerTimer); state.nuoveRichiesteBanner = []; render(); }
   else if (action === "dismiss-post-onboarding-notice"){ state.showPostOnboardingNotice = false; render(); }
-  else if (action === "goto-richieste-da-banner"){ state.nuoveRichiesteBanner = []; state.view = "leads"; state.railOpen = false; render(); }
+  else if (action === "goto-richieste-da-banner"){
+    clearTimeout(richiesteBannerTimer);
+    const nuove = state.nuoveRichiesteBanner || [];
+    // prompt13, Task 1: "vai direttamente a quella richiesta" — con una
+    // sola richiesta nuova si apre subito il suo dettaglio, non solo
+    // l'elenco; con più di una (impossibile sapere "quella" giusta) si
+    // apre l'elenco, come prima.
+    if (nuove.length === 1 && getRichiesta(nuove[0].id)){
+      leadDraft = getRichiesta(nuove[0].id); state.view = "lead-detail";
+    } else {
+      state.view = "leads";
+    }
+    state.nuoveRichiesteBanner = []; state.railOpen = false; render();
+  }
   else if (action === "cambia-tatuatore"){
     ACTIVE_TATUATORE = null; render();
   }
@@ -6639,7 +6685,26 @@ document.addEventListener("click", (e) => {
   if (action === "login-restore-pick"){ const inp = qs("#login-restore-file"); if (inp) inp.click(); return; }
 
   if (action === "nav"){ state.view = btn.dataset.view; state.step = 1; state.showErrors = null; state.railOpen = false; state.studioSaved = false; state.authSaved = false; state.authError = null; state.backupMsg = null; render(); }
-  else if (action === "new-session"){ draft = blankSession(); state.view = "form"; state.step = 1; state.showErrors = null; state.pdfWarning = false; state.railOpen = false; render(); }
+  else if (action === "new-session"){
+    // prompt13, Task 4: prima uno schermo di scelta (renderConsensoEntryChoice),
+    // non subito il passo 1 — draft nasce solo dopo aver scelto "Compila
+    // qui" (action "consenso-qui") o "Invia il link" (action
+    // "consenso-invia-link").
+    draft = null; state.view = "form"; state.consensoEntryChoice = true; state.consensoWaitRemote = false;
+    state.showErrors = null; state.pdfWarning = false; state.railOpen = false; render();
+  }
+  else if (action === "consenso-qui"){
+    draft = blankSession(); state.consensoEntryChoice = false; state.step = 1;
+    state.showErrors = null; state.pdfWarning = false; render();
+  }
+  else if (action === "consenso-invia-link"){
+    const s = blankSession(); upsertSession(s);
+    state.lastRemoteId = s.id; state.consensoEntryChoice = false; state.consensoWaitRemote = true;
+    render();
+  }
+  else if (action === "consenso-wait-chiudi"){
+    state.consensoWaitRemote = false; state.lastRemoteId = null; state.view = "archive"; render();
+  }
   else if (action === "open-session"){ draft = getSession(btn.dataset.id); state.view = "form"; state.step = resumeStep(draft); state.showErrors = null; state.pdfWarning = false; state.railOpen = false; render(); }
   else if (action === "toggle-rail"){ state.railOpen = !state.railOpen; render(); }
   else if (action === "goto-step"){ upsertSession(draft); state.step = Number(btn.dataset.step); state.showErrors = null; render(); }
@@ -6962,10 +7027,6 @@ document.addEventListener("click", (e) => {
   else if (action === "forn-remove-photo"){ state.editBuffer = { ...(state.editBuffer||{}), foto: "" }; render(); }
   else if (action === "seduta-remove-ink"){ draft.seduta.inchiostri = (draft.seduta.inchiostri||[]).filter(x => x.id !== btn.dataset.id); upsertSession(draft); renderStepOnly(); }
   else if (action === "seduta-remove-needle"){ draft.seduta.aghi = (draft.seduta.aghi||[]).filter(x => x.id !== btn.dataset.id); upsertSession(draft); renderStepOnly(); }
-  else if (action === "new-remote-link"){
-    const s = blankSession(); upsertSession(s);
-    state.lastRemoteId = s.id; render();
-  }
   else if (action === "save-studio"){
     const primaArtisti = STUDIO_CONFIG.artists.slice();
     saveStudioOverrides({ ...loadStudioOverrides(), ...(state.studioBuffer || {}) });
@@ -7717,7 +7778,7 @@ function renderSettings(){
   return `
   <div class="topbar"><div><h1>Impostazioni studio</h1><p>Identità, artisti e link di compilazione in studio</p></div></div>
   <div class="main-inner">
-    ${accOpen("branding", "Studio e branding", "Identità, logo, colori, font, firma, aftercare")}
+    ${accOpen("branding", "Studio e branding", "Identità, logo, colori, font, firma")}
     <div class="card">
       <h3 class="section-title">Setup studio</h3>
       <p class="section-desc">Personalizza l'app con l'identità del tuo studio. Le modifiche restano su questo dispositivo e si applicano subito.</p>
@@ -7779,17 +7840,6 @@ function renderSettings(){
         <label>Colore firma</label>
         <input type="color" data-field-studio="signatureColor" value="${esc(cfg.signatureColor || cfg.colorStencil)}" style="height:44px;padding:4px;">
         <div class="hint">Indipendente dai colori dell'app: di base segue l'accento, ma puoi sceglierne uno diverso solo per la firma.</div>
-      </div>
-
-      <div class="subhead">Messaggio aftercare (WhatsApp)</div>
-      <div class="field">
-        <textarea data-field-studio="aftercareText" rows="7" placeholder="Istruzioni per la cura…">${esc(cfg.aftercareText)}</textarea>
-        <div class="hint">Inviato al cliente dopo l'archiviazione con un tap. Usa <b>{nome}</b> per inserire il nome del cliente. Il messaggio include già un link a una pagina di avanzamento guarigione ("giorno X di N"), calcolata solo dalla data — nessun dato del cliente nel link.</div>
-      </div>
-      <div class="field" style="max-width:200px;">
-        <label>Giorni di guarigione stimati</label>
-        <input type="number" min="1" max="90" data-field-studio="giorniGuarigione" value="${esc(String(cfg.giorniGuarigione||14))}">
-        <div class="hint">Usati dalla barra "giorno X di N" nel link aftercare.</div>
       </div>
 
       <div class="btn-row">
@@ -7876,17 +7926,22 @@ function renderSettings(){
       <div class="kv"><span>Dati clienti</span><b>Solo su questo dispositivo (offline-first) — nessuna sync consensi su server</b></div>
     </div>
     ${accClose()}
-    ${accOpen("cliente", "Comunicazione con il cliente", "Link di compilazione consenso")}
+    ${accOpen("cliente", "Comunicazione con il cliente", "Aftercare")}
     <div class="card">
-      <h3 class="section-title">Link di compilazione per il cliente</h3>
-      <p class="section-desc">Genera un consenso vuoto e condividi il link/QR: il cliente lo compila sul proprio telefono, in studio (touch-free, mentre prepari). A fine compilazione il suo telefono mostra un codice/QR da farti vedere: scansionalo (o incollalo) da "Importa consenso" e lo ritrovi in "Archivio" pronto per la controfirma. Nessun dato passa da un server: il trasferimento è solo quel codice, letto direttamente dal tuo dispositivo.</p>
-      <button class="btn btn-primary" data-action="new-remote-link">Genera link cliente</button>
-      ${state.lastRemoteId ? `
-        <div class="card" style="margin-top:14px;background:var(--paper);">
-          <div class="qr-box"><div id="qr-host" data-sid="${state.lastRemoteId}"></div></div>
-          <p class="field hint mono" style="margin-top:10px;word-break:break-all;">${esc(buildClientLink(state.lastRemoteId))}</p>
-        </div>` : ""}
-      <p class="field hint" style="margin-top:10px;">Il link pubblico "Richiedi preventivo" si è spostato: lo trovi in "Preventivi" nel menu, insieme alle richieste ricevute.</p>
+      <h3 class="section-title">Messaggio aftercare (WhatsApp)</h3>
+      <div class="field">
+        <textarea data-field-studio="aftercareText" rows="7" placeholder="Istruzioni per la cura…">${esc(cfg.aftercareText)}</textarea>
+        <div class="hint">Inviato al cliente dopo l'archiviazione con un tap. Usa <b>{nome}</b> per inserire il nome del cliente. Il messaggio include già un link a una pagina di avanzamento guarigione ("giorno X di N"), calcolata solo dalla data — nessun dato del cliente nel link.</div>
+      </div>
+      <div class="field" style="max-width:200px;">
+        <label>Giorni di guarigione stimati</label>
+        <input type="number" min="1" max="90" data-field-studio="giorniGuarigione" value="${esc(String(cfg.giorniGuarigione||14))}">
+        <div class="hint">Usati dalla barra "giorno X di N" nel link aftercare.</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-accent" data-action="save-studio">Salva e applica</button>
+      </div>
+      <p class="field hint" style="margin-top:14px;">Il link/QR di compilazione consenso si è spostato: lo trovi ora dentro "Nuovo consenso" (scegliendo "Invia il link al cliente"). Il link pubblico "Richiedi preventivo" invece è in "Preventivi" nel menu, insieme alle richieste ricevute.</p>
     </div>
     ${accClose()}
     ${accOpen("sicurezza", "Sicurezza e accesso", "Blocco locale del dispositivo, account studio, dispositivi attivi")}
@@ -7998,6 +8053,57 @@ function renderSettings(){
      in studio il giorno dell'appuntamento davanti al cliente.
    ============================================================ */
 const STEP_LABELS = ["Anagrafica","Sanitario","Zona","Rischi e consenso","Privacy e disegno","Firma cliente","Dati seduta","Controfirma"];
+
+/* Schermata d'ingresso di "Nuovo consenso" (prompt13, Task 4): il
+   link/QR di compilazione remota viveva prima sparso in Impostazioni ->
+   "Comunicazione col cliente" — spostato qui come prima scelta del
+   flusso stesso, così chi lo usa lo trova dove lo sta effettivamente
+   cercando (mentre sta aprendo un nuovo consenso), non in una sezione
+   di configurazione. "Importa consenso" resta un menu a parte,
+   invariato: scorciatoia/fallback per recuperare un consenso remoto
+   anche se questa schermata è stata chiusa nel frattempo. */
+function renderConsensoEntryChoice(){
+  return `
+  <div class="topbar">
+    <div><h1>Nuovo consenso</h1><p>Come vuoi compilarlo?</p></div>
+    <button class="btn btn-ghost btn-sm" data-action="nav" data-view="archive">${icon("arrowLeft",15)} Archivio</button>
+  </div>
+  <div class="main-inner">
+    <div class="card" style="cursor:pointer;" data-action="consenso-qui">
+      <h3 class="section-title">${icon("pen",17)} Compila qui, a mano</h3>
+      <p class="section-desc">Il flusso di sempre: anagrafica, questionario, informativa e firme, passo per passo su questo dispositivo.</p>
+    </div>
+    <div class="card" style="cursor:pointer;margin-top:14px;" data-action="consenso-invia-link">
+      <h3 class="section-title">${icon("restock",17)} Invia il link al cliente</h3>
+      <p class="section-desc">Genera un link/QR: il cliente compila anagrafica, questionario e firma sul proprio telefono, in studio, mentre prepari. A fine compilazione ti mostra un codice da scansionare per importarlo.</p>
+    </div>
+  </div>`;
+}
+/* Schermata d'attesa dopo "Invia il link al cliente": il consenso
+   remoto è già stato creato e salvato in locale (upsertSession, vedi
+   action "consenso-invia-link") — chiudere questa schermata in
+   qualsiasi momento non perde nulla, si recupera comunque da "Importa
+   consenso" quando il cliente mostra il suo codice/QR finale. */
+function renderConsensoWaitRemote(){
+  return `
+  <div class="topbar">
+    <div><h1>In attesa del cliente</h1><p>Fagli aprire il link/QR sul suo telefono</p></div>
+    <button class="btn btn-ghost btn-sm" data-action="consenso-wait-chiudi">${icon("close",15)} Chiudi</button>
+  </div>
+  <div class="main-inner">
+    <div class="card">
+      <p class="section-desc">Il cliente compila anagrafica, questionario, informativa e firme sul proprio telefono, in studio (touch-free, mentre prepari). A fine compilazione il suo telefono mostra un codice/QR da farti vedere: scansionalo (o incollalo) da "Importa consenso" e lo ritrovi in "Archivio" pronto per la controfirma. Nessun dato passa da un server: il trasferimento è solo quel codice, letto direttamente dal tuo dispositivo.</p>
+      <div class="card" style="margin-top:14px;background:var(--paper);">
+        <div class="qr-box"><div id="qr-host" data-sid="${state.lastRemoteId}"></div></div>
+        <p class="field hint mono" style="margin-top:10px;word-break:break-all;">${esc(buildClientLink(state.lastRemoteId))}</p>
+      </div>
+      <div class="btn-row" style="margin-top:16px;">
+        <button class="btn btn-primary" data-action="nav" data-view="import">${icon("restock",15)} Il cliente ha finito, scansiona il suo codice</button>
+        <button class="btn btn-ghost" data-action="consenso-wait-chiudi">Chiudi (recupero dopo da "Importa consenso")</button>
+      </div>
+    </div>
+  </div>`;
+}
 
 function renderStudioForm(){
   return `
