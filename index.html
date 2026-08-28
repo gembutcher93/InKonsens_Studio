@@ -6984,7 +6984,15 @@ document.addEventListener("click", (e) => {
   // --- ripristino da backup dalla schermata di login ---
   if (action === "login-restore-pick"){ const inp = qs("#login-restore-file"); if (inp) inp.click(); return; }
 
-  if (action === "nav"){ state.view = btn.dataset.view; state.step = 1; state.showErrors = null; state.railOpen = false; state.studioSaved = false; state.authSaved = false; state.authError = null; state.backupMsg = null; render(); }
+  if (action === "nav"){
+    state.view = btn.dataset.view; state.step = 1; state.showErrors = null; state.railOpen = false; state.studioSaved = false; state.authSaved = false; state.authError = null; state.backupMsg = null; render();
+    // prompt15fix2: "Licenza e piano" deve mostrare il dato vero ogni
+    // volta che si apre, non la stima cache-vuota (pianoConsigliato())
+    // finché il throttle di refreshLicenseSeServeIl non decide di
+    // ripassare da qui — chi apre apposta questa schermata vuole
+    // sapere subito, non aspettare fino a 5 minuti dopo il boot.
+    if (btn.dataset.view === "paywall") refreshLicenseFromSupabase().then(render);
+  }
   else if (action === "new-session"){
     // prompt13, Task 4: prima uno schermo di scelta (renderConsensoEntryChoice),
     // non subito il passo 1 — draft nasce solo dopo aver scelto "Compila
