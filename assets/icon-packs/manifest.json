@@ -1,6 +1,8 @@
 {
   "packs": [
     { "name": "default", "format": "png" },
+	{ "name": "minimal", "format": "png" },
+    { "name": "sketch", "format": "png" },
     { "name": "studio-svg", "format": "svg" }
   ]
 }

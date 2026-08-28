@@ -2250,7 +2250,7 @@ function getTatuatoreProfilo(id){ return loadTatuatori().find(t => t.id === id) 
    Task 2), coerente col resto dell'app dove il titolare vede/gestisce
    sempre tutto (agenda condivisa, contabilità...). */
 function blankTatuatoreProfilo(nome, isTitolare){
-  return { id: uuidv4(), nome, username: "", salt: "", hash: "", supabaseId: uuidv4(), isTitolare: !!isTitolare, createdAt: new Date().toISOString() };
+  return { id: uuidv4(), nome, username: "", salt: "", hash: "", supabaseId: uuidv4(), isTitolare: !!isTitolare, abilitato: !!isTitolare, createdAt: new Date().toISOString() };
 }
 /* Crea (o ritrova) un profilo per ogni nome già dichiarato in
    Impostazioni -> "Artisti": esiste subito per poter contare/attribuire,
@@ -2268,6 +2268,21 @@ function assicuraProfiliTatuatori(){
   if (changed) saveTatuatori(list);
   return list.filter(t => nomi.includes(t.nome));
 }
+/* CORREZIONE (prompt12, Task B): scrivere un nome in "Artisti" creava
+   subito un profilo che veniva CONTATO come tatuatore vero (faceva
+   scattare "chi sta lavorando ora?" anche in Trial/SoloPro, dove il
+   piano vero ammette solo il titolare) — indipendentemente dal fatto
+   che registra_tatuatore() lato server lo avesse davvero accettato
+   sotto il tetto del piano attivo. Un profilo conta ora solo se:
+   è il titolare (nasce già abilitato, vedi avvia_trial), oppure ha
+   già delle credenziali impostate (t.hash — prova che in passato è
+   stato scelto e usato davvero: mantiene lo stato per i profili creati
+   prima di questo giro, nessuna migrazione manuale da fare), oppure ha
+   ricevuto risposta positiva da registra_tatuatore (t.abilitato, vedi
+   action "save-studio"). Un nome scritto ma non ancora abilitato resta
+   nel profilo locale (si vede in Impostazioni -> Tatuatori) ma non
+   compare nello switch né conta ai fini di accessoPienoRichieste. */
+function tatuatoreAbilitato(t){ return !!(t && (t.abilitato || t.isTitolare || t.hash)); }
 async function setCredenzialiTatuatore(id, username, password){
   const list = loadTatuatori();
   const i = list.findIndex(t => t.id === id);
@@ -2298,7 +2313,7 @@ function nomeTatuatoreAttivo(){ const t = tatuatoreAttivo(); return t ? t.nome :
 /* true se serve mostrare la schermata di scelta/switch: più di un
    tatuatore dichiarato e nessuno ancora attivo in questa sessione. */
 function serveSceltaTatuatore(){
-  return assicuraProfiliTatuatori().length > 1 && !ACTIVE_TATUATORE;
+  return assicuraProfiliTatuatori().filter(tatuatoreAbilitato).length > 1 && !ACTIVE_TATUATORE;
 }
 /* Accesso pieno alle richieste preventivo (prompt11, Task 2): sempre
    vero per il titolare, e sempre vero anche con un solo tatuatore
@@ -2307,7 +2322,7 @@ function serveSceltaTatuatore(){
    isTitolare — non per gli altri, che vedono tutto ma agiscono solo
    sulle richieste indirizzate a loro (vedi puoAprireRichiesta). */
 function accessoPienoRichieste(){
-  if (assicuraProfiliTatuatori().length <= 1) return true;
+  if (assicuraProfiliTatuatori().filter(tatuatoreAbilitato).length <= 1) return true;
   const t = tatuatoreAttivo();
   return !!(t && t.isTitolare);
 }
@@ -2519,7 +2534,14 @@ async function notifyNewRichiesta(r){
    tatuatore mai stato online dopo la creazione del profilo, vedi
    registraTatuatoreCorrente), l'insert fallirebbe per violazione della
    foreign key: si ritenta subito senza, così la richiesta arriva
-   comunque allo studio, solo senza quel collegamento. */
+   comunque allo studio, solo senza quel collegamento.
+   Valore di ritorno (prompt12, Task A): undefined se non c'era nulla da
+   inviare (Supabase non configurato o link senza &studio= — percorso
+   solo locale, comportamento invariato, nessun avviso); true/false se
+   un vero tentativo di invio è stato fatto — false solo dopo che
+   ENTRAMBI i tentativi (con e senza tatuatore_id) sono falliti
+   davvero, usato dal chiamante per mostrare un avviso onesto al
+   cliente invece di far credere che sia comunque arrivata. */
 async function inviaRichiestaSupabase(r){
   const studioId = params.get("studio");
   if (!SUPABASE_CONFIG.url || !studioId) return;
@@ -2536,9 +2558,13 @@ async function inviaRichiestaSupabase(r){
     body: JSON.stringify({ id: r.id, studio_id: studioId, tatuatore_id: tatuatoreId, payload }),
   });
   try {
-    const res = await post(r.tatuatoreSceltoId || null);
-    if (!res.ok && r.tatuatoreSceltoId) await post(null);
-  } catch(e){ console.warn("Invio richiesta a Supabase fallito, resta comunque salvata in locale sul telefono del cliente:", e); }
+    let res = await post(r.tatuatoreSceltoId || null);
+    if (!res.ok && r.tatuatoreSceltoId) res = await post(null);
+    return res.ok;
+  } catch(e){
+    console.warn("Invio richiesta a Supabase fallito, resta comunque salvata in locale sul telefono del cliente:", e);
+    return false;
+  }
 }
 
 /* Lato studio: "realtime" pragmatico via polling REST invece del vero
@@ -3762,7 +3788,7 @@ function renderDeviceLimitBlock(){
    momento — non serve una gestione separata in Impostazioni per
    iniziare, anche se resta comunque disponibile lì. */
 function renderTatuatoreSwitch(){
-  const profili = assicuraProfiliTatuatori();
+  const profili = assicuraProfiliTatuatori().filter(tatuatoreAbilitato);
   const pickId = state.tatuatoreSwitchPick;
   const picked = pickId ? getTatuatoreProfilo(pickId) : null;
   if (picked){
@@ -5966,6 +5992,7 @@ function renderLeadDone(){
       <div class="rail-mark" style="width:56px;height:56px;font-size:22px;margin:0 auto 18px;">${markHtml()}</div>
       <h2>Richiesta inviata${leadDraft.cliente.nome ? ", grazie " + esc(leadDraft.cliente.nome) : ""}!</h2>
       <p class="section-desc">Ti scriviamo su WhatsApp al numero che ci hai lasciato per fissare una consulenza gratuita in studio, dove ti diamo un preventivo su misura.</p>
+      ${state.leadSyncFailed ? `<div class="callout warn" style="text-align:left;margin-top:18px;">La richiesta è salvata sul tuo telefono, ma non siamo riusciti a inviarla in automatico allo studio per un problema di rete. Se non ricevi risposta entro un paio di giorni, ricontattaci direttamente.</div>` : ""}
     </div>
   </div>`;
 }
@@ -6952,6 +6979,13 @@ document.addEventListener("click", (e) => {
           const p = profili.find(t => t.nome === nome);
           if (!p) continue;
           const esito = await registraTatuatoreCorrente(p);
+          // prompt12, Task B: l'esito va SALVATO sul profilo (t.abilitato),
+          // non solo mostrato come messaggio — è quello che decide se il
+          // nome conta davvero come tatuatore (switch, accessoPienoRichieste),
+          // non il semplice fatto di essere scritto in "Artisti".
+          const list = loadTatuatori();
+          const i = list.findIndex(t => t.id === p.id);
+          if (i >= 0){ list[i] = { ...list[i], abilitato: !!(esito && esito.consentito) }; saveTatuatori(list); }
           if (esito && esito.consentito === false){
             state.tatuatoreCapError = esito.messaggio || "Tetto tatuatori del piano raggiunto.";
           }
@@ -7140,8 +7174,15 @@ document.addEventListener("click", (e) => {
       state.view = "lead-detail"; render();
     } else {
       notifyNewRichiesta(leadDraft);
-      inviaRichiestaSupabase(leadDraft);
-      state.leadDone = true; render();
+      // niente await qui: la conferma appare subito, offline-first come
+      // sempre (vedi commento sopra inviaRichiestaSupabase) — se l'invio
+      // fallisce davvero lo si scopre un attimo dopo e si aggiorna la
+      // stessa schermata con un avviso (prompt12, Task A), non si
+      // blocca l'utente in attesa della rete per vederla.
+      state.leadDone = true; state.leadSyncFailed = false; render();
+      inviaRichiestaSupabase(leadDraft).then(ok => {
+        if (ok === false){ state.leadSyncFailed = true; render(); }
+      });
     }
   }
 });
@@ -7578,7 +7619,7 @@ function initRichiestaMode(){
     // parte solo DOPO la scelta (vedi renderTatuatoreSwitch, action
     // "tatuatore-login"): qui serve sapere già chi è attivo, cosa che
     // a boot appena partito non è ancora possibile con più tatuatori.
-    if (state.mode === "studio" && !state.needsStudioAccount && loadStudioAccount() && assicuraProfiliTatuatori().length <= 1){
+    if (state.mode === "studio" && !state.needsStudioAccount && loadStudioAccount() && assicuraProfiliTatuatori().filter(tatuatoreAbilitato).length <= 1){
       const esito = await registraDispositivoCorrente();
       if (esito && esito.consentito === false) state.deviceLimitBlock = esito;
     }
@@ -7883,7 +7924,7 @@ function renderSettings(){
       <div class="inv-list">
         ${assicuraProfiliTatuatori().map(t => `
         <div class="inv-row">
-          <div class="inv-main"><b>${esc(t.nome)}</b><span class="inv-sub">${t.hash ? "Profilo attivo" + (t.username ? " · " + esc(t.username) : "") : "Nessuna credenziale impostata ancora"}${tatuatoreAttivo() && tatuatoreAttivo().id === t.id ? " · in uso ora" : ""}</span></div>
+          <div class="inv-main"><b>${esc(t.nome)}</b><span class="inv-sub">${!tatuatoreAbilitato(t) ? "In attesa: il piano attuale non lo ammette ancora" : (t.hash ? "Profilo attivo" + (t.username ? " · " + esc(t.username) : "") : "Nessuna credenziale impostata ancora")}${tatuatoreAttivo() && tatuatoreAttivo().id === t.id ? " · in uso ora" : ""}</span></div>
           <div class="inv-actions">${t.hash ? `<button class="btn btn-ghost btn-sm" data-action="reset-credenziali-tatuatore" data-id="${t.id}">Reimposta password</button>` : ""}</div>
         </div>`).join("")}
       </div>
