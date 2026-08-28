@@ -455,6 +455,22 @@ select{
 .agenda-chip{font-size:11px;background:var(--stencil-tint);color:var(--stencil);padding:4px 6px;border-radius:5px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .agenda-chip:hover{background:var(--stencil);color:#fff;}
 .agenda-day-empty{font-size:11px;color:var(--ink-ghost);text-align:center;padding:6px 0;}
+.agenda-month-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;}
+.agenda-month-dow span{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-faint);text-align:center;}
+.agenda-month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
+.agenda-month-cell{position:relative;aspect-ratio:1;border:1px solid var(--line-soft);border-radius:var(--radius);
+  background:var(--paper-raised);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;}
+.agenda-month-cell.empty{border-color:transparent;background:transparent;cursor:default;}
+.agenda-month-cell:not(.empty):hover{border-color:var(--stencil);}
+.agenda-month-cell.is-today{border-color:var(--stencil);border-width:2px;}
+.agenda-month-cell .amc-num{font-size:13px;color:var(--ink);}
+.agenda-month-cell.is-today .amc-num{color:var(--stencil);font-weight:600;}
+.agenda-month-cell .amc-count{font-family:var(--font-mono);font-size:9.5px;background:var(--stencil);color:#fff;
+  border-radius:8px;padding:1px 5px;position:absolute;bottom:3px;}
+@media (max-width:860px){
+  .agenda-month-cell .amc-count{font-size:8.5px;padding:0 4px;}
+  .agenda-month-dow span{font-size:9px;}
+}
 
 /* ---------- registro ---------- */
 .reg-table{width:100%;border-collapse:collapse;font-size:13px;}
@@ -597,12 +613,17 @@ select{
 .recovery-code{font-family:var(--font-mono);font-size:20px;letter-spacing:2px;color:var(--ink);background:rgba(255,255,255,.08);border:1px dashed #6b635a;border-radius:12px;padding:16px;margin:8px 0 14px;user-select:all;}
 /* condizioni: riquadro scorrevole su fondo scuro */
 /* fascia backup: appare in alto quando la copia di oggi non c'e' */
-.bkbar{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:var(--radius-md);
+/* Layout verticale (prompt10, Task 4): prima testo e bottone stavano
+   sulla stessa riga (testo a sinistra, bottone a destra) — su schermi
+   stretti il testo lungo spingeva il bottone in un angolo scomodo.
+   Ora: intestazione (icona+testo) sopra, bottone a piena larghezza sotto. */
+.bkbar{display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:var(--radius-md);
   margin-bottom:16px;font-size:13px;line-height:1.4;border:1px solid;}
-.bkbar .ic{flex:none;} .bkbar span{flex:1;}
+.bkbar-head{display:flex;align-items:flex-start;gap:10px;}
+.bkbar-head .ic{flex:none;margin-top:1px;}
 .bkbar.due{background:var(--stencil-tint);border-color:rgba(150,101,154,.35);color:var(--stencil);}
 .bkbar.old{background:var(--warn-tint);border-color:rgba(226,105,76,.35);color:var(--warn);}
-.bkbar button{flex:none;}
+.bkbar button{width:100%;justify-content:center;}
 .richieste-toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:60;
   display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:var(--radius-md);
   background:var(--flesh-tint,var(--paper-raised));border:1px solid var(--flesh);color:var(--ink);
@@ -648,7 +669,13 @@ select{
 .hq{display:flex;align-items:center;gap:14px;padding:12px 4px;border-bottom:1px solid var(--line-soft);}
 .hq:last-of-type{border-bottom:none;}
 .hq-label{flex:1;font-size:13.5px;line-height:1.45;color:var(--ink);}
-.sw{position:relative;flex:none;width:50px;height:30px;border-radius:999px;background:rgba(255,255,255,.14);
+/* Verde = risposta "no" (nessun problema dichiarato), rosso = "sì"
+   (condizione presente, blocca il flusso — vedi bloccato in
+   renderStepSanitario), violetto neutro = non ancora risposto: prima
+   di questo giro "no" e "non risposto" erano quasi lo stesso grigio,
+   difficile capire a colpo d'occhio cosa restava da compilare
+   (prompt10, Task 3). */
+.sw{position:relative;flex:none;width:50px;height:30px;border-radius:999px;background:var(--ok);
   transition:background .18s;cursor:pointer;border:none;padding:0;}
 .sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;
   background:var(--paper-field);box-shadow:0 1px 3px rgba(0,0,0,.4);transition:transform .18s;}
@@ -732,23 +759,26 @@ select{
 .bottom-bar-btn.active{color:var(--stencil);background:rgba(150,101,154,.14);}
 .bottom-bar-btn:active{transform:scale(.96);}
 .bb-badge{position:absolute;top:-6px;right:-10px;margin:0;font-size:9px;padding:1px 5px;}
-.nav-context-backdrop{display:none;position:fixed;inset:0;z-index:34;background:rgba(20,18,16,.35);}
-.nav-context-bar{
-  display:none;position:fixed;left:8px;right:8px;z-index:36;
-  bottom:calc(66px + env(safe-area-inset-bottom, 0px));
-  background:var(--paper-raised);border:1px solid var(--line-soft);border-radius:var(--radius-md);
-  padding:8px;box-shadow:0 -10px 28px -6px rgba(0,0,0,.45);
-  flex-direction:column;gap:2px;
+/* Riga di tab sempre visibile (prompt10, Task 1 — sostituisce la
+   tendina di prompt6/Task 12): scorrevole in orizzontale, niente
+   backdrop/apertura-chiusura. Colore attivo legato all'accento della
+   sezione (stencil/flesh, personalizzabili in Impostazioni), non un
+   colore fisso. */
+.section-tabs{
+  display:none;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;
+  padding:2px 2px 12px;margin:-4px -2px 14px;scrollbar-width:none;
 }
-.nav-context-item{
-  all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:8px;
-  color:var(--ink);font-size:14px;
+.section-tabs::-webkit-scrollbar{display:none;}
+.section-tab{
+  all:unset;cursor:pointer;flex:none;display:flex;align-items:center;gap:6px;
+  padding:8px 14px;border-radius:20px;font-size:13px;font-weight:500;white-space:nowrap;
+  color:var(--ink-faint);background:var(--paper-raised);border:1px solid var(--line-soft);
 }
-.nav-context-item.active{background:var(--stencil-tint);color:var(--stencil);}
-.nav-context-item:active{background:rgba(255,255,255,.06);}
+.section-tab.active{color:#fff;background:var(--stencil);border-color:var(--stencil);}
+.sec-accent-flesh .section-tab.active{background:var(--flesh);border-color:var(--flesh);}
+.section-tab:active{transform:scale(.97);}
 @media (max-width: 860px){
-  .nav-context-backdrop{display:block;}
-  .nav-context-bar{display:flex;}
+  .section-tabs{display:flex;}
   /* BUG REALE trovato in produzione (prompt8ui, Task 4): questa regola
      stava PRIMA della dichiarazione base ".bottom-bar{display:none}"
      più su nel foglio di stile invece che dopo — a parità di
@@ -2730,6 +2760,14 @@ function addGiorni(dataISO, n){
   const d = new Date(dataISO + "T00:00:00"); d.setDate(d.getDate()+n);
   return d.toISOString().slice(0,10);
 }
+/* Stesso giorno del mese ±n mesi; se il mese di arrivo è più corto (es.
+   31 gennaio +1 mese) JS riporta al 1° marzo — normale comportamento
+   Date, qui va bene: la vista mese sotto la testa comunque a inizio
+   mese, non a un giorno specifico. */
+function addMesi(dataISO, n){
+  const d = new Date(dataISO + "T00:00:00"); d.setMonth(d.getMonth()+n);
+  return d.toISOString().slice(0,10);
+}
 const GIORNI_SETTIMANA = ["Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato","Domenica"];
 
 /* ---------- promemoria WhatsApp pre-appuntamento (Task 2) ----------
@@ -4001,34 +4039,40 @@ function renderStudioShell(){
         <span class="mt-name">${esc(STUDIO_CONFIG.studioName)}</span>
         <button class="btn btn-ghost btn-sm privacy-toggle-mobile" data-action="toggle-privacy-blur" title="Oscura i dati a schermo" style="margin-left:auto;">${icon("eyeOff",16)}</button>
       </div>
+      ${!isGuest ? renderSectionTabs() : ""}
       <div id="studio-main" class="${state.privacyBlur ? 'privacy-blurred' : ''}">${renderStudioView()}</div>
     </div>
     ${!isGuest ? renderBottomBar() : ""}
   </div>`;
 }
-/* Doppio menu: bottom bar fissa a 4 voci + top bar contestuale
-   (prompt6, Task 12). Toccando una voce si apre/chiude un menu a
-   tendina con le sotto-voci di quella sezione, sopra la bottom bar; il
-   rail laterale a tre righe resta comunque raggiungibile come
-   scorciatoia globale (invariato) per tutto quello che non è qui. */
+/* Doppio menu: bottom bar fissa a 4 voci + riga di tab sempre visibile
+   (prompt10, Task 1 — sostituisce la tendina di prompt6/Task 12: il
+   click su un'icona apre SUBITO la prima schermata della sezione,
+   invece di un menu intermedio da scegliere). Il rail laterale a tre
+   righe resta comunque raggiungibile come scorciatoia globale
+   (invariato) per tutto quello che non è qui. Colore del tab attivo
+   legato agli accenti già personalizzabili in Impostazioni (stencil =
+   consenso/medico-legale, flesh = preventivo/commerciale — stesso
+   principio di .area-preventivo/.area-consenso usato nella shell
+   cliente), mai un colore fisso a parte. */
 const NAV_SECTIONS = [
-  { id: "consensi", label: "Consensi", icon: "clipboard", items: [
+  { id: "consensi", label: "Consensi", icon: "clipboard", accent: "stencil", items: [
       { view: "agenda", icon: "calendar", label: "Agenda" },
       { view: "archive", icon: "clipboard", label: "Archivio" },
       { view: "form", icon: "pen", label: "Nuovo consenso", action: "new-session" },
       { view: "import", icon: "restock", label: "Importa consenso" },
     ] },
-  { id: "preventivi", label: "Preventivi", icon: "chat", hidden: !FEATURES.richieste, items: [
+  { id: "preventivi", label: "Preventivi", icon: "chat", accent: "flesh", hidden: !FEATURES.richieste, items: [
       { view: "leads", icon: "chat", label: "Richieste" },
       { view: "lead-new", icon: "pen", label: "Nuovo preventivo", action: "new-preventivo-studio" },
     ] },
-  { id: "studio", label: "Studio", icon: "box", items: [
+  { id: "studio", label: "Studio", icon: "box", accent: "stencil", items: [
       { view: "magazzino", icon: "box", label: "Magazzino" },
       { view: "registro", icon: "book", label: "Registro" },
       { view: "contabilita", icon: "wallet", label: "Contabilità" },
       { view: "statistiche", icon: "chartBar", label: "Statistiche" },
     ] },
-  { id: "account", label: "Account", icon: "gear", items: [
+  { id: "account", label: "Account", icon: "gear", accent: "stencil", items: [
       { view: "paywall", icon: "lock", label: "Licenza e piano" },
       { view: "settings", icon: "gear", label: "Impostazioni" },
     ] },
@@ -4037,13 +4081,14 @@ function sezioneDellaVista(view){
   const withView = NAV_SECTIONS.find(s => s.items.some(it => it.view === view || (view === "lead-detail" && it.view === "leads")));
   return withView ? withView.id : null;
 }
-function renderNavContext(){
-  const sec = NAV_SECTIONS.find(s => s.id === state.navSectionOpen);
+/* Riga di tab orizzontali scorrevoli, sempre visibile (non a tendina):
+   le sotto-voci della sezione a cui appartiene la vista corrente. */
+function renderSectionTabs(){
+  const sec = NAV_SECTIONS.find(s => s.id === sezioneDellaVista(state.view));
   if (!sec) return "";
   return `
-  <div class="nav-context-backdrop" data-action="close-nav-section"></div>
-  <div class="nav-context-bar">
-    ${sec.items.map(it => `<button class="nav-context-item ${state.view===it.view?'active':''}" data-action="${it.action || 'nav'}" data-view="${it.view}">${icon(it.icon,16)} ${it.label}</button>`).join("")}
+  <div class="section-tabs sec-accent-${sec.accent}">
+    ${sec.items.map(it => `<button class="section-tab ${state.view===it.view?'active':''}" data-action="${it.action || 'nav'}" data-view="${it.view}">${icon(it.icon,15)} ${it.label}</button>`).join("")}
   </div>`;
 }
 function renderBottomBar(){
@@ -4051,10 +4096,9 @@ function renderBottomBar(){
   const sections = NAV_SECTIONS.filter(s => !s.hidden);
   const attiva = sezioneDellaVista(state.view);
   return `
-  ${renderNavContext()}
   <nav class="bottom-bar">
     ${sections.map(s => `
-      <button class="bottom-bar-btn ${(state.navSectionOpen===s.id || (!state.navSectionOpen && attiva===s.id)) ?'active':''}" data-action="toggle-nav-section" data-section="${s.id}">
+      <button class="bottom-bar-btn ${attiva===s.id?'active':''}" data-action="${s.items[0].action || 'nav'}" data-view="${s.items[0].view}">
         <span class="bb-ic">${icon(s.icon,20)}${s.id==='preventivi' && nuoveLeads ? `<span class="nav-badge bb-badge">${nuoveLeads}</span>` : ""}</span>
         <span class="bb-label">${s.label}</span>
       </button>`).join("")}
@@ -4168,8 +4212,7 @@ function renderBackupBar(){
                : "Backup di oggi non ancora fatto.");
   return `
   <div class="bkbar ${vecchio?'old':'due'}">
-    ${icon(vecchio?"alert":"shield",18)}
-    <span>${testo}</span>
+    <div class="bkbar-head">${icon(vecchio?"alert":"shield",18)}<span>${testo}</span></div>
     <button class="btn ${vecchio?'btn-accent':'btn-ghost'} btn-sm" data-action="backup-now">${icon("download",15)} Salva backup di oggi</button>
   </div>`;
 }
@@ -4285,6 +4328,7 @@ function renderAgenda(){
       <div class="chip-grid agenda-vista-toggle">
         <button class="chip ${vista==='giorno'?'on':''}" data-action="set-agenda-vista" data-v="giorno">Giorno</button>
         <button class="chip ${vista==='settimana'?'on':''}" data-action="set-agenda-vista" data-v="settimana">Settimana</button>
+        <button class="chip ${vista==='mese'?'on':''}" data-action="set-agenda-vista" data-v="mese">Mese</button>
       </div>
       <div class="btn-row" style="margin:0;">
         <button class="btn btn-ghost btn-sm" data-action="agenda-prev">${icon("arrowLeft",14)}</button>
@@ -4293,7 +4337,7 @@ function renderAgenda(){
       </div>
       <button class="btn btn-ghost btn-sm" data-action="nav" data-view="waitlist">${icon("chat",14)} Lista d'attesa${waitlistN ? ` (${waitlistN})` : ""}</button>
     </div>
-    ${vista === "giorno" ? renderAgendaGiorno(dataSel) : renderAgendaSettimana(dataSel)}
+    ${vista === "giorno" ? renderAgendaGiorno(dataSel) : vista === "settimana" ? renderAgendaSettimana(dataSel) : renderAgendaMese(dataSel)}
   </div>`;
 }
 function renderAgendaGiorno(dataISO){
@@ -4321,6 +4365,38 @@ function renderAgendaSettimana(dataISO){
         </div>
       </div>`;
     }).join("")}
+  </div>`;
+}
+/* Griglia mese classica (prompt10, Task 2): tocco su un giorno apre la
+   vista giorno di quella data, non un dettaglio inline — la griglia
+   resta leggibile anche con molti appuntamenti, il dettaglio si vede
+   dove c'è già spazio (vista giorno). */
+function renderAgendaMese(dataISO){
+  const d = new Date(dataISO + "T00:00:00");
+  const anno = d.getFullYear(), mese = d.getMonth();
+  const dowPrimo = (new Date(anno, mese, 1).getDay() + 6) % 7; // lunedì=0
+  const giorniInMese = new Date(anno, mese+1, 0).getDate();
+  const celle = [];
+  for (let i = 0; i < dowPrimo; i++) celle.push(null);
+  for (let g = 1; g <= giorniInMese; g++) celle.push(`${anno}-${String(mese+1).padStart(2,"0")}-${String(g).padStart(2,"0")}`);
+  while (celle.length % 7 !== 0) celle.push(null);
+  const oggi = new Date().toISOString().slice(0,10);
+  const meseLabel = d.toLocaleDateString("it-IT", { month: "long", year: "numeric" });
+  return `
+  <h3 class="section-title" style="text-transform:capitalize;">${esc(meseLabel)}</h3>
+  <div class="agenda-month">
+    <div class="agenda-month-dow">${GIORNI_SETTIMANA.map(g => `<span>${g.slice(0,3)}</span>`).join("")}</div>
+    <div class="agenda-month-grid">
+      ${celle.map(g => {
+        if (!g) return `<div class="agenda-month-cell empty"></div>`;
+        const list = appuntamentiDelGiorno(g);
+        return `
+        <div class="agenda-month-cell ${g===oggi?'is-today':''}${list.length?' has-appt':''}" data-action="agenda-mese-apri-giorno" data-data="${g}">
+          <span class="amc-num">${Number(g.slice(8,10))}</span>
+          ${list.length ? `<span class="amc-count">${list.length > 9 ? "9+" : list.length}</span>` : ""}
+        </div>`;
+      }).join("")}
+    </div>
   </div>`;
 }
 function renderAppuntamentoRow(a){
@@ -6432,14 +6508,8 @@ document.addEventListener("click", (e) => {
   // --- ripristino da backup dalla schermata di login ---
   if (action === "login-restore-pick"){ const inp = qs("#login-restore-file"); if (inp) inp.click(); return; }
 
-  if (action === "nav"){ state.view = btn.dataset.view; state.step = 1; state.showErrors = null; state.railOpen = false; state.navSectionOpen = null; state.studioSaved = false; state.authSaved = false; state.authError = null; state.backupMsg = null; render(); }
-  else if (action === "toggle-nav-section"){
-    const sec = btn.dataset.section;
-    state.navSectionOpen = state.navSectionOpen === sec ? null : sec;
-    render();
-  }
-  else if (action === "close-nav-section"){ state.navSectionOpen = null; render(); }
-  else if (action === "new-session"){ draft = blankSession(); state.view = "form"; state.step = 1; state.showErrors = null; state.pdfWarning = false; state.railOpen = false; state.navSectionOpen = null; render(); }
+  if (action === "nav"){ state.view = btn.dataset.view; state.step = 1; state.showErrors = null; state.railOpen = false; state.studioSaved = false; state.authSaved = false; state.authError = null; state.backupMsg = null; render(); }
+  else if (action === "new-session"){ draft = blankSession(); state.view = "form"; state.step = 1; state.showErrors = null; state.pdfWarning = false; state.railOpen = false; render(); }
   else if (action === "open-session"){ draft = getSession(btn.dataset.id); state.view = "form"; state.step = resumeStep(draft); state.showErrors = null; state.pdfWarning = false; state.railOpen = false; render(); }
   else if (action === "toggle-rail"){ state.railOpen = !state.railOpen; render(); }
   else if (action === "goto-step"){ upsertSession(draft); state.step = Number(btn.dataset.step); state.showErrors = null; render(); }
@@ -6645,9 +6715,18 @@ document.addEventListener("click", (e) => {
     render();
   }
   else if (action === "set-agenda-vista"){ state.agendaVista = btn.dataset.v; render(); }
-  else if (action === "agenda-prev"){ state.agendaData = (state.agendaVista === "settimana") ? addGiorni(state.agendaData || new Date().toISOString().slice(0,10), -7) : addGiorni(state.agendaData || new Date().toISOString().slice(0,10), -1); render(); }
-  else if (action === "agenda-next"){ state.agendaData = (state.agendaVista === "settimana") ? addGiorni(state.agendaData || new Date().toISOString().slice(0,10), 7) : addGiorni(state.agendaData || new Date().toISOString().slice(0,10), 1); render(); }
+  else if (action === "agenda-prev"){
+    const base = state.agendaData || new Date().toISOString().slice(0,10);
+    state.agendaData = state.agendaVista === "settimana" ? addGiorni(base, -7) : state.agendaVista === "mese" ? addMesi(base, -1) : addGiorni(base, -1);
+    render();
+  }
+  else if (action === "agenda-next"){
+    const base = state.agendaData || new Date().toISOString().slice(0,10);
+    state.agendaData = state.agendaVista === "settimana" ? addGiorni(base, 7) : state.agendaVista === "mese" ? addMesi(base, 1) : addGiorni(base, 1);
+    render();
+  }
   else if (action === "agenda-oggi"){ state.agendaData = new Date().toISOString().slice(0,10); render(); }
+  else if (action === "agenda-mese-apri-giorno"){ state.agendaVista = "giorno"; state.agendaData = btn.dataset.data; render(); }
   else if (action === "mark-promemoria-inviato"){
     const a = getAppuntamento(btn.dataset.id);
     if (a){ a.promemoriaInviato = true; upsertAppuntamento(a); setTimeout(render, 50); }
@@ -6859,7 +6938,7 @@ document.addEventListener("click", (e) => {
     if (STUDIO_CONFIG.artists.length === 1) leadDraft.tatuatoreScelto = STUDIO_CONFIG.artists[0];
     else if (nomeTatuatoreAttivo()) leadDraft.tatuatoreScelto = nomeTatuatoreAttivo();
     state.leadStep = 1; state.leadShowErrors = null;
-    state.view = "lead-new"; state.railOpen = false; state.navSectionOpen = null; render();
+    state.view = "lead-new"; state.railOpen = false; render();
   }
   else if (action === "copy-lead-link"){
     navigator.clipboard.writeText(buildLeadLink()).then(() => {

@@ -76,11 +76,20 @@
    atomicamente con l'account studio (avvia_trial ora crea anche
    licenza_tatuatori), dispositivo nuovo su studio esistente recupera i
    dati invece di richiederli di nuovo.
+   v33: rifiniture UI — menu contestuale: click diretto sulla sezione
+   invece di una tendina da aprire, riga di tab sempre visibile sotto
+   il topbar (colore legato agli accenti già personalizzabili, non
+   fisso); agenda: vista mese (griglia calendario, tocco su un giorno
+   apre la vista giorno di quella data); questionario sanitario: sfondo
+   verde per "nessun problema", non più grigio neutro indistinguibile
+   da "non risposto"; avviso backup mancante in layout verticale
+   (testo sopra, bottone a piena larghezza sotto) invece di testo-
+   sinistra/bottone-destra sulla stessa riga.
 
    Nota: i dati (consensi, magazzino) NON passano da qui. Stanno in
    IndexedDB sul dispositivo e il service worker non li tocca mai.   */
 
-const CACHE = "inkconsent-v32";
+const CACHE = "inkconsent-v33";
 
 const PRECACHE = [
   "./",

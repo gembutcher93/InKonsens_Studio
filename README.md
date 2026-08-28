@@ -30,7 +30,43 @@ dispositivo (mai inviati altrove) e chiamate `fetch` dirette alle API
 REST di Supabase quando serve la licenza. Nessun tracciamento, nessun
 analytics di terze parti.
 
-## Novità dell'ultimo giro (ottavo giro): onboarding reale — conferma email vera, dati studio obbligatori, primo tatuatore nato insieme
+## Novità dell'ultimo giro (nono giro): rifiniture UI
+
+Giro di sola interfaccia, nessuna modifica a Supabase/logica di
+licenza.
+
+- **Menu contestuale: click diretto, non più una tendina.** Toccando
+  una delle 4 icone in basso (Consensi/Preventivi/Studio/Account) si
+  apre SUBITO la prima schermata di quella sezione (es. Studio →
+  Magazzino diretto). Sotto il topbar, una riga di tab orizzontali
+  scorrevoli mostra le sotto-voci della sezione corrente, sempre
+  visibile — sostituisce la tendina che si apriva/chiudeva (giro
+  sesto/settimo). Colore del tab attivo legato agli stessi accenti già
+  personalizzabili in Impostazioni (stencil per Consensi/Studio/
+  Account, flesh per Preventivi — stesso principio già usato per le
+  shell cliente), mai un colore fisso.
+- **Agenda: vista mese.** Oltre a giorno/settimana, una griglia
+  calendario classica con un pallino/numero per gli appuntamenti di
+  ogni giorno; tocco su un giorno apre la vista giorno di quella data.
+- **Questionario sanitario: verde per "nessun problema".** Il
+  meccanismo di blocco (una risposta positiva ferma il flusso finché
+  il tatuatore non conferma) era già corretto e verificato di nuovo in
+  questo giro — mancava solo il colore: prima "no" e "non ancora
+  risposto" erano quasi lo stesso grigio, difficile capire a colpo
+  d'occhio cosa restava da compilare. Ora "no" è verde, "sì" resta
+  rosso, "non risposto" resta il violetto neutro di prima.
+- **Avviso backup mancante: layout verticale.** Testo sopra, bottone
+  "Salva backup di oggi" a piena larghezza sotto, invece di testo a
+  sinistra e bottone stretto a destra sulla stessa riga.
+
+Verificato con Chrome headless (stessa configurazione dei giri
+precedenti: nessuna estensione Chrome disponibile in questo ambiente,
+Puppeteer con Chrome installato in locale) — click diretto sulle 4
+sezioni, tab attivo evidenziato, griglia mese e navigazione tra mesi,
+colori del questionario sanitario, layout del banner backup: tutto
+verificato visivamente, zero errori console.
+
+## Novità dell'ottavo giro: onboarding reale — conferma email vera, dati studio obbligatori, primo tatuatore nato insieme
 
 Tre bug collegati, trovati testando dal vivo su
 `inkonsens-studio.pages.dev`:
