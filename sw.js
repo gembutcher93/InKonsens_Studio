@@ -57,11 +57,23 @@
    fonte di verità (licenza_studi.id ha un vincolo FK vero verso
    auth.users), le due funzioni richiedono una sessione autenticata
    invece dell'anon key — vedi supabase-consolidamento-licenza.sql.
+   v31: riorganizzazione cartelle asset (icons/, assets/body/,
+   assets/icon-packs/<nome>/) + sistema a pacchetti per le icone
+   categoria magazzino, selezionabile in Impostazioni, estendibile
+   aggiungendo una cartella + una riga in assets/icon-packs/manifest.json
+   (zero codice) — due pacchetti di partenza, "default" (PNG, i file di
+   sempre) e "studio-svg" (SVG, nuovo); FIX VERO della bottom bar
+   mobile: un bug di ordine nel CSS (una regola @media veniva scritta
+   PRIMA della dichiarazione base invece che dopo, quindi la base
+   vinceva sempre) la teneva nascosta su ogni schermo da quando è stata
+   introdotta — segnata "completata" nei giri scorsi ma mai visibile
+   davvero, ora corretta; icone anche nei titoli delle sezioni
+   Impostazioni.
 
    Nota: i dati (consensi, magazzino) NON passano da qui. Stanno in
    IndexedDB sul dispositivo e il service worker non li tocca mai.   */
 
-const CACHE = "inkconsent-v30";
+const CACHE = "inkconsent-v31";
 
 const PRECACHE = [
   "./",
@@ -74,27 +86,43 @@ const PRECACHE = [
   "qrcode.min.js",
 
   /* sagome anatomiche */
-  "body-man_front.png",
-  "body-man_back.png",
-  "body-girl_front.png",
-  "body-girl_back.png",
+  "assets/body/body-man_front.png",
+  "assets/body/body-man_back.png",
+  "assets/body/body-girl_front.png",
+  "assets/body/body-girl_back.png",
 
   /* icone app */
-  "icon-192.png",
-  "icon-512.png",
+  "icons/icon-192.png",
+  "icons/icon-512.png",
 
-  /* icone categoria magazzino */
-  "cat-carta.png",
-  "cat-cartastesa.png",
-  "cat-cartucce.png",
-  "cat-disinfettante.png",
-  "cat-greensoap.png",
-  "cat-guanti.png",
-  "cat-inkcaps.png",
-  "cat-macchinette.png",
-  "cat-pellicole.png",
-  "cat-rasoi.png",
-  "cat-stencil.png",
+  /* pacchetti icone magazzino (prompt8ui): elenco pacchetti + le icone
+     di ognuno. Se aggiungi un pacchetto nuovo, aggiungi qui le sue
+     icone — il manifest lo trova da solo, ma il precache resta
+     esplicito (niente scoperta dinamica delle cartelle da un service
+     worker, non è possibile con le API cache di base). */
+  "assets/icon-packs/manifest.json",
+  "assets/icon-packs/default/cat-carta.png",
+  "assets/icon-packs/default/cat-cartastesa.png",
+  "assets/icon-packs/default/cat-cartucce.png",
+  "assets/icon-packs/default/cat-disinfettante.png",
+  "assets/icon-packs/default/cat-greensoap.png",
+  "assets/icon-packs/default/cat-guanti.png",
+  "assets/icon-packs/default/cat-inkcaps.png",
+  "assets/icon-packs/default/cat-macchinette.png",
+  "assets/icon-packs/default/cat-pellicole.png",
+  "assets/icon-packs/default/cat-rasoi.png",
+  "assets/icon-packs/default/cat-stencil.png",
+  "assets/icon-packs/studio-svg/cat-carta.svg",
+  "assets/icon-packs/studio-svg/cat-cartastesa.svg",
+  "assets/icon-packs/studio-svg/cat-cartucce.svg",
+  "assets/icon-packs/studio-svg/cat-disinfettante.svg",
+  "assets/icon-packs/studio-svg/cat-greensoap.svg",
+  "assets/icon-packs/studio-svg/cat-guanti.svg",
+  "assets/icon-packs/studio-svg/cat-inkcaps.svg",
+  "assets/icon-packs/studio-svg/cat-macchinette.svg",
+  "assets/icon-packs/studio-svg/cat-pellicole.svg",
+  "assets/icon-packs/studio-svg/cat-rasoi.svg",
+  "assets/icon-packs/studio-svg/cat-stencil.svg",
 ];
 
 self.addEventListener("install", (event) => {

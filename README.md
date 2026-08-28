@@ -6,6 +6,34 @@ zero dipendenze runtime pesanti — stessa filosofia di InkAnimus.
 Testato end-to-end con browser headless (flusso completo: nuova sessione →
 6 step → doppia firma → archiviazione → ricerca in archivio) prima della consegna.
 
+## Novità dell'ultimo giro (settimo giro): asset riorganizzati, pacchetti icone, bottom bar corretta
+
+Giro di sola UI/asset, nessuna nuova logica di business.
+
+- **Cartelle riorganizzate**: `icons/` (icona app), `assets/body/`
+  (sagome anatomiche), `assets/icon-packs/<nome>/` (icone categoria
+  magazzino, un pacchetto per sottocartella) — vedi la sezione dedicata
+  più sotto, "Pacchetti icone magazzino", per i dettagli e come
+  aggiungerne uno nuovo.
+- **BUG REALE corretto: la bottom bar mobile non è mai stata visibile.**
+  Il giro scorso l'avevo segnata "completata" basandomi solo su
+  controlli statici (nessun browser disponibile in quell'ambiente): una
+  regola CSS `@media` era scritta PRIMA della dichiarazione base
+  `.bottom-bar{display:none}` invece che dopo — a parità di specificità
+  vince l'ultima nell'ordine del sorgente, quindi il `display:none`
+  base sovrascriveva sempre quella dei media query, su qualunque
+  schermo. Trovato leggendo il CSS riga per riga, corretto, e
+  **verificato stavolta con un browser reale** (Chrome headless via
+  Puppeteer, non l'estensione Chrome-in-Claude — non disponibile in
+  questo ambiente): bottom bar a 4 sezioni visibile sotto gli 860px,
+  nascosta sopra, tendina contestuale che si apre con le sotto-voci
+  corrette per ognuna delle 4 sezioni, nessun errore in console.
+- **Icone anche nei titoli delle sezioni Impostazioni**: usano lo
+  stesso set SVG già in uso in tutta l'app (rail, bottom bar, pulsanti)
+  — non i pacchetti magazzino, che restano un concetto diverso (foto
+  swappabili di prodotti reali, non simboli di navigazione). Vedi nota
+  nella sezione dedicata sotto se preferivi altrimenti.
+
 ## Fix urgente (sesto giro): due sistemi di licenza scollegati
 
 Bug architetturale reale su Supabase, trovato testando l'attivazione
@@ -468,10 +496,71 @@ Ora ci sono **due modi**, e per la vendita conta il primo:
 
 ### Icona / logo
 
-`icon-192.png` e `icon-512.png` sono l'icona dell'app (macchinetta-penna).
-Vanno nella root insieme a `index.html`. Il `manifest.json` e i tag
-`apple-touch-icon` le usano per l'installazione su iOS/Android. Per uno studio
-diverso, basta sostituire questi due PNG mantenendo gli stessi nomi.
+`icons/icon-192.png` e `icons/icon-512.png` sono l'icona dell'app
+(macchinetta-penna) — da quando la struttura è stata riorganizzata
+(vedi sotto), vivono in una sottocartella, non più nella root insieme a
+`index.html`. Il `manifest.json` e i tag `apple-touch-icon` le usano
+per l'installazione su iOS/Android. Per uno studio diverso, basta
+sostituire questi due PNG mantenendo stessi nomi e stessa cartella.
+
+## Struttura cartelle asset
+
+Riorganizzata per tenere insieme cose diverse (icona app, sagome,
+icone categoria magazzino), che prima stavano tutte alla rinfusa nella
+root accanto a `index.html`:
+
+```
+icons/                          icona dell'app (manifest, apple-touch-icon)
+  icon-192.png
+  icon-512.png
+assets/
+  body/                          sagome anatomiche (mappa zone, sempre PNG)
+    body-man_front.png
+    body-man_back.png
+    body-girl_front.png
+    body-girl_back.png
+  icon-packs/                    icone categoria magazzino, a pacchetti
+    manifest.json                elenco dei pacchetti disponibili
+    default/                     pacchetto PNG (i file originali)
+      cat-guanti.png  cat-pellicole.png  cat-disinfettante.png  ...
+    studio-svg/                  pacchetto SVG curato, generato in questo giro
+      cat-guanti.svg  cat-pellicole.svg  cat-disinfettante.svg  ...
+```
+
+Se sposti `index.html`/`sw.js`/`manifest.json` altrove, questa struttura
+deve seguirli mantenendo gli stessi percorsi relativi — sono referenziati
+così ovunque nel codice (`bodyImg()`, `catIconUrl()`, `sw.js` PRECACHE,
+i `<link>` nell'head).
+
+### Pacchetti icone magazzino
+
+Le icone delle 11 categorie del magazzino (guanti, disinfettanti,
+cartucce, ecc. — vedi `CATEGORIE_FORNITURE` in `index.html`) vengono da
+un **pacchetto** scelto in Impostazioni → "Studio e branding" → "Icone
+magazzino", non da un percorso fisso scritto nel codice.
+
+**Aggiungere un pacchetto nuovo — zero modifiche al codice:**
+
+1. Crea `assets/icon-packs/<nome-pacchetto>/`.
+2. Mettici le 11 icone con **esattamente questi nomi** (estensione `.png`
+   o `.svg`, puoi anche mischiare i due nella stessa cartella — il
+   codice tenta prima l'estensione dichiarata nel manifest, poi
+   l'altra): `cat-guanti`, `cat-pellicole`, `cat-disinfettante`,
+   `cat-greensoap`, `cat-carta`, `cat-cartastesa`, `cat-rasoi`,
+   `cat-inkcaps`, `cat-cartucce`, `cat-stencil`, `cat-macchinette`.
+3. Aggiungi una riga a `assets/icon-packs/manifest.json`:
+   ```json
+   { "name": "<nome-pacchetto>", "format": "png" }
+   ```
+   (`format` è facoltativo — indica solo quale estensione provare per
+   prima; senza indicazione parte da `.png`.)
+4. Aggiungi i nuovi file anche al `PRECACHE` di `sw.js` (altrimenti
+   funzionano solo online) e bump la versione `CACHE`.
+
+Due pacchetti già pronti: **`default`** (i PNG originali — sostituiscili
+con le tue foto vere mantenendo gli stessi nomi file, quando vuoi) e
+**`studio-svg`** (icone SVG disegnate per questo giro, stile a linee
+coerente — placeholder curato, non foto reali di prodotto).
 
 ## ⚠️ Nota legale — leggere prima di usarla con clienti veri
 

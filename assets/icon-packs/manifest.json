@@ -1,0 +1,6 @@
+{
+  "packs": [
+    { "name": "default", "format": "png" },
+    { "name": "studio-svg", "format": "svg" }
+  ]
+}

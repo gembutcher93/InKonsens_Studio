@@ -7,8 +7,8 @@
 <meta name="description" content="Consenso informato digitale per studi di tatuaggio">
 <meta name="theme-color" content="#15131A">
 <link rel="manifest" href="manifest.json">
-<link rel="icon" type="image/png" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Caveat:wght@500;600;700&display=swap" rel="stylesheet">
@@ -239,7 +239,8 @@ button{font-family:inherit;}
   border-radius:var(--radius-md);box-sizing:border-box;
 }
 .accordion-header:hover{border-color:var(--line);}
-.accordion-head-text{display:flex;flex-direction:column;gap:2px;text-align:left;}
+.accordion-head-ic{flex:none;display:inline-flex;color:var(--flesh);}
+.accordion-head-text{display:flex;flex:1;min-width:0;flex-direction:column;gap:2px;text-align:left;}
 .accordion-head-text b{font-family:var(--font-display);font-size:15.5px;font-weight:600;letter-spacing:-.005em;}
 .accordion-head-text small{font-size:12px;color:var(--ink-faint);}
 .accordion-chevron{flex:none;color:var(--ink-faint);transition:transform .18s ease;}
@@ -702,7 +703,6 @@ select{
   }
   .mobile-topbar .mt-name{font-family:var(--font-mono);font-size:11px;letter-spacing:.05em;
     color:var(--ink-faint);text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .bottom-bar{display:flex;}
 }
 .mobile-topbar{display:none;align-items:center;gap:12px;margin-bottom:18px;}
 /* ---------- bottom bar (mobile) ----------
@@ -745,6 +745,15 @@ select{
 @media (max-width: 860px){
   .nav-context-backdrop{display:block;}
   .nav-context-bar{display:flex;}
+  /* BUG REALE trovato in produzione (prompt8ui, Task 4): questa regola
+     stava PRIMA della dichiarazione base ".bottom-bar{display:none}"
+     più su nel foglio di stile invece che dopo — a parità di
+     specificità, in CSS vince l'ultima dichiarazione nell'ordine del
+     sorgente, quindi il "display:none" base sovrascriveva SEMPRE
+     questa dei media query, anche sotto gli 860px: la bottom bar non è
+     mai comparsa, su nessuno schermo. Spostata qui (dopo la base),
+     dove l'ordine del sorgente la fa vincere davvero sotto gli 860px. */
+  .bottom-bar{display:flex;}
 }
 .rail-backdrop{
   display:none;position:fixed;inset:0;background:rgba(20,18,16,.45);z-index:40;
@@ -2461,21 +2470,74 @@ function newId(){ return "x" + Math.random().toString(36).slice(2, 9); }
    Ogni articolo tiene la quantità corrente + movimenti (carico/scarico).
    I carichi con prezzo alimentano il recap spese. Categorie con icona. */
 const FORNITURE_KEY = "inkconsent_forniture_v1";
+/* iconSlug invece di un path fisso: il file vero (cat-<iconSlug>.png o
+   .svg, dentro il pacchetto scelto) lo risolve catIconUrl() più sotto
+   — vedi il sistema a pacchetti (prompt8ui, Task 1-2). "medicazione"
+   non ha un'icona propria: riusa quella di "carta", stessa scelta di
+   prima di questo giro. */
 const CATEGORIE_FORNITURE = [
-  { slug: "guanti",        label: "Guanti",              icon: "cat-guanti.png" },
-  { slug: "pellicole",     label: "Tape e pellicole",    icon: "cat-pellicole.png" },
-  { slug: "disinfettante", label: "Disinfettanti",       icon: "cat-disinfettante.png" },
-  { slug: "greensoap",     label: "Green soap / saponi", icon: "cat-greensoap.png" },
-  { slug: "carta",         label: "Carta / panni",       icon: "cat-carta.png" },
-  { slug: "cartastesa",    label: "Carta stendi / lettini", icon: "cat-cartastesa.png" },
-  { slug: "rasoi",         label: "Rasoi",               icon: "cat-rasoi.png" },
-  { slug: "inkcaps",       label: "Ink caps / bicchierini", icon: "cat-inkcaps.png" },
-  { slug: "cartucce",      label: "Cartucce",            icon: "cat-cartucce.png" },
-  { slug: "stencil",       label: "Stencil / accessori", icon: "cat-stencil.png" },
-  { slug: "macchinette",   label: "Macchinette / ricambi", icon: "cat-macchinette.png" },
-  { slug: "medicazione",   label: "Garze / medicazione", icon: "cat-carta.png" },
+  { slug: "guanti",        label: "Guanti",              iconSlug: "guanti" },
+  { slug: "pellicole",     label: "Tape e pellicole",    iconSlug: "pellicole" },
+  { slug: "disinfettante", label: "Disinfettanti",       iconSlug: "disinfettante" },
+  { slug: "greensoap",     label: "Green soap / saponi", iconSlug: "greensoap" },
+  { slug: "carta",         label: "Carta / panni",       iconSlug: "carta" },
+  { slug: "cartastesa",    label: "Carta stendi / lettini", iconSlug: "cartastesa" },
+  { slug: "rasoi",         label: "Rasoi",               iconSlug: "rasoi" },
+  { slug: "inkcaps",       label: "Ink caps / bicchierini", iconSlug: "inkcaps" },
+  { slug: "cartucce",      label: "Cartucce",            iconSlug: "cartucce" },
+  { slug: "stencil",       label: "Stencil / accessori", iconSlug: "stencil" },
+  { slug: "macchinette",   label: "Macchinette / ricambi", iconSlug: "macchinette" },
+  { slug: "medicazione",   label: "Garze / medicazione", iconSlug: "carta" },
 ];
-function catInfo(slug){ return CATEGORIE_FORNITURE.find(c => c.slug === slug) || { slug, label: "Altro", icon: "cat-stencil.png" }; }
+function catInfo(slug){ return CATEGORIE_FORNITURE.find(c => c.slug === slug) || { slug, label: "Altro", iconSlug: "stencil" }; }
+
+/* ============================================================
+   PACCHETTI ICONE MAGAZZINO (prompt8ui, Task 1-3) — le icone
+   categoria (cat-guanti, cat-disinfettante, ecc.) vivono in
+   assets/icon-packs/<nome-pacchetto>/, un pacchetto per sottocartella,
+   stessi nomi file in ognuno. L'elenco dei pacchetti disponibili viene
+   letto da assets/icon-packs/manifest.json, MAI hardcoded: aggiungere
+   un pacchetto in futuro significa solo creare la cartella (stessi
+   nomi cat-*.png o .svg) e aggiungere una riga al manifest — zero
+   modifiche qui. Ogni pacchetto può dichiarare un "format" preferito
+   (png o svg); senza indicazione, o se il file in quel formato non
+   c'è, il fallback automatico prova l'altro formato (vedi
+   catIconOnerror). */
+const ICON_PACKS_BASE = "assets/icon-packs";
+let ICON_PACK_LIST = [{ name: "default", format: "png" }]; // rimpiazzato al boot da caricaPacchettiIcone()
+async function caricaPacchettiIcone(){
+  try {
+    const r = await fetch(`${ICON_PACKS_BASE}/manifest.json`, { cache: "no-cache" });
+    if (!r.ok) return;
+    const j = await r.json();
+    if (Array.isArray(j.packs) && j.packs.length){
+      ICON_PACK_LIST = j.packs.map(p => typeof p === "string" ? { name: p } : { name: p.name, format: p.format });
+    }
+  } catch(e){ /* resta il pacchetto di base già incorporato */ }
+}
+function pacchettoIconeScelto(){ return loadStudioOverrides().iconPack || "default"; }
+function setPacchettoIcone(nome){
+  const o = loadStudioOverrides();
+  saveStudioOverrides({ ...o, iconPack: nome });
+}
+function pacchettoIconeAttivo(){
+  return ICON_PACK_LIST.find(p => p.name === pacchettoIconeScelto()) || ICON_PACK_LIST[0] || { name: "default" };
+}
+function catIconUrl(iconSlug, extForzata){
+  const pack = pacchettoIconeAttivo();
+  const ext = extForzata || pack.format || "png";
+  return `${ICON_PACKS_BASE}/${pack.name}/cat-${iconSlug}.${ext}`;
+}
+/* Attributo onerror da mettere su ogni <img> di icona categoria: se
+   l'estensione provata non esiste nel pacchetto, tenta l'altra
+   (png<->svg) una volta sola — this.onerror=null evita loop se manca
+   anche quella. */
+function catIconOnerrorAttr(iconSlug){
+  const pack = pacchettoIconeAttivo();
+  const primaExt = pack.format || "png";
+  const altExt = primaExt === "svg" ? "png" : "svg";
+  return `this.onerror=null;this.src='${catIconUrl(iconSlug, altExt)}';`;
+}
 BIG_STORES.push(FORNITURE_KEY);
 function loadForniture(){ return readStore(FORNITURE_KEY, []); }
 function saveForniture(list){ writeStore(FORNITURE_KEY, list); }
@@ -3129,11 +3191,11 @@ function markHtml(){
 /* ---------- body diagram: usa le 4 immagini reali dello studio ----------
    Le sagome (uomo/donna x fronte/retro) sono immagini PNG con sfondo
    trasparente e interno bianco: restano leggibili su qualsiasi tema.
-   File esterni body-*.png accanto a index.html. */
+   File esterni in assets/body/ (prompt8ui, Task 1). */
 function bodyImg(gender, view){
   const g = gender === "femminile" ? "girl" : "man";
   const v = view === "retro" ? "back" : "front";
-  return `body-${g}_${v}.png`;
+  return `assets/body/body-${g}_${v}.png`;
 }
 
 /* ============================================================
@@ -3403,7 +3465,7 @@ function renderStudioAccountSetup(){
     return `
     <div class="lock-wrap">
       <div class="lock-card">
-        <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+        <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
         <h2 class="lock-title">Controlla la tua email</h2>
         <p class="lock-sub">Ti abbiamo mandato un link di conferma a <b>${esc(b.email||"")}</b>. Apri quel link, poi torna qui e accedi con email e password.</p>
         <div class="btn-row" style="justify-content:center;">
@@ -3415,7 +3477,7 @@ function renderStudioAccountSetup(){
   return `
   <div class="lock-wrap">
     <div class="lock-card">
-      <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+      <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
       <h2 class="lock-title">${modo === "signup" ? "Crea l'account studio" : "Accedi all'account studio"}</h2>
       <p class="lock-sub">${modo === "signup"
         ? "Email e password servono a creare l'identità del tuo studio per gestire l'abbonamento (piano gratuito/SoloPro/StudioPro/AtelierPro): vanno su Supabase, il gestore dell'abbonamento."
@@ -3454,7 +3516,7 @@ function renderTrialChoice(){
   return `
   <div class="lock-wrap">
     <div class="lock-card">
-      <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+      <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
       <h2 class="lock-title">Inizia la prova gratuita</h2>
       <p class="lock-sub">Hai ${FREE_CONSENSI_LIMIT} consensi gratuiti per provare InkConsent. Conferma telefono e titolare: servono solo per riconoscerti quando richiedi l'attivazione di un piano.</p>
       ${state.trialError ? `<p class="lock-err">${esc(state.trialError)}</p>` : ""}
@@ -3475,7 +3537,7 @@ function renderDeviceLimitBlock(){
   return `
   <div class="lock-wrap">
     <div class="lock-card">
-      <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+      <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
       <h2 class="lock-title">Limite dispositivi raggiunto</h2>
       <p class="lock-sub">${esc(info.messaggio || "Hai già raggiunto il limite di 2 dispositivi per questo studio.")}</p>
       <p class="lock-hint">Per continuare qui, rimuovi un dispositivo dall'account (da un dispositivo già attivo, Impostazioni → "Account studio e dispositivi"), poi ricarica questa pagina. Il backup/ripristino resta il modo per spostare i dati tra i dispositivi consentiti.</p>
@@ -3502,7 +3564,7 @@ function renderTatuatoreSwitch(){
     return `
     <div class="lock-wrap">
       <div class="lock-card ${state.tatuatoreSwitchError ? 'shake' : ''}">
-        <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+        <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
         <h2 class="lock-title">${esc(picked.nome)}</h2>
         <p class="lock-sub">${primaVolta ? "Prima volta: scegli username e password per il tuo profilo su questo dispositivo." : "Inserisci la tua password per continuare come " + esc(picked.nome) + "."}</p>
         ${state.tatuatoreSwitchError ? `<p class="lock-err">${esc(state.tatuatoreSwitchError)}</p>` : ""}
@@ -3522,7 +3584,7 @@ function renderTatuatoreSwitch(){
   return `
   <div class="lock-wrap">
     <div class="lock-card">
-      <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+      <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
       <h2 class="lock-title">Chi sta lavorando ora?</h2>
       <p class="lock-sub">Scegli il tuo nome: serve ad attribuirti correttamente consensi, appuntamenti e conteggio compensi.</p>
       <div class="tatswitch-grid">
@@ -3539,7 +3601,7 @@ function renderFirstRunSetup(){
     return `
     <div class="lock-wrap">
       <div class="lock-card">
-        <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+        <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
         <h2 class="lock-title">Le tue 12 parole</h2>
         <p class="lock-sub">Questa è la chiave del tuo archivio. Scrivila su carta, nell'ordine, e tienila dove tieni i documenti dello studio. Non la rivedrai più: da qui in poi nessuno può mostrartela, nemmeno io.</p>
         <div class="frase-grid">
@@ -3562,7 +3624,7 @@ function renderFirstRunSetup(){
   return `
   <div class="lock-wrap">
     <div class="lock-card">
-      <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+      <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
       <h2 class="lock-title">Crea l'accesso allo studio</h2>
       <p class="lock-sub">Scegli un ID e una password: serviranno a proteggere i dati dei clienti su questo dispositivo.</p>
       ${state.loginError ? `<p class="lock-err">${esc(state.loginError)}</p>` : ""}
@@ -3587,7 +3649,7 @@ function renderLockScreen(){
       return `
       <div class="lock-wrap">
         <div class="lock-card ${state.loginError ? 'shake' : ''}">
-          <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+          <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
           <h2 class="lock-title">Nuova password</h2>
           <p class="lock-sub">Archivio riaperto. Scegli subito una password nuova: quella provvisoria smette di funzionare adesso.</p>
           ${state.loginError ? `<p class="lock-err">${esc(state.loginError)}</p>` : ""}
@@ -3604,7 +3666,7 @@ function renderLockScreen(){
     return `
     <div class="lock-wrap">
       <div class="lock-card ${state.loginError ? 'shake' : ''}">
-        <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+        <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
         <h2 class="lock-title">Recupero accesso</h2>
         <p class="lock-sub">Scrivi le 12 parole che hai annotato al primo avvio, separate da uno spazio. Maiuscole e a capo non contano.</p>
         ${state.loginError ? `<p class="lock-err">${esc(state.loginError)}</p>` : ""}
@@ -3631,7 +3693,7 @@ function renderLockScreen(){
   return `
   <div class="lock-wrap">
     <div class="lock-card ${state.loginError ? 'shake' : ''}">
-      <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+      <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
       <h2 class="lock-title">${esc(STUDIO_CONFIG.studioName)}</h2>
       <p class="lock-sub">Accedi per gestire i consensi</p>
       ${state.loginError ? `<p class="lock-err">${esc(state.loginError)}</p>` : ""}
@@ -4636,12 +4698,13 @@ function renderFornCard(it){
   const st = statoScorta(it);
   const q = it.quantita||0, soglia = it.soglia||0;
   const pct = soglia > 0 ? Math.max(6, Math.min(100, (q/(soglia*3))*100)) : (q>0?100:6);
-  const img = it.foto || cat.icon;
+  const img = it.foto || catIconUrl(cat.iconSlug);
+  const imgOnerror = it.foto ? "this.style.opacity=0" : catIconOnerrorAttr(cat.iconSlug);
   const cardCls = st.key === "esaurito" ? " is-out" : (st.key === "bassa" ? " is-low" : "");
   return `
   <div class="disp-card${cardCls}">
     <div class="disp-card-top">
-      <div class="disp-thumb"><img src="${img}" alt="" onerror="this.style.opacity=0"></div>
+      <div class="disp-thumb"><img src="${img}" alt="" onerror="${imgOnerror}"></div>
       <div class="disp-info">
         <div class="disp-name-row">
           <span class="disp-name">${esc(it.nome||"—")}</span>
@@ -4706,7 +4769,7 @@ function renderFornForm(eb, catList){
     <div class="field">
       <label>Foto (facoltativa — sostituisce l'icona)</label>
       <div style="display:flex;align-items:center;gap:12px;">
-        <div class="disp-thumb sm"><img src="${eb.foto || catInfo(eb.categoria||'guanti').icon}" alt=""></div>
+        <div class="disp-thumb sm"><img src="${eb.foto || catIconUrl(catInfo(eb.categoria||'guanti').iconSlug)}" alt="" onerror="${eb.foto ? '' : catIconOnerrorAttr(catInfo(eb.categoria||'guanti').iconSlug)}"></div>
         <button class="btn btn-ghost btn-sm" data-action="forn-pick-photo">Carica foto…</button>
         ${eb.foto ? `<button class="btn btn-ghost btn-sm" data-action="forn-remove-photo">Usa icona</button>` : ""}
         <input type="file" id="forn-photo" accept="image/png,image/jpeg" style="display:none;">
@@ -6845,6 +6908,11 @@ document.addEventListener("change", (e) => {
     setPercentualeVersoTitolareOspitante(e.target.value.trim());
     return;
   }
+  if (selAction === "set-icon-pack"){
+    setPacchettoIcone(e.target.value);
+    render();
+    return;
+  }
   if (selAction === "seduta-add-ink" && e.target.value && draft){
     const ink = loadInks().find(x => x.id === e.target.value);
     if (ink){ draft.seduta.inchiostri = [ ...(draft.seduta.inchiostri||[]), { id: ink.id, nome: ink.nome, colore: ink.colore, lotto: ink.lotto, scadenza: ink.scadenza } ]; upsertSession(draft); renderStepOnly(); }
@@ -7077,6 +7145,7 @@ function initRichiestaMode(){
   applyStudioConfig();
   await caricaModuliEsterni();   // testi aggiornabili senza ripubblicare l'app
   caricaVersioneMotore().then(() => render()); // non blocca il boot, aggiorna il footer quando arriva
+  caricaPacchettiIcone().then(() => render()); // idem, popola il selettore pacchetto icone in Impostazioni
   if (state.mode === "studio"){
     // primo avvio in assoluto, con Supabase configurato: prima di tutto
     // l'account studio (email+password), che identifica lo studio per
@@ -7147,12 +7216,24 @@ if ("serviceWorker" in navigator){
    raggruppate per tema, ogni gruppo apri/chiudi cliccando il titolo.
    Più gruppi possono restare aperti insieme (nessun vincolo "uno alla
    volta" — scelta implementativa, la lista lunga sparisce comunque). */
+/* Icona per sezione (prompt8ui, Task 5): usa lo stesso icon() SVG già
+   impiegato ovunque nell'app (rail, bottom bar, pulsanti) — non il
+   sistema a pacchetti di Task 1-3, che resta dedicato alle sole foto
+   categoria del magazzino (un concetto diverso: lì lo studio potrebbe
+   voler sostituire le icone con le proprie foto vere, qui servono solo
+   simboli di navigazione coerenti col resto dell'interfaccia — vedi
+   nota nel README). */
+const ACCORDION_ICONS = {
+  branding: "pen", consenso: "doc", cliente: "chat", sicurezza: "shield",
+  guida: "book", licenza: "wallet", altro: "restock",
+};
 function accOpen(id, title, subtitle){
   if (!state.accordionOpen) state.accordionOpen = { branding: true };
   const isOpen = !!state.accordionOpen[id];
   return `
   <div class="accordion">
     <button class="accordion-header" data-action="toggle-accordion" data-id="${id}" aria-expanded="${isOpen}">
+      <span class="accordion-head-ic">${icon(ACCORDION_ICONS[id] || "gear", 18)}</span>
       <span class="accordion-head-text"><b>${esc(title)}</b>${subtitle ? `<small>${esc(subtitle)}</small>` : ""}</span>
       <span class="accordion-chevron ${isOpen?'open':''}">${icon("chevronDown",18)}</span>
     </button>
@@ -7245,6 +7326,20 @@ function renderSettings(){
         <button class="btn btn-ghost" data-action="reset-studio">Ripristina default</button>
       </div>
       ${state.studioSaved ? `<div class="callout ok" style="margin-top:12px;">Impostazioni salvate e applicate.</div>` : ""}
+    </div>
+    <div class="card">
+      <h3 class="section-title">Icone magazzino</h3>
+      <p class="section-desc">Le icone delle categorie in Magazzino vengono da un pacchetto: puoi cambiarlo qui. Aggiungere un pacchetto nuovo in futuro non serve nessuna modifica al codice — solo una cartella con le stesse icone (vedi README).</p>
+      <div class="field" style="max-width:260px;">
+        <label>Pacchetto icone</label>
+        <select data-action="set-icon-pack">
+          ${ICON_PACK_LIST.map(p => `<option value="${esc(p.name)}" ${pacchettoIconeScelto()===p.name?"selected":""}>${esc(p.name)}${p.format ? ` (${p.format})` : ""}</option>`).join("")}
+        </select>
+      </div>
+      <div class="disp-grid" style="grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px;margin-top:10px;">
+        ${CATEGORIE_FORNITURE.filter((c,i,arr) => arr.findIndex(x=>x.iconSlug===c.iconSlug)===i).map(c => `
+          <div class="disp-thumb sm" title="${esc(c.label)}"><img src="${catIconUrl(c.iconSlug)}" alt="${esc(c.label)}" onerror="${catIconOnerrorAttr(c.iconSlug)}"></div>`).join("")}
+      </div>
     </div>
     ${accClose()}
     ${accOpen("consenso", "Consenso e testi legali", "Modulo, versione firmata, nota sul ddl melanoma")}
