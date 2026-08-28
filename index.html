@@ -630,10 +630,11 @@ select{
 .bkbar.due{background:var(--stencil-tint);border-color:rgba(150,101,154,.35);color:var(--stencil);}
 .bkbar.old{background:var(--warn-tint);border-color:rgba(226,105,76,.35);color:var(--warn);}
 .bkbar button{width:100%;justify-content:center;}
-.richieste-toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:60;
-  display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:var(--radius-md);
+.toast-stack{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:60;
+  display:flex;flex-direction:column;gap:10px;align-items:stretch;max-width:calc(100vw - 28px);}
+.richieste-toast{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:var(--radius-md);
   background:var(--flesh-tint,var(--paper-raised));border:1px solid var(--flesh);color:var(--ink);
-  font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.35);max-width:calc(100vw - 28px);cursor:pointer;}
+  font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.35);cursor:pointer;}
 .richieste-toast span{flex:1;}
 .richieste-toast button{flex:none;}
 .onb-notice-backdrop{position:fixed;inset:0;z-index:70;background:rgba(15,13,10,.6);display:flex;align-items:center;justify-content:center;padding:20px;}
@@ -950,8 +951,22 @@ function applyStudioConfig(){
   STUDIO_CONFIG.publicUrl = STUDIO_DEFAULTS.publicUrl; // fisso, ignora ogni override salvato in passato
   STUDIO_CONFIG.aftercareText = o.aftercareText || "";
   STUDIO_CONFIG.logoDataUrl = a.logoDataUrl || "";
-  STUDIO_CONFIG.ragioneSociale = o.ragioneSociale || "";
-  STUDIO_CONFIG.partitaIva = o.partitaIva || "";
+  // prompt16, Task 11c: ragione sociale/P.IVA personali per un tatuatore
+  // aggiuntivo non-titolare (collaboratore con propria P.IVA) — MAI un
+  // fallback silenzioso su quella del titolare se vuota: stamparla per
+  // sbaglio su un consenso della persona sbagliata è un problema fiscale
+  // vero, meglio vuota (avviso in Impostazioni -> "Dati fiscali
+  // personali") che sbagliata. Il titolare (o nessun profilo attivo,
+  // percorso offline) usa sempre e solo i dati condivisi dello studio,
+  // invariato.
+  const attivoFiscale = tatuatoreAttivo();
+  if (attivoFiscale && !attivoFiscale.isTitolare){
+    STUDIO_CONFIG.ragioneSociale = attivoFiscale.ragioneSociale || "";
+    STUDIO_CONFIG.partitaIva = attivoFiscale.partitaIva || "";
+  } else {
+    STUDIO_CONFIG.ragioneSociale = o.ragioneSociale || "";
+    STUDIO_CONFIG.partitaIva = o.partitaIva || "";
+  }
   STUDIO_CONFIG.indirizzoStudio = o.indirizzoStudio || "";
   STUDIO_CONFIG.protocolloScia = o.protocolloScia || "";
   STUDIO_CONFIG.regione = (state.studioBuffer && "regione" in state.studioBuffer) ? state.studioBuffer.regione : (o.regione || "");
@@ -2311,14 +2326,40 @@ function blankTatuatoreProfilo(nome, isTitolare){
    volta che sceglie il proprio nome (vedi renderTatuatoreSwitch). Se un
    nome viene tolto da "Artisti", il profilo resta (storico attribuzioni
    passate) ma non compare più nella scelta. */
+/* CORREZIONE (prompt16, Task 8): su un dispositivo già in uso PRIMA
+   della cassaforte multi-busta (TATUATORI_KEY era ancora nell'archivio
+   cifrato, non in chiaro — vedi apriArchivio), questa funzione veniva
+   comunque chiamata al primissimo render, prima di qualunque sblocco:
+   creava e SALVAVA subito profili vuoti "nuovo" per ogni nome, mentre i
+   profili VERI (con password già impostata) restavano bloccati nella
+   copia cifrata. Risultato: doppioni con lo stesso nome, uno fasullo e
+   uno vero, e la migrazione automatica (apriArchivio) non scattava più
+   perché trovava "già qualcosa" in chiaro. Ora, se esiste una
+   cassaforte ma non è ancora sbloccata in questa sessione (stato
+   ambiguo: potrebbe benissimo essere un dispositivo con profili veri
+   ancora cifrati), i profili nuovi restano SOLO in memoria per questo
+   render — non si salvano finché un vero sblocco (anche d'emergenza)
+   non conferma che non c'è nient'altro da recuperare. */
+/* true se assicuraProfiliTatuatori() ha appena dovuto trattenere il
+   salvataggio di un profilo nuovo (vedi sotto) — usato da
+   renderTatuatoreSwitch per distinguere "dispositivo con dati vecchi
+   ancora da migrare" da "vault normale, semplicemente non ancora
+   sbloccato in questa sessione" (quest'ultimo è lo stato di partenza
+   di OGNI apertura app, non è di per sé un segnale di problemi). */
+let profiliTatuatoriInSospeso = false;
 function assicuraProfiliTatuatori(){
   const nomi = STUDIO_CONFIG.artists || [];
   const list = loadTatuatori();
-  let changed = false;
+  let changed = false, trattenuto = false;
+  const sicuroSalvare = !vaultEsiste() || !!DEK;
   nomi.forEach((nome, i) => {
-    if (!list.some(t => t.nome === nome)){ list.push(blankTatuatoreProfilo(nome, i === 0)); changed = true; }
+    if (!list.some(t => t.nome === nome)){
+      list.push(blankTatuatoreProfilo(nome, i === 0));
+      if (sicuroSalvare) changed = true; else trattenuto = true;
+    }
   });
   if (changed) saveTatuatori(list);
+  profiliTatuatoriInSospeso = trattenuto;
   return list.filter(t => nomi.includes(t.nome));
 }
 /* CORREZIONE (prompt12, Task B): scrivere un nome in "Artisti" creava
@@ -2502,7 +2543,18 @@ const SERVER_LICENSE_CACHE_KEY = "inkconsent_server_license_cache_v1";
 function loadServerLicenseCache(){ try { return JSON.parse(localStorage.getItem(SERVER_LICENSE_CACHE_KEY)); } catch(e){ return null; } }
 function saveServerLicenseCache(r){
   if (!r || typeof r.count_totale !== "number") return;
-  try { localStorage.setItem(SERVER_LICENSE_CACHE_KEY, JSON.stringify({ count_totale: r.count_totale, piano: r.piano || null, fetchedAt: Date.now() })); } catch(e){}
+  try {
+    localStorage.setItem(SERVER_LICENSE_CACHE_KEY, JSON.stringify({
+      count_totale: r.count_totale, piano: r.piano || null,
+      // prompt16, Task 9: scadenza calcolata lato server (365gg da
+      // data_attivazione_abbonamento), solo cache qui — mai ricalcolata
+      // in locale, per non rischiare di disallinearsi dal fuso/orologio
+      // del server.
+      dataAttivazione: r.data_attivazione || null,
+      giorniRimanenti: (typeof r.giorni_rimanenti === "number") ? r.giorni_rimanenti : null,
+      fetchedAt: Date.now(),
+    }));
+  } catch(e){}
 }
 /* Piano DAVVERO attivo su Supabase (prompt15, Task 2), non solo quello
    consigliato dal conteggio locale di "Artisti" — cambiato a mano su
@@ -2535,6 +2587,17 @@ function tettoTatuatoriReale(){
   if (!subscriptionActive()) return 1;
   const p = pianoReale();
   return p ? p.maxArtisti : 1;
+}
+/* Countdown scadenza abbonamento (prompt16, Task 9): giorni_rimanenti
+   arriva già calcolato dal server (365gg da data_attivazione_abbonamento,
+   ricalcolato al volo a ogni get_stato_licenza/register_consenso_firmato
+   — vedi stato_abbonamento_effettivo() nel SQL), questa funzione legge
+   solo l'ultima cache nota. null se non c'è ancora nessuna data di
+   attivazione nota (trial, o mai sincronizzato). */
+function scadenzaAbbonamento(){
+  const cache = loadServerLicenseCache();
+  if (!cache || typeof cache.giorniRimanenti !== "number") return null;
+  return { giorni: cache.giorniRimanenti, data: cache.dataAttivazione };
 }
 /* Applica il risultato di get_stato_licenza/register_consenso_firmato:
    aggiorna subscriptionActive + cache, e rileva un'attivazione/upgrade
@@ -4030,6 +4093,14 @@ function renderTatuatoreSwitch(){
   const pickId = state.tatuatoreSwitchPick;
   const picked = pickId ? getTatuatoreProfilo(pickId) : null;
   const emergenzaDisponibile = vaultEsiste() && authIsSet();
+  // prompt16, Task 8: dispositivo con cassaforte non ancora sbloccata in
+  // questa sessione — eventuali profili "nuovi" qui sotto sono solo
+  // segnaposto in memoria (assicuraProfiliTatuatori non li salva finché
+  // non sa se c'è già altro da recuperare, vedi commento lì): un tap
+  // su un nome andrebbe a vuoto finché non si passa prima dallo
+  // sblocco d'emergenza. Meglio dirlo chiaro che lasciar credere che
+  // il tap abbia funzionato.
+  const migrazioneInAttesa = !DEK && emergenzaDisponibile && profiliTatuatoriInSospeso;
   if (picked){
     const primaVolta = !picked.hash;
     return `
@@ -4049,7 +4120,22 @@ function renderTatuatoreSwitch(){
         </div>
         <p class="lock-hint"><a data-action="tatuatore-pick-back">← Non sono ${esc(picked.nome)}</a></p>
         <div class="callout info" style="margin-top:16px;text-align:left;">Questa password sblocca solo il TUO profilo su questo dispositivo condiviso: resta sempre e solo locale, non va mai su Supabase — usane una diversa da quella dell'account studio.</div>
+        ${primaVolta && !picked.isTitolare ? `<div class="callout info" style="margin-top:10px;text-align:left;">Se in futuro dimentichi questa password, chiedi al titolare dello studio di reimpostartela (Impostazioni → Tatuatori): non hai una frase di recupero personale, l'unica esiste ed è custodita solo da lui.</div>` : ""}
+        ${primaVolta && !picked.isTitolare && !picked.ragioneSociale && !picked.partitaIva ? `<div class="callout info" style="margin-top:10px;text-align:left;">Ricordati di compilare i tuoi dati fiscali (ragione sociale e P.IVA) in Impostazioni → "Dati fiscali personali" prima di firmare il tuo primo consenso: servono per generarlo correttamente.</div>` : ""}
         ${emergenzaDisponibile ? `<p class="lock-hint" style="margin-top:10px;"><a data-action="tatuatore-emergenza">Problemi ad accedere? Sblocco d'emergenza</a></p>` : ""}
+      </div>
+    </div>`;
+  }
+  if (migrazioneInAttesa){
+    return `
+    <div class="lock-wrap">
+      <div class="lock-card">
+        <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+        <h2 class="lock-title">Primo sblocco su questo dispositivo</h2>
+        <p class="lock-sub">Questo dispositivo ha già un accesso configurato in un giro precedente. Usa lo sblocco d'emergenza una volta sola per recuperarlo: da lì in poi ogni tatuatore sceglierà il proprio nome e la propria password, come di consueto.</p>
+        <div class="btn-row" style="justify-content:center;">
+          <button class="btn btn-accent" data-action="tatuatore-emergenza">Sblocco d'emergenza</button>
+        </div>
       </div>
     </div>`;
   }
@@ -4076,7 +4162,7 @@ function renderFirstRunSetup(){
       <div class="lock-card">
         <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
         <h2 class="lock-title">Le tue 12 parole</h2>
-        <p class="lock-sub">Questa è la chiave del tuo archivio. Scrivila su carta, nell'ordine, e tienila dove tieni i documenti dello studio. Non la rivedrai più: da qui in poi nessuno può mostrartela, nemmeno io.</p>
+        <p class="lock-sub">Questa è la chiave dell'INTERO archivio dello studio, non solo del tuo accesso personale: se in futuro un tatuatore aggiuntivo dimentica la propria password, è questa frase (custodita solo da te) l'unico modo per rientrare e reimpostargliela — vedi "Sblocco d'emergenza" nella schermata di scelta profilo. Scrivila su carta, nell'ordine, e tienila dove tieni i documenti dello studio, con la massima cura proprio per questo. Non la rivedrai più: da qui in poi nessuno può mostrartela, nemmeno io.</p>
         <div class="frase-grid">
           ${(state.recoveryPhrase||"").split(" ").map((w,i) => `<span><i>${i+1}</i>${esc(w)}</span>`).join("")}
         </div>
@@ -4335,6 +4421,21 @@ function renderPlanUpgradedBanner(){
   </div>`;
 }
 
+/* Banner aggiornamento app (prompt16, Task 7): niente auto-dismiss a
+   tempo (a differenza degli altri toast sopra) — è una scelta
+   deliberata dell'utente, non deve sparire da sola mentre magari sta
+   ancora decidendo a metà di un consenso. */
+function renderUpdateBanner(){
+  if (!state.updateAvailable) return "";
+  return `
+  <div class="richieste-toast" style="border-color:var(--stencil);">
+    ${icon("download",18)}
+    <span>Nuova versione disponibile.</span>
+    <button class="btn btn-ghost btn-sm" data-action="sw-aggiorna-dopo">Più tardi</button>
+    <button class="btn btn-primary btn-sm" data-action="sw-aggiorna-ora">Aggiorna ora</button>
+  </div>`;
+}
+
 /* Avviso non bloccante dopo il primo onboarding (prompt9, Task 2):
    nome studio/città/titolare sono obbligatori subito, il resto (P.IVA,
    indirizzo, ragione sociale, SCIA — già in Impostazioni → "Consenso e
@@ -4360,8 +4461,11 @@ function renderStudioShell(){
   const promemoriaN = promemoriaDaInviare().length;
   return `
   <div class="shell">
-    ${renderRichiesteBanner()}
-    ${renderPlanUpgradedBanner()}
+    <div class="toast-stack">
+      ${renderRichiesteBanner()}
+      ${renderPlanUpgradedBanner()}
+      ${renderUpdateBanner()}
+    </div>
     ${renderPostOnboardingNotice()}
     <div class="rail-backdrop ${state.railOpen ? "show" : ""}" data-action="toggle-rail"></div>
     <nav class="rail ${state.railOpen ? "open" : ""}" id="rail">
@@ -6777,6 +6881,11 @@ document.addEventListener("click", (e) => {
   }
   else if (action === "dismiss-richieste-banner"){ clearTimeout(richiesteBannerTimer); state.nuoveRichiesteBanner = []; render(); }
   else if (action === "dismiss-plan-upgraded-banner"){ clearTimeout(planUpgradedBannerTimer); state.planUpgradedBanner = null; render(); }
+  else if (action === "sw-aggiorna-ora"){
+    if (swWaitingWorker) swWaitingWorker.postMessage({ type: "SKIP_WAITING" });
+    state.updateAvailable = false; render();
+  }
+  else if (action === "sw-aggiorna-dopo"){ state.updateAvailable = false; render(); }
   else if (action === "dismiss-post-onboarding-notice"){ state.showPostOnboardingNotice = false; render(); }
   else if (action === "goto-richieste-da-banner"){
     clearTimeout(richiesteBannerTimer);
@@ -7391,6 +7500,12 @@ document.addEventListener("click", (e) => {
   else if (action === "save-studio"){
     const primaArtisti = STUDIO_CONFIG.artists.slice();
     const buffer = { ...(state.studioBuffer || {}) };
+    // prompt16, Task 11c: scelta Dipendente/Partita IVA per i nomi nuovi
+    // — segnale solo per QUESTO salvataggio, mai persistito in
+    // STUDIO_STORE_KEY (che vive per sempre): letto subito sotto, poi
+    // scartato dal buffer prima del merge.
+    const nuoviTatuatoriTipo = buffer.nuoviTatuatoriTipo || {};
+    delete buffer.nuoviTatuatoriTipo;
     if (!puoVedereDatiStudio()){
       // megabugfixprompt: identità studio e lista tatuatori solo dal
       // titolare — l'interfaccia già nasconde questi campi a chiunque
@@ -7400,7 +7515,8 @@ document.addEventListener("click", (e) => {
       delete buffer.studioName; delete buffer.studioCity; delete buffer.studioMark;
       delete buffer.numeroSedi; delete buffer.artistsText;
     }
-    saveStudioOverrides({ ...loadStudioOverrides(), ...buffer });
+    const oPreSave = loadStudioOverrides();
+    saveStudioOverrides({ ...oPreSave, ...buffer });
     applyStudioConfig();
     state.studioBuffer = null; state.studioSaved = true; state.tatuatoreCapError = null;
     render();
@@ -7415,6 +7531,24 @@ document.addEventListener("click", (e) => {
     const nuovi = dopoArtisti.filter(n => !primaArtisti.includes(n));
     if (nuovi.length){
       const profili = assicuraProfiliTatuatori();
+      // prompt16, Task 11c: "Dipendente" copia SUBITO ragione sociale/
+      // P.IVA del titolare nel nuovo profilo — copia indipendente, non
+      // un riferimento: da qui in poi il tatuatore la modifica per
+      // conto suo senza toccare quella del titolare. "Partita IVA
+      // propria" (o scelta non fatta, default comunque "dipendente" per
+      // non forzare un passaggio in più su un caso già comune) lascia i
+      // campi come sono già sul profilo appena creato (vuoti).
+      nuovi.forEach(nome => {
+        if ((nuoviTatuatoriTipo[nome] || "dipendente") !== "dipendente") return;
+        const p = profili.find(t => t.nome === nome);
+        if (!p) return;
+        const list = loadTatuatori();
+        const i = list.findIndex(t => t.id === p.id);
+        if (i >= 0){
+          list[i] = { ...list[i], ragioneSociale: oPreSave.ragioneSociale || "", partitaIva: oPreSave.partitaIva || "" };
+          saveTatuatori(list);
+        }
+      });
       (async () => {
         for (const nome of nuovi){
           const p = profili.find(t => t.nome === nome);
@@ -7460,6 +7594,24 @@ document.addEventListener("click", (e) => {
     }
     applyStudioConfig();
     state.aspettoBuffer = null; state.aspettoSaved = false;
+    render();
+  }
+  else if (action === "save-fiscale-personale"){
+    // prompt16, Task 11c: solo per un tatuatore non-titolare attivo —
+    // la card stessa non compare per il titolare, ma niente si fida
+    // solo del DOM (stesso principio Minifix/megabugfixprompt).
+    const t = tatuatoreAttivo();
+    if (t && !t.isTitolare){
+      const patch = state.fiscaleBuffer || {};
+      const list = loadTatuatori();
+      const i = list.findIndex(x => x.id === t.id);
+      if (i >= 0){
+        list[i] = { ...list[i], ragioneSociale: (patch.ragioneSociale ?? list[i].ragioneSociale) || "", partitaIva: (patch.partitaIva ?? list[i].partitaIva) || "" };
+        saveTatuatori(list);
+      }
+      applyStudioConfig();
+    }
+    state.fiscaleBuffer = null; state.fiscaleSaved = true;
     render();
   }
   else if (action === "review-tour"){
@@ -7519,6 +7671,12 @@ document.addEventListener("click", (e) => {
     const arr = artistiArray(studioCfgLive());
     arr.splice(parseInt(btn.dataset.idx, 10), 1);
     state.studioBuffer = { ...(state.studioBuffer||{}), artistsText: arr.join(", ") };
+    render();
+  }
+  else if (action === "set-artista-tipo"){
+    const nuoviTatuatoriTipo = { ...((state.studioBuffer && state.studioBuffer.nuoviTatuatoriTipo) || {}) };
+    nuoviTatuatoriTipo[btn.dataset.nome] = btn.dataset.v;
+    state.studioBuffer = { ...(state.studioBuffer||{}), nuoviTatuatoriTipo };
     render();
   }
   else if (action === "do-export"){
@@ -7705,6 +7863,8 @@ document.addEventListener("input", (e) => {
   if (studioField){ state.studioBuffer = { ...(state.studioBuffer||{}), [studioField]: e.target.value }; return; }
   const aspettoField = e.target.dataset.fieldAspetto;
   if (aspettoField){ state.aspettoBuffer = { ...(state.aspettoBuffer||{}), [aspettoField]: e.target.value }; return; }
+  const fiscaleField = e.target.dataset.fieldFiscale;
+  if (fiscaleField){ state.fiscaleBuffer = { ...(state.fiscaleBuffer||{}), [fiscaleField]: e.target.value }; return; }
   const artistaIdx = e.target.dataset.artistaIdx;
   if (artistaIdx !== undefined){
     const arr = artistiArray(studioCfgLive());
@@ -8134,9 +8294,37 @@ function initRichiestaMode(){
   else render();
 })();
 
+/* Banner aggiornamento (prompt16, Task 7): il SW nuovo (sw.js, da v35)
+   non chiama più self.skipWaiting() da solo — resta "in attesa" finché
+   non gli mandiamo noi il messaggio, cosi' un update non interrompe mai
+   un consenso a metà compilazione. "Più tardi" chiude solo il banner:
+   il SW in attesa si applica comunque da solo al prossimo avvio senza
+   schede aperte (comportamento standard del browser), o subito se poi
+   lo si sceglie da Impostazioni -> Guida. */
+let swWaitingWorker = null;
+let swReloading = false;
+function notificaSwInAttesa(worker){
+  swWaitingWorker = worker;
+  state.updateAvailable = true;
+  render();
+}
 if ("serviceWorker" in navigator){
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {/* ok offline, non blocca l'app */});
+    navigator.serviceWorker.register("/sw.js").then(reg => {
+      if (reg.waiting && navigator.serviceWorker.controller) notificaSwInAttesa(reg.waiting);
+      reg.addEventListener("updatefound", () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener("statechange", () => {
+          if (nw.state === "installed" && navigator.serviceWorker.controller) notificaSwInAttesa(nw);
+        });
+      });
+    }).catch(() => {/* ok offline, non blocca l'app */});
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (swReloading) return;
+      swReloading = true;
+      location.reload();
+    });
   });
 }
 
@@ -8197,11 +8385,29 @@ function renderArtistiFields(cfg){
     <label>Titolare / tatuatore</label>
     <input type="text" data-artista-idx="0" value="${esc(artisti[0]||"")}" placeholder="Nome titolare">
   </div>
-  ${artisti.slice(1).map((nome, i) => `
+  ${artisti.slice(1).map((nome, i) => {
+    // prompt16, Task 11c: lo switch Dipendente/Partita IVA compare solo
+    // finché il profilo non esiste ancora (nome nuovo, mai salvato) — è
+    // una scelta fatta UNA VOLTA alla creazione (copia indipendente dei
+    // dati fiscali del titolare, o vuoto), non un campo permanente qui:
+    // dopo, P.IVA e ragione sociale si modificano dal profilo del
+    // singolo tatuatore, vedi renderDatiFiscaliPersonali.
+    const esisteGia = nome.trim() && loadTatuatori().some(t => t.nome === nome.trim());
+    const tipo = (state.studioBuffer && state.studioBuffer.nuoviTatuatoriTipo && state.studioBuffer.nuoviTatuatoriTipo[nome.trim()]) || "dipendente";
+    return `
   <div class="field" style="display:flex;gap:8px;align-items:flex-end;">
     <div style="flex:1;"><label>Tatuatore aggiuntivo</label><input type="text" data-artista-idx="${i+1}" value="${esc(nome)}" placeholder="Nome"></div>
     <button class="btn btn-ghost btn-sm" data-action="remove-artista" data-idx="${i+1}" title="Rimuovi questo tatuatore">${icon("close",14)}</button>
-  </div>`).join("")}
+  </div>
+  ${!esisteGia && nome.trim() ? `
+  <div class="field" style="margin-top:-6px;">
+    <div class="chip-grid" style="grid-template-columns:1fr 1fr;">
+      <button class="chip ${tipo==='dipendente'?'on':''}" data-action="set-artista-tipo" data-nome="${esc(nome.trim())}" data-v="dipendente">Dipendente dello studio</button>
+      <button class="chip ${tipo==='piva'?'on':''}" data-action="set-artista-tipo" data-nome="${esc(nome.trim())}" data-v="piva">Ha una propria Partita IVA</button>
+    </div>
+    <div class="hint">"Dipendente dello studio": eredita subito una copia di ragione sociale/P.IVA del titolare, poi modificabile in autonomia dal nuovo tatuatore. "Ha una propria Partita IVA": parte vuoto, sarà lui a compilarlo al primo accesso.</div>
+  </div>` : ""}`;
+  }).join("")}
   <div class="field">
     ${artisti.length >= 5
       ? `<p class="hint">Massimo 5 tatuatori in self-service (AtelierPro). Per più tatuatori o più sedi, contattaci.</p>`
@@ -8312,6 +8518,35 @@ function renderSettings(){
       ${state.aspettoSaved ? `<div class="callout ok" style="margin-top:12px;">Aspetto salvato e applicato.</div>` : ""}
       ${!tatuatoreAttivo() ? `<p class="field hint" style="margin-top:10px;">Nessun profilo tatuatore attivo su questo dispositivo: questa preferenza resta condivisa, come prima.</p>` : ""}
     </div>
+    ${(() => {
+      // prompt16, Task 11c: ragione sociale/P.IVA personali — solo per un
+      // tatuatore aggiuntivo non-titolare (il titolare usa i campi
+      // condivisi in "Consenso e testi legali" -> "Dati dello studio sul
+      // consenso", invariato). Copia indipendente creata alla nascita
+      // del profilo (vedi action "save-studio"), qui solo modificabile.
+      const t = tatuatoreAttivo();
+      if (!t || t.isTitolare) return "";
+      const fcfg = { ragioneSociale: t.ragioneSociale || "", partitaIva: t.partitaIva || "", ...(state.fiscaleBuffer||{}) };
+      const vuoto = !fcfg.ragioneSociale && !fcfg.partitaIva;
+      return `
+    <div class="card">
+      <h3 class="section-title">Dati fiscali personali</h3>
+      <p class="section-desc">Usati nel consenso informato stampato/PDF firmato da te, indipendenti da quelli del titolare e degli altri tatuatori.</p>
+      ${vuoto ? `<div class="callout warn" style="margin-bottom:12px;">Non ancora compilati: necessari per generare correttamente il consenso/PDF. Completali prima di firmare il tuo primo consenso.</div>` : ""}
+      <div class="field">
+        <label>Ragione sociale</label>
+        <input type="text" data-field-fiscale="ragioneSociale" value="${esc(fcfg.ragioneSociale)}" placeholder="Es. Mario Rossi Tattoo, P.IVA">
+      </div>
+      <div class="field">
+        <label>Partita IVA / Codice Fiscale</label>
+        <input type="text" data-field-fiscale="partitaIva" value="${esc(fcfg.partitaIva)}" placeholder="Es. 01234567890">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-accent" data-action="save-fiscale-personale">Salva</button>
+      </div>
+      ${state.fiscaleSaved ? `<div class="callout ok" style="margin-top:12px;">Dati fiscali salvati.</div>` : ""}
+    </div>`;
+    })()}
     <div class="card">
       <h3 class="section-title">Icone magazzino</h3>
       <p class="section-desc">Le icone delle categorie in Magazzino vengono da un pacchetto: puoi cambiarlo qui. Aggiungere un pacchetto nuovo in futuro non serve nessuna modifica al codice — solo una cartella con le stesse icone (vedi README).</p>
@@ -8479,6 +8714,14 @@ function renderSettings(){
       <p class="section-desc">Rivedi la presentazione iniziale dell'app, utile per mostrarla a un collaboratore.</p>
       <button class="btn btn-ghost" data-action="review-tour">Rivedi il tour</button>
     </div>
+    <div class="card">
+      <h3 class="section-title">Aggiornamenti</h3>
+      <p class="section-desc">${state.updateAvailable
+        ? "Una nuova versione è già scaricata e pronta: si applica da sola alla prossima apertura senza schede aperte, oppure subito da qui."
+        : "L'app controlla da sola se c'è una versione più recente. Nessun aggiornamento in attesa al momento."}</p>
+      ${state.updateAvailable ? `<button class="btn btn-accent" data-action="sw-aggiorna-ora">Applica aggiornamento ora</button>` : ""}
+      ${ENGINE_VERSION ? `<div class="kv" style="margin-top:10px;"><span>Versione</span><b class="mono">Engine v${esc(ENGINE_VERSION)}</b></div>` : ""}
+    </div>
     ${accClose()}
     ${accOpen("licenza", "Licenza e piano", "Consensi gratuiti, abbonamento, guest artist")}
     <div class="card">
@@ -8489,6 +8732,16 @@ function renderSettings(){
       <div class="kv"><span>Abbonamento</span><b>${subscriptionActive() ? "Attivo" : "Non attivo"}</b></div>
       <div class="kv"><span>${subscriptionActive() ? "Piano attivo" : "Piano consigliato"}</span><b>${esc(pianoAttivo().nome)} <span class="field hint" style="display:inline;">(${esc(pianoAttivo().desc)})</span></b></div>
       ${subscriptionActive() && pianoConsigliato().id !== pianoAttivo().id ? `<div class="kv"><span>Piano consigliato dal conteggio "Artisti"</span><b>${esc(pianoConsigliato().nome)}</b></div><p class="field hint">Diverso dal piano attivo: aggiorna "Artisti" sopra se hai già aggiunto (o tolto) tatuatori rispetto a quanto risulta pagato.</p>` : ""}
+      ${(() => {
+        // prompt16, Task 9: countdown scadenza — 365gg da attivazione,
+        // calcolato lato server (get_stato_licenza), solo mostrato qui.
+        if (!subscriptionActive()) return "";
+        const sc = scadenzaAbbonamento();
+        if (!sc) return "";
+        const vicino = sc.giorni <= 7;
+        return `<div class="kv"><span>Rinnovo</span><b class="${vicino?'':''}" style="${vicino?'color:var(--warn);':''}">${sc.giorni <= 0 ? "Scaduto — rinnova per continuare" : `Rinnovo tra ${sc.giorni} giorn${sc.giorni===1?'o':'i'}`}</b></div>
+        ${vicino && sc.giorni > 0 ? `<div class="callout warn" style="margin-top:8px;">L'abbonamento scade tra pochi giorni: rinnovalo per non tornare al limite dei ${FREE_CONSENSI_LIMIT} consensi gratuiti.</div>` : ""}`;
+      })()}
       <p class="section-desc" style="margin-top:10px;">Oltre i ${FREE_CONSENSI_LIMIT} consensi gratuiti per questo studio/dispositivo, serve l'abbonamento per continuare ad archiviarne di nuovi. Le bozze non consumano la soglia.</p>
       <div class="btn-row" style="margin-top:10px;">
         <button class="btn btn-accent" data-action="nav" data-view="paywall">Vedi i piani</button>

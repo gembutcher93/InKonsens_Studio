@@ -98,10 +98,17 @@
    tocco a sinistra/destra decide esplicitamente no/sì, legenda sopra
    il gruppo di interruttori.
 
+   v35: aggiornamenti non più applicati in automatico e in silenzio
+   (skipWaiting subito all'install) — un tatuatore a metà compilazione
+   di un consenso poteva perdere lavoro per un update imposto a
+   sorpresa. Ora il SW nuovo resta "in attesa" finché la pagina non
+   chiede esplicitamente skipWaiting (bottone "Aggiorna ora" nel banner,
+   o dalle Impostazioni) — vedi index.html, message listener sotto.
+
    Nota: i dati (consensi, magazzino) NON passano da qui. Stanno in
    IndexedDB sul dispositivo e il service worker non li tocca mai.   */
 
-const CACHE = "inkconsent-v34";
+const CACHE = "inkconsent-v35";
 
 const PRECACHE = [
   "./",
@@ -162,8 +169,15 @@ self.addEventListener("install", (event) => {
       try { await cache.add(new Request(url, { cache: "reload" })); }
       catch (e) { console.warn("[sw] non messo in cache:", url); }
     }));
-    self.skipWaiting();
+    // niente self.skipWaiting() qui (prompt16, Task 7): il SW nuovo
+    // resta "in attesa" finché la pagina non lo chiede esplicitamente
+    // (vedi message listener sotto) — così un aggiornamento non
+    // interrompe mai un consenso a metà compilazione.
   })());
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
