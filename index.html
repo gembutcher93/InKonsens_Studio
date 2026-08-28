@@ -609,6 +609,10 @@ select{
   font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.35);max-width:calc(100vw - 28px);cursor:pointer;}
 .richieste-toast span{flex:1;}
 .richieste-toast button{flex:none;}
+.onb-notice-backdrop{position:fixed;inset:0;z-index:70;background:rgba(15,13,10,.6);display:flex;align-items:center;justify-content:center;padding:20px;}
+.onb-notice-card{max-width:420px;background:var(--paper-raised);border:1px solid var(--line-soft);border-radius:var(--radius-md);padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.5);}
+.onb-notice-card h3{margin:0 0 10px;font-family:var(--font-display);font-size:18px;}
+.onb-notice-card p{margin:0 0 18px;font-size:13.5px;line-height:1.55;color:var(--ink-soft);}
 /* barra prova gratuita: stessa famiglia visiva dei bkbar, ma con una
    barra di progresso al posto della sola icona — l'avanzamento e' il
    messaggio, non solo il numero. */
@@ -1977,18 +1981,96 @@ function clearPendingTrialSignup(){ localStorage.removeItem(PENDING_TRIAL_KEY); 
 
 /* Chiamata SOLO dal tap esplicito su "Inizia la prova gratuita": è il
    momento in cui nasce davvero la riga in licenza_studi con i dati del
-   titolare (vedi renderTrialChoice e supabase-tatuatori-trial-richieste.sql). */
-async function supabaseAvviaTrial(telefono, nomeTitolare){
+   titolare (vedi renderTrialChoice e supabase-tatuatori-trial-richieste.sql).
+   Da prompt9: crea nello STESSO passaggio, atomicamente, anche la
+   prima riga di licenza_tatuatori (p_tatuatore_id, generato dal client
+   in setup-tatuatore-titolare) — titolare e primo tatuatore nascono
+   insieme, non due passaggi scollegati. */
+async function supabaseAvviaTrial(telefono, nomeTitolare, nomeStudio, citta, tatuatoreId){
   const token = await validStudioAccessToken();
   if (!token) throw new Error("Sessione non disponibile: riprova tra poco.");
   const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/avvia_trial`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${token}` },
-    body: JSON.stringify({ p_telefono: telefono || null, p_nome_titolare: nomeTitolare || null }),
+    body: JSON.stringify({
+      p_telefono: telefono || null,
+      p_nome_titolare: nomeTitolare || null,
+      p_nome_studio: nomeStudio || null,
+      p_citta: citta || null,
+      p_tatuatore_id: tatuatoreId || null,
+    }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || data.error || "Errore imprevisto.");
   return Array.isArray(data) ? data[0] : data;
+}
+
+/* Verifica REALE della conferma email (prompt9, Task 1) — non più un
+   bottone che si limita a fidarsi. Dopo il click sul link nella mail,
+   Supabase Auth reindirizza qui con access_token/refresh_token nel
+   frammento dell'URL (#...): quei token li emette SOLO Supabase, SOLO
+   dopo una conferma reale, quindi la loro sola presenza è già la prova
+   — nessuna autocertificazione dell'utente. Verifica anche chi è
+   l'utente (GET /auth/v1/user col token) prima di fidarsi. */
+async function supabaseGetUser(accessToken){
+  const res = await fetch(supabaseAuthUrl("user"), {
+    headers: { "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${accessToken}` },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error_description || data.msg || "Errore imprevisto.");
+  return data;
+}
+async function completaSessioneDaRedirect(){
+  if (!location.hash || location.hash.length < 2) return false;
+  const hp = new URLSearchParams(location.hash.slice(1));
+  const accessToken = hp.get("access_token");
+  const refreshToken = hp.get("refresh_token");
+  const expiresIn = hp.get("expires_in");
+  if (!accessToken) return false;
+  try {
+    const user = await supabaseGetUser(accessToken);
+    if (!user || !user.id) return false;
+    saveStudioAccount({
+      userId: user.id,
+      email: user.email,
+      access_token: accessToken,
+      refresh_token: refreshToken || null,
+      expires_at: Date.now() + ((Number(expiresIn) || 3600) * 1000),
+    });
+    history.replaceState(null, "", location.pathname + location.search);
+    return true;
+  } catch(e){ console.warn("Verifica sessione da redirect fallita:", e); return false; }
+}
+
+/* Recupera nome studio/città/titolare già salvati su Supabase per
+   QUESTO studio — usata quando un dispositivo NUOVO fa login/redirect
+   su uno studio che ha già completato l'onboarding altrove: evita di
+   richiederli di nuovo, e soprattutto evita che nasca un secondo
+   profilo tatuatore con un nome diverso per la stessa persona
+   (prompt9, "secondo dispositivo"). Applica i dati in locale SOLO se
+   questo dispositivo non li ha già (non sovrascrive scelte fatte qui). */
+async function sincronizzaDatiStudioDaRemoto(){
+  if (!SUPABASE_CONFIG.url) return { completato: false };
+  const token = await validStudioAccessToken();
+  if (!token) return { completato: false };
+  try {
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/dati_studio`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${token}` },
+      body: "{}",
+    });
+    if (!res.ok) return { completato: false };
+    const rows = await res.json();
+    const r = Array.isArray(rows) ? rows[0] : rows;
+    if (!r || !r.nome_titolare) return { completato: false };
+    const o = loadStudioOverrides();
+    const patch = {};
+    if (r.nome && !o.studioName) patch.studioName = r.nome;
+    if (r.citta && !o.studioCity) patch.studioCity = r.citta;
+    if (r.nome_titolare && !(o.artistsText||"").trim()) patch.artistsText = r.nome_titolare;
+    if (Object.keys(patch).length){ saveStudioOverrides({ ...o, ...patch }); applyStudioConfig(); }
+    return { completato: true, nomeTitolare: r.nome_titolare };
+  } catch(e){ console.warn("Sincronizzazione dati studio fallita:", e); return { completato: false }; }
 }
 
 function accountFromAuthResponse(data){
@@ -3462,15 +3544,20 @@ function renderStudioAccountSetup(){
   const modo = state.accountMode || "signup";
   const b = state.accountBuffer || {};
   if (state.accountNeedsConfirm){
+    // Niente bottone che si limita a fidarsi (prompt9, Task 1): l'unico
+    // modo per proseguire è una verifica vera — o il click sul link
+    // nella mail ti riporta qui con una sessione reale (gestita in
+    // boot(), vedi completaSessioneDaRedirect()), o un accesso vero con
+    // email+password, che Supabase stesso rifiuta se l'email non è
+    // confermata davvero (l'errore compare qui sotto, non è un
+    // controllo nostro).
     return `
     <div class="lock-wrap">
       <div class="lock-card">
         <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
         <h2 class="lock-title">Controlla la tua email</h2>
-        <p class="lock-sub">Ti abbiamo mandato un link di conferma a <b>${esc(b.email||"")}</b>. Apri quel link, poi torna qui e accedi con email e password.</p>
-        <div class="btn-row" style="justify-content:center;">
-          <button class="btn btn-accent" data-action="account-goto-signin">Ho confermato, accedi</button>
-        </div>
+        <p class="lock-sub">Ti abbiamo mandato un link di conferma a <b>${esc(b.email||"")}</b>. Apri quel link dallo stesso dispositivo: ti riporta qui automaticamente, già dentro.</p>
+        <p class="lock-hint">Hai confermato da un altro dispositivo o browser? <a data-action="account-goto-signin">Accedi con email e password</a> — se l'email non risulta ancora confermata, l'accesso viene rifiutato con un messaggio chiaro, non ti fa entrare comunque.</p>
       </div>
     </div>`;
   }
@@ -3509,25 +3596,36 @@ function renderStudioAccountSetup(){
    suoi dati — è anche la causa reale del bug segnalato ("l'attivazione
    manuale via SQL non trova nessuna licenza da aggiornare"), perché
    prima la riga nasceva solo al primo consenso archiviato o al primo
-   controllo abbonamento, mai al momento della creazione account. Vedi
-   supabase-tatuatori-trial-richieste.sql, blocco 2 (avvia_trial). */
+   controllo abbonamento, mai al momento della creazione account.
+   Da prompt9 (Task 2, confermato: stessa schermata, non uno step
+   separato): raccoglie anche nome studio e città, obbligatori insieme
+   al titolare — sono i dati reali che sostituiscono i placeholder di
+   STUDIO_DEFAULTS, altrimenti l'utente entra nell'app e li scopre solo
+   per caso aprendo le Impostazioni. Nello stesso tap nasce anche il
+   primo profilo tatuatore, vedi action "trial-start". */
+function campoTrial(nome, pending){
+  if (state.trialBuffer && nome in state.trialBuffer) return state.trialBuffer[nome];
+  return pending[nome] || "";
+}
 function renderTrialChoice(){
   const pending = loadPendingTrialSignup();
   return `
   <div class="lock-wrap">
     <div class="lock-card">
       <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
-      <h2 class="lock-title">Inizia la prova gratuita</h2>
-      <p class="lock-sub">Hai ${FREE_CONSENSI_LIMIT} consensi gratuiti per provare InkConsent. Conferma telefono e titolare: servono solo per riconoscerti quando richiedi l'attivazione di un piano.</p>
+      <h2 class="lock-title">I dati del tuo studio</h2>
+      <p class="lock-sub">Hai ${FREE_CONSENSI_LIMIT} consensi gratuiti per provare InkConsent. Nome studio, città e titolare sostituiscono i valori di esempio e ti riconoscono quando richiedi l'attivazione di un piano — il resto (P.IVA, indirizzo…) lo completi con calma dopo, nelle Impostazioni.</p>
       ${state.trialError ? `<p class="lock-err">${esc(state.trialError)}</p>` : ""}
       <div class="login-fields">
-        <input type="text" class="login-input" placeholder="Nome e cognome del titolare" value="${esc(state.trialBuffer && 'titolare' in state.trialBuffer ? state.trialBuffer.titolare : (pending.titolare||''))}" data-trial-field="titolare" autocomplete="name">
-        <input type="tel" class="login-input" placeholder="Telefono" value="${esc(state.trialBuffer && 'telefono' in state.trialBuffer ? state.trialBuffer.telefono : (pending.telefono||''))}" data-trial-field="telefono" autocomplete="tel">
+        <input type="text" class="login-input" placeholder="Nome dello studio" value="${esc(campoTrial('studioName', pending))}" data-trial-field="studioName" autocomplete="organization">
+        <input type="text" class="login-input" placeholder="Città" value="${esc(campoTrial('citta', pending))}" data-trial-field="citta" autocomplete="address-level2">
+        <input type="text" class="login-input" placeholder="Nome e cognome del titolare" value="${esc(campoTrial('titolare', pending))}" data-trial-field="titolare" autocomplete="name">
+        <input type="tel" class="login-input" placeholder="Telefono" value="${esc(campoTrial('telefono', pending))}" data-trial-field="telefono" autocomplete="tel">
       </div>
       <div class="btn-row" style="justify-content:center;">
         <button class="btn btn-accent" data-action="trial-start" ${state.trialBusy ? "disabled" : ""}>${state.trialBusy ? "Un momento…" : "Inizia la prova gratuita"}</button>
       </div>
-      <p class="lock-hint">Il piano resta gratuito finché non richiedi tu l'attivazione (vedi "Licenza e piano" più avanti nelle Impostazioni) — nessun addebito automatico.</p>
+      <p class="lock-hint">Il titolare sarà anche il primo tatuatore registrato per questo studio. Il piano resta gratuito finché non richiedi tu l'attivazione (vedi "Licenza e piano" più avanti nelle Impostazioni) — nessun addebito automatico.</p>
     </div>
   </div>`;
 }
@@ -3834,6 +3932,24 @@ function renderRichiesteBanner(){
   </div>`;
 }
 
+/* Avviso non bloccante dopo il primo onboarding (prompt9, Task 2):
+   nome studio/città/titolare sono obbligatori subito, il resto (P.IVA,
+   indirizzo, ragione sociale, SCIA — già in Impostazioni → "Consenso e
+   testi legali" → "Dati dello studio sul consenso") resta facoltativo
+   e si compila con calma quando serve. Un solo bottone, mostrato una
+   volta sola. */
+function renderPostOnboardingNotice(){
+  if (!state.showPostOnboardingNotice) return "";
+  return `
+  <div class="onb-notice-backdrop">
+    <div class="onb-notice-card">
+      <h3>Studio creato</h3>
+      <p>Nome studio, città e titolare sono salvati. Se ti servono anche P.IVA, ragione sociale o indirizzo sul modulo di consenso, li trovi quando vuoi in Impostazioni → "Consenso e testi legali" → "Dati dello studio sul consenso" — non sono obbligatori per iniziare.</p>
+      <button class="btn btn-accent" data-action="dismiss-post-onboarding-notice">Ho capito</button>
+    </div>
+  </div>`;
+}
+
 function renderStudioShell(){
   const nuoveLeads = loadRichieste().filter(l => l.status === "nuova").length;
   const guest = guestSessionState();
@@ -3842,6 +3958,7 @@ function renderStudioShell(){
   return `
   <div class="shell">
     ${renderRichiesteBanner()}
+    ${renderPostOnboardingNotice()}
     <div class="rail-backdrop ${state.railOpen ? "show" : ""}" data-action="toggle-rail"></div>
     <nav class="rail ${state.railOpen ? "open" : ""}" id="rail">
       <div class="rail-brand">
@@ -6030,31 +6147,59 @@ document.addEventListener("click", (e) => {
     const email = (b.email||"").trim(), pw = b.password||"";
     if (!email || !pw){ state.accountError = "Inserisci email e password."; render(); return; }
     state.accountBusy = true; state.accountError = null; render();
-    supabaseSignIn(email, pw).then(data => {
+    supabaseSignIn(email, pw).then(async data => {
       state.accountBusy = false;
       saveStudioAccount(accountFromAuthResponse(data));
       state.needsStudioAccount = false; state.accountBuffer = null;
-      // se questo signin segue una creazione account con conferma email in
-      // sospeso, manca ancora la scelta esplicita della prova gratuita
-      const pending = loadPendingTrialSignup();
-      if (pending.telefono || pending.titolare){ state.needsTrialChoice = true; render(); return; }
-      registraDispositivoCorrente().then(esito => {
-        if (esito && esito.consentito === false) state.deviceLimitBlock = esito;
-        render();
-      });
+      // dispositivo NUOVO su uno studio che esiste già (prompt9,
+      // "secondo dispositivo"): recupera nome studio/città/titolare da
+      // Supabase invece di richiederli di nuovo — evita un secondo
+      // profilo tatuatore con un nome diverso per la stessa persona.
+      const remoto = await sincronizzaDatiStudioDaRemoto();
+      if (remoto.completato){
+        registraDispositivoCorrente().then(esito => {
+          if (esito && esito.consentito === false) state.deviceLimitBlock = esito;
+          render();
+        });
+        return;
+      }
+      // altrimenti: prova gratuita non ancora avviata da nessuna parte
+      // (segue una creazione account con conferma email in sospeso, o
+      // caso limite) — manca ancora quel passaggio esplicito.
+      state.needsTrialChoice = true; render();
     }).catch(err => { state.accountBusy = false; state.accountError = err.message; render(); });
   }
   else if (action === "trial-start"){
-    const buf = state.trialBuffer || {};
     const pending = loadPendingTrialSignup();
-    const telefono = ("telefono" in buf) ? buf.telefono : (pending.telefono||"");
-    const titolare = ("titolare" in buf) ? buf.titolare : (pending.titolare||"");
+    const telefono = campoTrial("telefono", pending).trim();
+    const titolare = campoTrial("titolare", pending).trim();
+    const studioName = campoTrial("studioName", pending).trim();
+    const citta = campoTrial("citta", pending).trim();
+    if (!titolare || !studioName || !citta){
+      state.trialError = "Nome studio, città e titolare sono obbligatori.";
+      render(); return;
+    }
     state.trialBusy = true; state.trialError = null; render();
-    supabaseAvviaTrial(telefono, titolare).then(() => {
+    // dati reali dello studio applicati subito in locale (prompt9, Task
+    // 2): sostituiscono i placeholder di STUDIO_DEFAULTS. artistsText =
+    // titolare rende STUDIO_CONFIG.artists[0] il titolare stesso, cosi'
+    // assicuraProfiliTatuatori() sotto crea il SUO profilo, non uno
+    // generico "Nome Artista".
+    const ov = loadStudioOverrides();
+    saveStudioOverrides({ ...ov, studioName, studioCity: citta, artistsText: titolare });
+    applyStudioConfig();
+    // primo profilo tatuatore = il titolare, nato ORA (prompt9, Task 3):
+    // niente ACTIVE_TATUATORE qui apposta — con un solo tatuatore il
+    // conteggio dispositivi resta quello per-studio esistente
+    // (confermato), il profilo serve solo a registrare l'identità su
+    // licenza_tatuatori, non cambia come si registra il dispositivo.
+    const profilo = assicuraProfiliTatuatori().find(t => t.nome === titolare);
+    supabaseAvviaTrial(telefono, titolare, studioName, citta, profilo ? profilo.supabaseId : null).then(() => {
       clearPendingTrialSignup();
       const acc = loadStudioAccount();
       if (acc) saveStudioAccount({ ...acc, telefono, titolare });
       state.trialBusy = false; state.needsTrialChoice = false; state.trialBuffer = null;
+      state.showPostOnboardingNotice = true;
       registraDispositivoCorrente().then(esito => {
         if (esito && esito.consentito === false) state.deviceLimitBlock = esito;
         render();
@@ -6063,8 +6208,9 @@ document.addEventListener("click", (e) => {
   }
   else if (action === "trial-start-manual"){
     const acc = loadStudioAccount() || {};
+    const profilo = assicuraProfiliTatuatori().find(t => t.nome === STUDIO_CONFIG.artists[0]);
     state.trialManualBusy = true; state.trialManualError = null; state.trialManualOk = false; render();
-    supabaseAvviaTrial(acc.telefono||"", acc.titolare||"").then(() => {
+    supabaseAvviaTrial(acc.telefono||"", acc.titolare||"", STUDIO_CONFIG.studioName||"", STUDIO_CONFIG.studioCity||"", profilo ? profilo.supabaseId : null).then(() => {
       state.trialManualBusy = false; state.trialManualOk = true; render();
     }).catch(err => { state.trialManualBusy = false; state.trialManualError = err.message; render(); });
   }
@@ -6104,6 +6250,7 @@ document.addEventListener("click", (e) => {
     state.tatuatoreSwitchPick = null; state.tatuatoreSwitchError = null; render();
   }
   else if (action === "dismiss-richieste-banner"){ state.nuoveRichiesteBanner = []; render(); }
+  else if (action === "dismiss-post-onboarding-notice"){ state.showPostOnboardingNotice = false; render(); }
   else if (action === "goto-richieste-da-banner"){ state.nuoveRichiesteBanner = []; state.view = "leads"; state.railOpen = false; render(); }
   else if (action === "cambia-tatuatore"){
     ACTIVE_TATUATORE = null; render();
@@ -7147,6 +7294,18 @@ function initRichiestaMode(){
   caricaVersioneMotore().then(() => render()); // non blocca il boot, aggiorna il footer quando arriva
   caricaPacchettiIcone().then(() => render()); // idem, popola il selettore pacchetto icone in Impostazioni
   if (state.mode === "studio"){
+    // prompt9, Task 1: se torniamo dal click sul link di conferma
+    // email, l'URL porta una sessione vera (token emessi da Supabase
+    // SOLO dopo una conferma reale) — verifichiala PRIMA di ogni altro
+    // gate, cosi' non serve ridigitare email+password.
+    const sessioneDaRedirect = SUPABASE_CONFIG.url ? await completaSessioneDaRedirect() : false;
+    if (sessioneDaRedirect){
+      // caso raro ma possibile: la prova gratuita risultava già avviata
+      // altrove (stesso studio, altro dispositivo) — non richiederla di
+      // nuovo, i dati arrivano da sincronizzaDatiStudioDaRemoto().
+      const remoto = await sincronizzaDatiStudioDaRemoto();
+      state.needsTrialChoice = !remoto.completato;
+    }
     // primo avvio in assoluto, con Supabase configurato: prima di tutto
     // l'account studio (email+password), che identifica lo studio per
     // l'abbonamento e il limite dispositivi. Se Supabase non è
@@ -7154,7 +7313,9 @@ function initRichiestaMode(){
     // (anche solo anonima, da prima di questa funzione), si salta
     // direttamente al percorso di sempre — nessuna rottura per chi già
     // usa l'app.
-    if (SUPABASE_CONFIG.url && !hasLocalLicenseIdentity()){
+    if (sessioneDaRedirect){
+      // gate già risolto sopra, niente altro qui
+    } else if (SUPABASE_CONFIG.url && !hasLocalLicenseIdentity()){
       state.needsStudioAccount = true;
     } else if (authIsSet()){
       // sicurezza prima di tutto: se c'è un accesso, l'app parte bloccata.

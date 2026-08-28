@@ -6,7 +6,73 @@ zero dipendenze runtime pesanti — stessa filosofia di InkAnimus.
 Testato end-to-end con browser headless (flusso completo: nuova sessione →
 6 step → doppia firma → archiviazione → ricerca in archivio) prima della consegna.
 
-## Novità dell'ultimo giro (settimo giro): asset riorganizzati, pacchetti icone, bottom bar corretta
+## 🔒 Dove vivono i dati (leggi questo prima di tutto il resto)
+
+Due categorie di dati, **mai mescolate**, con destinazioni diverse:
+
+- **Dati del cliente finale** — anagrafica, questionario sanitario,
+  firme, foto di riferimento, consensi, magazzino: restano **sempre e
+  solo su questo dispositivo**, cifrati in IndexedDB. Non toccano mai
+  Supabase, nessun server, nessun cookie. L'unica eccezione, dichiarata
+  esplicitamente, è la tabella `richieste` (i lead da un link pubblico
+  di preventivo, quando configurata — vedi "Un'eccezione dichiarata: le
+  richieste di preventivo" più sotto): lì arrivano nome/telefono/email
+  del cliente, mai foto, mai dati sanitari.
+- **Dati di licenza/identità dello studio** — email dell'account
+  studio, telefono, nome del titolare, nome dello studio, città, ID
+  opachi (studio/dispositivo/tatuatore), stato dell'abbonamento: questi
+  SÌ vanno su Supabase (tabelle `licenza_studi`/`licenza_dispositivi`/
+  `licenza_tatuatori`), servono solo a riconoscere lo studio per la
+  gestione del piano — mai un dato clinico o del cliente finale.
+
+**Nessun cookie.** L'app non ne usa: solo `localStorage`/IndexedDB sul
+dispositivo (mai inviati altrove) e chiamate `fetch` dirette alle API
+REST di Supabase quando serve la licenza. Nessun tracciamento, nessun
+analytics di terze parti.
+
+## Novità dell'ultimo giro (ottavo giro): onboarding reale — conferma email vera, dati studio obbligatori, primo tatuatore nato insieme
+
+Tre bug collegati, trovati testando dal vivo su
+`inkonsens-studio.pages.dev`:
+
+- **Conferma email: da "mi fido" a verifica vera.** Il vecchio bottone
+  "Ho confermato, accedi" si limitava a fidarsi della parola
+  dell'utente e lo faceva proseguire alla schermata di accesso — non
+  verificava nulla. Ora: dopo il click sul link nella mail, Supabase
+  reindirizza con una sessione vera nell'URL (token che emette SOLO
+  dopo una conferma reale) — l'app la legge e la verifica
+  (`completaSessioneDaRedirect()` in `index.html`), niente
+  autocertificazione. Se l'utente prova ad accedere da un altro
+  dispositivo prima di aver confermato, è la vera chiamata di login a
+  Supabase a rifiutarlo con un errore chiaro, non un controllo nostro.
+- **Dati reali dello studio, obbligatori prima di entrare.** La
+  schermata "Inizia la prova gratuita" (già esistente) ora chiede anche
+  nome dello studio e città, non solo titolare e telefono — sostituendo
+  subito i placeholder di `STUDIO_DEFAULTS` invece di lasciare che
+  l'utente li scopra per caso aprendo le Impostazioni. P.IVA, ragione
+  sociale e indirizzo restano facoltativi, si compilano quando serve in
+  Impostazioni → "Consenso e testi legali" (un avviso non bloccante lo
+  ricorda, una volta sola, appena entrati).
+- **Il titolare nasce come primo tatuatore, nello stesso istante.**
+  Prima, creare l'account studio non creava anche il profilo tatuatore
+  corrispondente: al primo utilizzo di "Artisti" nelle Impostazioni,
+  l'app credeva che fosse un tatuatore nuovo. Ora `avvia_trial()` crea
+  atomicamente sia `licenza_studi` sia la prima riga di
+  `licenza_tatuatori`, stesso studio_id, stesso momento. Un dispositivo
+  NUOVO che fa login su uno studio già esistente recupera questi dati
+  da Supabase invece di richiederli di nuovo (`dati_studio()`), cosi'
+  non nasce un secondo profilo con un nome diverso per la stessa
+  persona. SQL in **[`supabase-onboarding-titolare.sql`](./prompt%20e%20sql/supabase-onboarding-titolare.sql)**,
+  il quinto file — da eseguire dopo tutti i precedenti.
+
+**Decisione confermata esplicitamente**: uno studio con un solo
+tatuatore (il titolare unico, il caso più comune) resta sul conteggio
+dispositivi PER STUDIO già esistente — `licenza_tatuatori` nasce
+comunque per l'anagrafica e il tetto del piano, ma non cambia come si
+contano i dispositivi in quel caso (è lo stesso numero: un tatuatore,
+uno studio).
+
+## Novità del settimo giro: asset riorganizzati, pacchetti icone, bottom bar corretta
 
 Giro di sola UI/asset, nessuna nuova logica di business.
 

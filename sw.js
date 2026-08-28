@@ -69,11 +69,18 @@
    introdotta — segnata "completata" nei giri scorsi ma mai visibile
    davvero, ora corretta; icone anche nei titoli delle sezioni
    Impostazioni.
+   v32: onboarding reale — conferma email verificata davvero (token dal
+   redirect Supabase, non più un bottone che si fida), nome
+   studio/città obbligatori insieme al titolare nella stessa schermata
+   "Inizia la prova gratuita", primo profilo tatuatore creato
+   atomicamente con l'account studio (avvia_trial ora crea anche
+   licenza_tatuatori), dispositivo nuovo su studio esistente recupera i
+   dati invece di richiederli di nuovo.
 
    Nota: i dati (consensi, magazzino) NON passano da qui. Stanno in
    IndexedDB sul dispositivo e il service worker non li tocca mai.   */
 
-const CACHE = "inkconsent-v31";
+const CACHE = "inkconsent-v32";
 
 const PRECACHE = [
   "./",
