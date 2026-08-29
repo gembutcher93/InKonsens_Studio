@@ -2605,7 +2605,7 @@ async function verificaCredenzialiTatuatore(id, password){
 function rimuoviProfiloTatuatoreLocale(id){
   saveTatuatori(loadTatuatori().filter(t => t.id !== id));
   rimuoviBustaTatuatore(id); // pulizia della busta cassaforte, se ne aveva una (prompt15, Task 5)
-  if (ACTIVE_TATUATORE === id) ACTIVE_TATUATORE = null;
+  if (ACTIVE_TATUATORE === id){ ACTIVE_TATUATORE = null; pulisciSessioneAttiva(); }
 }
 /* FixStupidomautile: unico punto di verità per "elimina tatuatore" —
    pulizia locale (profilo + busta cassaforte) e su Supabase (RPC
@@ -2623,9 +2623,52 @@ function eliminaTatuatoreCompleto(id){
   if (t.supabaseId) rimuoviTatuatoreRemoto(t.supabaseId).catch(() => {});
 }
 
-/* Chi sta lavorando ora su questo dispositivo condiviso: solo in
-   memoria (come DEK), sparisce a ogni blocco/sblocco — un dispositivo
-   condiviso ripropone la scelta a ogni turno di lavoro. */
+/* Chi sta lavorando ora su questo dispositivo condiviso: vive in
+   memoria (come DEK) — un dispositivo condiviso ripropone la scelta a
+   ogni vero turno di lavoro (chiusura del tab/browser, vedi sotto).
+   BUGFIX (prompt fix richieste, Task 1): prima sparivano anche a un
+   semplice refresh di pagina, perché "solo in memoria" — fastidioso e
+   diverso dal login email+password dello studio (persistente via
+   token). Ora lo stato sbloccato sopravvive al refresh via
+   sessionStorage (salvaSessioneAttiva/ripristinaSessioneAttiva sotto):
+   sessionStorage, non localStorage, apposta — si azzera da solo alla
+   chiusura del tab/browser, restando sicuro su un dispositivo
+   condiviso quanto lo era prima. Con cassaforte attiva, la DEK viene
+   esportata in chiaro (raw AES) dentro quella stessa voce: è materiale
+   sensibile, ma sessionStorage è privato al tab/origine e sparisce con
+   esso — stesso compromesso già accettato per il token studio (quello
+   però su localStorage, ancora più persistente). */
+const ACTIVE_SESSION_KEY = "inkconsent_active_session_v1";
+async function salvaSessioneAttiva(id, dek){
+  try {
+    const entry = { tatuatoreId: id };
+    if (dek) entry.dek = b64(new Uint8Array(await crypto.subtle.exportKey("raw", dek)));
+    sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(entry));
+  } catch(e){ /* sessionStorage non disponibile (privacy mode, ecc.): si ripropone la scelta al refresh, nessun danno */ }
+}
+function pulisciSessioneAttiva(){
+  try { sessionStorage.removeItem(ACTIVE_SESSION_KEY); } catch(e){}
+}
+/* Chiamata al boot, PRIMA di hydrateStores(): senza, l'archivio
+   resterebbe cifrato (DEK ancora null) anche con ACTIVE_TATUATORE
+   ripristinato. true solo se un profilo valido e ancora abilitato è
+   stato davvero ripristinato (DEK compresa, se la cassaforte esiste) —
+   altrimenti la voce viene scartata e si ricade sulla schermata
+   "chi sta lavorando ora" di sempre, mai un archivio a metà sbloccato. */
+async function ripristinaSessioneAttiva(){
+  let entry;
+  try { entry = JSON.parse(sessionStorage.getItem(ACTIVE_SESSION_KEY)); } catch(e){ entry = null; }
+  if (!entry || !entry.tatuatoreId) return false;
+  const t = getTatuatoreProfilo(entry.tatuatoreId);
+  if (!t || !tatuatoreAbilitato(t)){ pulisciSessioneAttiva(); return false; }
+  if (entry.dek){
+    try {
+      DEK = await crypto.subtle.importKey("raw", unb64(entry.dek), { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+    } catch(e){ pulisciSessioneAttiva(); return false; }
+  }
+  ACTIVE_TATUATORE = entry.tatuatoreId;
+  return true;
+}
 let ACTIVE_TATUATORE = null;
 function tatuatoreAttivo(){ return ACTIVE_TATUATORE ? getTatuatoreProfilo(ACTIVE_TATUATORE) : null; }
 function nomeTatuatoreAttivo(){ const t = tatuatoreAttivo(); return t ? t.nome : (STUDIO_CONFIG.artists[0] || ""); }
@@ -4089,7 +4132,24 @@ function render(){
   else if (state.locked) root.innerHTML = renderLockScreen();
   else if ((guestSessionState()||{}).scaduto) root.innerHTML = renderGuestGate();
   else if (state.deviceLimitBlock) root.innerHTML = renderDeviceLimitBlock();
-  else root.innerHTML = renderStudioShell();
+  else {
+    root.innerHTML = renderStudioShell();
+    // BUGFIX (prompt fix richieste, Task 2): con la cassaforte (prompt15),
+    // lo sblocco vero avviene DOPO boot() — dentro l'handler async di
+    // "chi sta lavorando ora"/login, mai ri-passato da lì — mentre
+    // avviaPollingRichieste() partiva SOLO dentro il blocco "if
+    // (!state.locked)" di boot(), sincrono, quando per qualunque studio
+    // già configurato state.locked è ancora true (si sblocca solo dopo,
+    // a schermata già passata). Risultato: per NESSUNO studio con
+    // cassaforte (cioè quasi tutti, la migrazione è automatica al primo
+    // login) il timer dei 20s partiva mai — le richieste arrivavano su
+    // Supabase ma non venivano mai scaricate, silenziosamente. Questo è
+    // il primo punto raggiunto SOLO a sblocco vero avvenuto (tatuatore
+    // scelto se serve, non bloccato, nessun blocco dispositivi): la
+    // funzione è già idempotente (si ferma da sola se il timer esiste
+    // già), quindi richiamarla ad ogni render qui non duplica nulla.
+    if (state.mode === "studio" && FEATURES.richieste) avviaPollingRichieste();
+  }
   afterRender();
 }
 const BACKUP_META_KEY = "inkconsent_backup_meta_v1"; // { last: ISO, count }
@@ -6655,7 +6715,16 @@ function validateLeadStep(step){
   if (step === 1){
     if (!leadDraft.cliente.nome.trim()) errs.push("Inserisci il nome.");
     if (!leadDraft.cliente.cognome.trim()) errs.push("Inserisci il cognome.");
-    if (!leadDraft.cliente.telefono.trim()) errs.push("Inserisci un numero di telefono: è come ti contattiamo su WhatsApp.");
+    const telefono = leadDraft.cliente.telefono.trim();
+    if (!telefono) errs.push("Inserisci un numero di telefono: è come ti contattiamo su WhatsApp.");
+    // BUGFIX (prompt fix richieste): senza un minimo di cifre, un cliente
+    // che salta distrattamente il campo (o scrive "-", "no", una x)
+    // finiva comunque a "grazie, ti ricontattiamo" — impossibile
+    // ricontattarlo davvero. 10 cifre = un numero italiano completo
+    // (es. 333 1234567), stesso conteggio già assunto da waLink() più
+    // sotto per capire se manca il prefisso +39. Solo cifre contate:
+    // spazi/punti/trattini nel campo restano leggibili, non bloccati.
+    else if (telefono.replace(/[^\d]/g, "").length < 10) errs.push("Il numero di telefono sembra incompleto: servono almeno 10 cifre (es. 333 1234567) per poterti ricontattare.");
   }
   if (step === 2){
     if (!leadDraft.stile.length && !leadDraft.stileAltro.trim()) errs.push("Scegli almeno uno stile (o descrivilo in \"Altro\").");
@@ -7150,6 +7219,7 @@ document.addEventListener("click", (e) => {
             // richiedere di nuovo nome+password un secondo dopo, appena
             // finita l'onboarding, alla prima schermata "chi sei".
             ACTIVE_TATUATORE = profilo ? profilo.id : null;
+            if (profilo) await salvaSessioneAttiva(profilo.id, DEK);
           } catch(e){ console.warn("Creazione cassaforte locale fallita:", e); }
         }
         state.showPostOnboardingNotice = true;
@@ -7171,6 +7241,7 @@ document.addEventListener("click", (e) => {
   else if (action === "account-sign-out"){
     clearStudioAccount();
     state.deviceLimitBlock = null; ACTIVE_TATUATORE = null;
+    pulisciSessioneAttiva();
     state.needsStudioAccount = true; state.accountMode = "signin";
     render();
   }
@@ -7235,7 +7306,7 @@ document.addEventListener("click", (e) => {
     state.nuoveRichiesteBanner = []; state.railOpen = false; render();
   }
   else if (action === "cambia-tatuatore"){
-    ACTIVE_TATUATORE = null; applyStudioConfig(); render();
+    ACTIVE_TATUATORE = null; pulisciSessioneAttiva(); applyStudioConfig(); render();
   }
   else if (action === "reset-credenziali-tatuatore"){
     const list = loadTatuatori();
@@ -7244,7 +7315,7 @@ document.addEventListener("click", (e) => {
     // consentito) ripetuto qui — solo sé stessi, o il titolare per
     // chiunque, mai un pari verso un collega.
     if (i >= 0 && puoReimpostare(list[i])){ list[i] = { ...list[i], username: "", salt: "", hash: "" }; saveTatuatori(list); }
-    if (ACTIVE_TATUATORE === btn.dataset.id) ACTIVE_TATUATORE = null;
+    if (ACTIVE_TATUATORE === btn.dataset.id){ ACTIVE_TATUATORE = null; pulisciSessioneAttiva(); }
     render();
   }
   else if (action === "rimuovi-tatuatore"){
@@ -7338,6 +7409,7 @@ document.addEventListener("click", (e) => {
         }
       }
       ACTIVE_TATUATORE = id;
+      await salvaSessioneAttiva(id, conCassaforte ? DEK : null);
       applyStudioConfig(); // megabugfixprompt: logo/colori/font/firma sono personali, si applicano al cambio profilo
       // CORREZIONE (prompt15fix, Task B, causa vera del bug): un
       // profilo sbloccato con successo qui non resettava mai
@@ -8193,6 +8265,7 @@ document.addEventListener("click", (e) => {
     saveStudioOverrides(o);
     saveTatuatori([]);
     ACTIVE_TATUATORE = null;
+    pulisciSessioneAttiva();
     applyStudioConfig();
     state.studioBuffer = null; state.studioSaved = false; state.confirmResetStudio = false;
     render();
@@ -8785,6 +8858,14 @@ function initRichiestaMode(){
     } else if (authIsSet()){
       // sicurezza prima di tutto: se c'è un accesso, l'app parte bloccata.
       state.locked = true;
+      // BUGFIX (prompt fix richieste, Task 1): niente re-blocco (né
+      // richiesta della password del tatuatore) se questo stesso tab
+      // aveva già uno sblocco valido prima del refresh — vedi
+      // ripristinaSessioneAttiva/ACTIVE_SESSION_KEY sopra. Restituisce
+      // true solo se il profilo esiste ancora, è abilitato, e (con
+      // cassaforte) la DEK è stata reimportata con successo: mai un
+      // "sembra sbloccato" con l'archivio in realtà ancora cifrato.
+      if (await ripristinaSessioneAttiva()) state.locked = false;
     } else if (!tourDismissed()){
       // primo utilizzo: tour, poi creazione accesso
       state.showTour = true;
