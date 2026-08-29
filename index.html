@@ -53,6 +53,13 @@
   --stencil-deep:#6E4380;
   --stencil-tint:rgba(150,101,154,.16);
   --flesh:       #D2946E;
+  /* prompt18: topbar mobile e bottom bar di navigazione erano fisse
+     (var(--paper)/var(--stencil)/grigio hardcoded, mai personalizzabili
+     davvero) — ora variabili proprie, di fabbrica identiche a prima,
+     sovrascritte in Personalizzato da applyStudioConfig(). */
+  --topbar-bg:   var(--paper);
+  --nav-active:  var(--stencil);
+  --nav-inactive:#9A9188;
   --warn:        #E2694C;
   --warn-tint:   rgba(226,105,76,.15);
   --ok:          #6FAE82;
@@ -780,8 +787,8 @@ select{
        (Prompt-colore, bug tema chiaro). var(--paper) segue il tema; il
        fallback opaco prima della riga con color-mix serve ai browser
        che non lo supportano ancora. */
-    background:var(--paper);
-    background:color-mix(in srgb, var(--paper) 88%, transparent);
+    background:var(--topbar-bg);
+    background:color-mix(in srgb, var(--topbar-bg) 88%, transparent);
     -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
     border-bottom:1px solid var(--line-soft);
   }
@@ -804,12 +811,12 @@ select{
 }
 .bottom-bar-btn{
   all:unset;cursor:pointer;flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;
-  gap:3px;padding:6px 2px;border-radius:8px;color:#9A9188;text-align:center;
+  gap:3px;padding:6px 2px;border-radius:8px;color:var(--nav-inactive);text-align:center;
   transition:color .12s ease,background .12s ease;
 }
 .bottom-bar-btn .bb-label{font-size:10px;letter-spacing:.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
 .bottom-bar-btn .bb-ic{position:relative;display:inline-flex;}
-.bottom-bar-btn.active{color:var(--stencil);background:rgba(150,101,154,.14);}
+.bottom-bar-btn.active{color:var(--nav-active);background:color-mix(in srgb, var(--nav-active) 14%, transparent);}
 .bottom-bar-btn:active{transform:scale(.96);}
 .bb-badge{position:absolute;top:-6px;right:-10px;margin:0;font-size:9px;padding:1px 5px;}
 /* Riga di tab sempre visibile (prompt10, Task 1 — sostituisce la
@@ -905,6 +912,12 @@ const STUDIO_DEFAULTS = {
   colorStamp: "#241A30",   // superficie "timbrata" scura: rail, badge pieni, bottoni primari
   colorStencil: "#96659A", // accento (area consenso, medico-legale)
   colorFlesh: "#D2946E",   // accento caldo (area preventivo, commerciale)
+  // prompt18: topbar/bottom bar erano fisse, indipendenti dal tema —
+  // ora personalizzabili come gli altri. Default = valore che la CSS
+  // fissa già mostra oggi, per non cambiare nulla a chi non tocca nulla.
+  colorTopbar: "#15131A",     // sfondo topbar mobile (era --paper fisso)
+  colorNavActive: "#96659A",  // icona/testo bottom bar attiva (era --stencil fisso)
+  colorNavInactive: "#9A9188",// icona/testo bottom bar inattiva (era hardcoded)
   fontTheme: "moderno", // classico | moderno | essenziale | manoscritto
   logoDataUrl: "",       // logo caricato dallo studio (data URL), sovrascrive la sigla
   aftercareText: "Ciao {nome}! Grazie per la fiducia. Ecco come prenderti cura del tuo tatuaggio nei prossimi giorni:\n\n• Tieni la pellicola per le ore indicate.\n• Lava delicatamente con acqua tiepida e sapone neutro.\n• Applica un velo sottile di crema specifica 2-3 volte al giorno.\n• Niente sole diretto, piscina, mare o sauna per 2-3 settimane.\n• Non grattare né staccare le crosticine.\n\nPer qualsiasi dubbio scrivimi. A presto!",
@@ -1013,10 +1026,16 @@ function hydrateCustomFont(a, fallbackDisplay, fallbackBody){
      tatuatore attivo — ognuno il proprio, come gli altri campi lì) e
      applica sopra solo le differenze scelte. */
 const THEME_KEY = "inkconsent_theme_v1";
-const CUSTOM_COLOR_FIELDS = ["colorInk","colorStamp","colorStencil","colorFlesh"];
+const CUSTOM_COLOR_FIELDS = ["colorInk","colorStamp","colorStencil","colorFlesh","colorTopbar","colorNavActive","colorNavInactive"];
 const THEME_FIXED = {
-  dark:  { colorInk: "#F1ECE3", colorStamp: "#241A30", colorStencil: "#96659A", colorFlesh: "#D2946E" },
-  light: { colorInk: "#1B1A19", colorStamp: "#1B1A19", colorStencil: "#5B3B63", colorFlesh: "#C98F6C" },
+  // prompt18: colorTopbar/colorNavActive/colorNavInactive aggiunti con
+  // lo stesso valore che --paper/--stencil/il grigio hardcoded già
+  // mostravano in ciascun tema fisso — zero differenza visiva finché
+  // lo studio non li tocca in "Personalizzato".
+  dark:  { colorInk: "#F1ECE3", colorStamp: "#241A30", colorStencil: "#96659A", colorFlesh: "#D2946E",
+           colorTopbar: "#15131A", colorNavActive: "#96659A", colorNavInactive: "#9A9188" },
+  light: { colorInk: "#1B1A19", colorStamp: "#1B1A19", colorStencil: "#5B3B63", colorFlesh: "#C98F6C",
+           colorTopbar: "#EDE8E2", colorNavActive: "#5B3B63", colorNavInactive: "#9A9188" },
 };
 const THEME_PAPER = { dark: "#15131A", light: "#EDE8E2" }; // --paper fisso dei due temi, mai personalizzabile
 function loadTheme(){
@@ -1080,6 +1099,19 @@ function contrastWarnings(cc, base){
   if (r3 !== null && r3 < 2.5) warn.push("Accento area consenso troppo chiaro per il testo bianco di bottoni e badge.");
   const r4 = contrastRatio("#ffffff", cc.colorFlesh);
   if (r4 !== null && r4 < 2.5) warn.push("Accento area preventivo troppo chiaro per il testo bianco di bottoni e badge.");
+  // prompt18: stesse due nuove superfici esposte in Impostazioni —
+  // stesso motore, nuove coppie, nessuna scansione ulteriore dell'app.
+  const r5 = contrastRatio(cc.colorInk, cc.colorTopbar);
+  if (r5 !== null && r5 < 4.5) warn.push(`Testo e sfondo della barra in alto (mobile) troppo simili (contrasto ${r5.toFixed(1)}:1, minimo consigliato 4.5:1).`);
+  const r6 = contrastRatio(cc.colorNavInactive, cc.colorStamp);
+  if (r6 !== null && r6 < 4.5) warn.push(`Icona/testo inattivi della barra di navigazione in basso troppo simili al loro sfondo (contrasto ${r6.toFixed(1)}:1).`);
+  // soglia 1.8 (non 4.5) apposta: di fabbrica l'icona attiva è colorata
+  // come l'accento sullo sfondo scuro della barra, non testo bianco su
+  // pieno — nel tema chiaro di fabbrica è già solo ~1.9:1 (limite
+  // preesistente, stesso discorso di r3/r4 sopra), a 4.5 avviserebbe
+  // sempre anche chi non ha toccato nulla.
+  const r7 = contrastRatio(cc.colorNavActive, cc.colorStamp);
+  if (r7 !== null && r7 < 1.8) warn.push(`Icona/testo attivi della barra di navigazione in basso troppo simili al loro sfondo (contrasto ${r7.toFixed(1)}:1).`);
   return warn;
 }
 
@@ -1142,10 +1174,14 @@ function applyStudioConfig(){
     r.setProperty("--stamp", a.colorStamp || THEME_FIXED[customBase].colorStamp);
     r.setProperty("--stencil", a.colorStencil);
     r.setProperty("--flesh", a.colorFlesh);
+    r.setProperty("--topbar-bg", a.colorTopbar || THEME_FIXED[customBase].colorTopbar);
+    r.setProperty("--nav-active", a.colorNavActive || THEME_FIXED[customBase].colorNavActive);
+    r.setProperty("--nav-inactive", a.colorNavInactive || THEME_FIXED[customBase].colorNavInactive);
   } else {
     // dark/light fissi: nessuna personalizzazione, si affidano ai valori di :root/:root[data-theme="light"]
     r.removeProperty("--ink"); r.removeProperty("--stamp");
     r.removeProperty("--stencil"); r.removeProperty("--flesh");
+    r.removeProperty("--topbar-bg"); r.removeProperty("--nav-active"); r.removeProperty("--nav-inactive");
   }
   const ft = FONT_THEMES[a.fontTheme] || FONT_THEMES.moderno;
   r.setProperty("--font-display", ft.display);
@@ -7917,7 +7953,7 @@ document.addEventListener("click", (e) => {
     if (t) resetAspettoTatuatore(t.id);
     else {
       const o = loadStudioOverrides();
-      ["logoDataUrl","colorInk","colorStamp","colorStencil","colorFlesh","fontTheme","inkEffect","signatureColor","customBase","customFontName","customFontFamily"].forEach(k => delete o[k]);
+      ["logoDataUrl","colorInk","colorStamp","colorStencil","colorFlesh","colorTopbar","colorNavActive","colorNavInactive","fontTheme","inkEffect","signatureColor","customBase","customFontName","customFontFamily"].forEach(k => delete o[k]);
       saveStudioOverrides(o);
     }
     idbSet(customFontStoreKey(t ? t.id : "shared"), null);
@@ -8990,6 +9026,13 @@ function renderSettings(){
       <div class="grid-2">
         <div class="field"><label>Accento — area consenso</label><input type="color" data-field-aspetto="colorStencil" value="${esc(acfg.colorStencil)}" style="height:44px;padding:4px;"></div>
         <div class="field"><label>Accento — area preventivo</label><input type="color" data-field-aspetto="colorFlesh" value="${esc(acfg.colorFlesh)}" style="height:44px;padding:4px;"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Sfondo barra in alto (mobile)</label><input type="color" data-field-aspetto="colorTopbar" value="${esc(acfg.colorTopbar||THEME_FIXED[customBase].colorTopbar)}" style="height:44px;padding:4px;"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Icona/testo barra in basso — voce attiva</label><input type="color" data-field-aspetto="colorNavActive" value="${esc(acfg.colorNavActive||THEME_FIXED[customBase].colorNavActive)}" style="height:44px;padding:4px;"></div>
+        <div class="field"><label>Icona/testo barra in basso — voce inattiva</label><input type="color" data-field-aspetto="colorNavInactive" value="${esc(acfg.colorNavInactive||THEME_FIXED[customBase].colorNavInactive)}" style="height:44px;padding:4px;"></div>
       </div>
       ${(() => {
         const warnings = contrastWarnings(acfg, customBase);
