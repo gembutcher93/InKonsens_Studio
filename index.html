@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Caveat:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Caveat:wght@500;600;700&family=Oswald:wght@400;500;600;700&family=Playfair+Display:wght@400;600;700&family=JetBrains+Mono:wght@400;500;600&family=Quicksand:wght@500;600;700&family=Bebas+Neue&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Librerie in locale, non da CDN: l'app deve funzionare anche senza campo.
      jspdf 2.5.1 (PDF del consenso) e qrcodejs 1.0.0 (QR di passaggio).
      Vanno nella root del repo, accanto a index.html. -->
@@ -39,6 +39,13 @@
   --paper-field-text: #211D19;
   --stamp:       #241A30;
   --ink:         #F1ECE3;
+  /* testo su --stamp (rail, lock/premium/tour card, client-head): quelle
+     superfici restano sempre scure in ENTRAMBI i temi (--stamp nel tema
+     chiaro e' #1B1A19, non chiaro) — un colore fisso apposta, mai
+     ridefinito nel tema chiaro qui sotto. Prima quei testi usavano
+     var(--ink), che nel chiaro diventa anch'esso #1B1A19: identico allo
+     sfondo, testo invisibile (Prompt-colore, bug tema chiaro). */
+  --stamp-text:  #F1ECE3;
   --ink-soft:    #C9C0B4;
   --ink-faint:   #948B7F;
   --ink-ghost:   #6B6259;
@@ -52,6 +59,11 @@
   --ok-tint:     rgba(111,174,130,.15);
   --line:        rgba(255,255,255,.13);
   --line-soft:   rgba(255,255,255,.07);
+  /* riempimento neutro (stato "non risposto" dell'interruttore .sw):
+     un velo chiaro leggibile su sfondo scuro, va ridefinito per il
+     chiaro sotto — non e' pensato per restare rgba(255,255,255,..)
+     su una superficie gia' chiara (Prompt-colore, bug tema chiaro). */
+  --sw-off:      rgba(255,255,255,.14);
   /* scorte — tinte ricavate dalla palette, non un semaforo */
   --stk-top:#6FAE82; --stk-top-tint:rgba(111,174,130,.16);
   --stk-ok: #8CB86B; --stk-ok-tint: rgba(140,184,107,.16);
@@ -94,6 +106,7 @@
   --ok-tint:     #DCE6DE;
   --line:        #C7BEB2;
   --line-soft:   #DAD3C8;
+  --sw-off:      rgba(27,26,25,.13);
   --stk-top:#3F6B4E; --stk-top-tint:#DEE7E0;
   --stk-ok: #4E6640; --stk-ok-tint: #E2E7D9;
   --stk-low:#8A5A22; --stk-low-tint:#F0E4D2;
@@ -132,7 +145,7 @@ button{font-family:inherit;}
 
 .shell{display:flex;min-height:100vh;}
 .rail{
-  width:268px;flex:none;background:var(--stamp);color:var(--ink);
+  width:268px;flex:none;background:var(--stamp);color:var(--stamp-text);
   display:flex;flex-direction:column;padding:28px 20px;
 }
 .rail-brand{display:flex;align-items:center;gap:12px;margin-bottom:32px;}
@@ -141,7 +154,7 @@ button{font-family:inherit;}
    invece del solito avatar rotondo da app gestionale. */
 .rail-mark{
   width:38px;height:38px;border-radius:9px;background:var(--stencil);
-  color:var(--ink);display:flex;align-items:center;justify-content:center;
+  color:#fff;display:flex;align-items:center;justify-content:center;
   font-family:var(--font-display);font-weight:700;font-size:15px;flex:none;overflow:hidden;
   box-shadow:0 3px 10px -3px rgba(0,0,0,.5);
 }
@@ -202,7 +215,7 @@ button{font-family:inherit;}
 .client-shell.area-preventivo{--area-accent:var(--flesh);--area-accent-deep:#B87850;--area-accent-tint:rgba(210,148,110,.16);}
 .client-shell.area-consenso{--area-accent:var(--stencil);--area-accent-deep:var(--stencil-deep);--area-accent-tint:var(--stencil-tint);}
 .client-head{
-  background:var(--stamp);color:var(--ink);padding:22px 22px 26px;
+  background:var(--stamp);color:var(--stamp-text);padding:22px 22px 26px;
   border-radius:0 0 18px 18px;border-bottom:2px solid var(--area-accent);
 }
 .client-head .rail-brand{margin-bottom:14px;}
@@ -304,7 +317,7 @@ select{
 .btn-accent{background:var(--stencil);color:#fff;}
 .btn-accent:hover{background:var(--stencil-deep);}
 .btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--line);}
-.lock-card .btn-ghost,.premium-card .btn-ghost,.tour-card .btn-ghost{border-color:#6b635a;}
+.lock-card .btn-ghost,.premium-card .btn-ghost,.tour-card .btn-ghost{border-color:#6b635a;color:var(--stamp-text);}
 .lock-card .btn-ghost:hover,.premium-card .btn-ghost:hover,.tour-card .btn-ghost:hover{background:rgba(255,255,255,.08);}
 .lock-card .btn-primary,.tour-card .btn-primary{background:var(--stencil);color:#fff;}
 .lock-card .btn-primary:hover,.tour-card .btn-primary:hover{background:var(--stencil-deep);}
@@ -373,7 +386,7 @@ select{
   border:1px solid var(--line);color:var(--ink-faint);background:transparent;cursor:pointer;
   display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
 }
-.step-pill.on{background:var(--stamp);border-color:var(--ink);color:var(--ink);}
+.step-pill.on{background:var(--stamp);border-color:var(--stamp-text);color:var(--stamp-text);}
 .step-pill.done{border-color:var(--ok);color:var(--ok);}
 .step-pill .ic{opacity:.7;}
 @media (max-width:700px){
@@ -506,9 +519,9 @@ select{
   background:var(--paper-raised);color:var(--ink-soft);border:1px solid var(--line-soft);
   display:inline-flex;align-items:center;gap:7px;}
 .mag-tab:hover{border-color:var(--line);color:var(--ink);}
-.mag-tab.on{background:var(--stamp);color:var(--ink);border-color:var(--ink);}
+.mag-tab.on{background:var(--stamp);color:var(--stamp-text);border-color:var(--stamp-text);}
 .disp-summary{display:grid;grid-template-columns:repeat(3,1fr);margin-bottom:18px;
-  background:var(--stamp);color:var(--ink);border-radius:var(--radius-md);overflow:hidden;}
+  background:var(--stamp);color:var(--stamp-text);border-radius:var(--radius-md);overflow:hidden;}
 .disp-stat{padding:13px 15px;display:flex;flex-direction:column;gap:2px;
   border-right:1px solid rgba(255,255,255,.09);min-width:0;}
 .disp-stat:last-child{border-right:none;}
@@ -551,7 +564,7 @@ select{
   justify-content:center;color:var(--ink);background:transparent;}
 .disp-step + .disp-step{border-left:1px solid var(--ink);}
 .disp-step:hover{background:rgba(27,26,25,.06);}
-.disp-step:active{background:var(--stamp);color:var(--ink);}
+.disp-step:active{background:var(--stamp);color:var(--stamp-text);}
 .disp-icon-btn{all:unset;cursor:pointer;width:36px;height:36px;border-radius:var(--radius-md);
   display:inline-flex;align-items:center;justify-content:center;
   color:var(--ink-faint);background:transparent;border:1px solid var(--line-soft);}
@@ -574,12 +587,12 @@ select{
 }
 
 /* ---------- premium gate ---------- */
-.premium-card{max-width:560px;margin:20px auto;background:var(--stamp);color:var(--ink);border-radius:calc(var(--radius) * 1.5);padding:36px 30px;text-align:center;position:relative;overflow:hidden;}
+.premium-card{max-width:560px;margin:20px auto;background:var(--stamp);color:var(--stamp-text);border-radius:calc(var(--radius) * 1.5);padding:36px 30px;text-align:center;position:relative;overflow:hidden;}
 .premium-badge{position:absolute;top:18px;right:-34px;background:var(--flesh);color:#fff;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;padding:5px 40px;transform:rotate(45deg);}
 .premium-lock{width:54px;height:54px;margin:0 auto 14px;border-radius:50%;color:var(--flesh);
   border:1.5px solid rgba(201,143,108,.4);background:rgba(201,143,108,.1);
   display:flex;align-items:center;justify-content:center;}
-.premium-title{color:var(--ink);font-size:22px;margin:0 0 12px;}
+.premium-title{color:var(--stamp-text);font-size:22px;margin:0 0 12px;}
 .premium-desc{color:#C4BBB0;font-size:14px;line-height:1.6;margin:0 auto 22px;max-width:440px;}
 .only-print{display:none;}
 @media print{
@@ -593,21 +606,21 @@ select{
 
 /* ---------- lock screen ---------- */
 .lock-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--stamp);padding:24px;}
-.lock-card{width:100%;max-width:320px;text-align:center;color:var(--ink);}
+.lock-card{width:100%;max-width:320px;text-align:center;color:var(--stamp-text);}
 .lock-logo{width:96px;height:96px;margin:0 auto 20px;border-radius:22px;overflow:hidden;background:var(--paper-raised);box-shadow:0 10px 30px rgba(0,0,0,.4);animation:logoIn .6s ease, breathe 3.5s ease-in-out infinite 0.6s;}
 .lock-logo img{width:100%;height:100%;object-fit:cover;}
 .mark-img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;}
-.logo-preview{width:64px;height:64px;border-radius:14px;background:var(--stamp);color:var(--ink);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;overflow:hidden;flex:none;}
+.logo-preview{width:64px;height:64px;border-radius:14px;background:var(--stamp);color:var(--stamp-text);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;overflow:hidden;flex:none;}
 .logo-preview img{width:100%;height:100%;object-fit:cover;}
 .lock-logo.shake{animation:shake .4s ease;}
 @keyframes logoIn{from{opacity:0;transform:translateY(14px) scale(.9);}to{opacity:1;transform:none;}}
 @keyframes breathe{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
 @keyframes shake{0%,100%{transform:translateX(0);}20%,60%{transform:translateX(-9px);}40%,80%{transform:translateX(9px);}}
-.lock-title{color:var(--ink);font-size:20px;margin:0 0 4px;}
+.lock-title{color:var(--stamp-text);font-size:20px;margin:0 0 4px;}
 .lock-sub{color:#B9AFA4;font-size:13.5px;margin:0 0 22px;}
 .lock-err{color:var(--flesh);font-size:12.5px;margin:10px 0 0;font-family:var(--font-mono);}
 .login-fields{display:flex;flex-direction:column;gap:10px;margin:20px 0 6px;}
-.login-input{width:100%;padding:12px 14px;border-radius:var(--radius);border:1px solid #4a443d;background:rgba(255,255,255,.06);color:var(--ink);font-size:15px;font-family:var(--font-body);}
+.login-input{width:100%;padding:12px 14px;border-radius:var(--radius);border:1px solid #4a443d;background:rgba(255,255,255,.06);color:var(--stamp-text);font-size:15px;font-family:var(--font-body);}
 .login-input::placeholder{color:#8A8178;}
 .login-input:focus{border-color:var(--flesh);background:rgba(255,255,255,.1);}
 .lock-hint{color:#8A8178;font-size:11.5px;margin-top:22px;}
@@ -616,7 +629,7 @@ select{
 .tatswitch-btn{width:100%;justify-content:flex-start;font-size:15px;padding:14px 16px;}
 .tatswitch-btn small{color:#8A8178;font-weight:400;margin-left:6px;}
 .lock-ok{color:#7FB77E;font-size:12.5px;margin:10px 0 0;font-family:var(--font-mono);}
-.recovery-code{font-family:var(--font-mono);font-size:20px;letter-spacing:2px;color:var(--ink);background:rgba(255,255,255,.08);border:1px dashed #6b635a;border-radius:12px;padding:16px;margin:8px 0 14px;user-select:all;}
+.recovery-code{font-family:var(--font-mono);font-size:20px;letter-spacing:2px;color:var(--stamp-text);background:rgba(255,255,255,.08);border:1px dashed #6b635a;border-radius:12px;padding:16px;margin:8px 0 14px;user-select:all;}
 /* condizioni: riquadro scorrevole su fondo scuro */
 /* fascia backup: appare in alto quando la copia di oggi non c'e' */
 /* Layout verticale (prompt10, Task 4): prima testo e bottone stavano
@@ -688,7 +701,7 @@ select{
 .hq-legend{display:flex;justify-content:flex-end;gap:34px;padding:0 4px 6px;
   font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint);}
 .hq-legend span:first-child{margin-right:auto;}
-.sw{position:relative;flex:none;width:50px;height:30px;border-radius:999px;background:rgba(255,255,255,.14);
+.sw{position:relative;flex:none;width:50px;height:30px;border-radius:999px;background:var(--sw-off);
   transition:background .18s;border:none;padding:0;}
 .sw::after{content:"";position:absolute;top:3px;left:13px;width:24px;height:24px;border-radius:50%;
   background:var(--paper-field);box-shadow:0 1px 3px rgba(0,0,0,.4);transition:left .18s;pointer-events:none;}
@@ -712,28 +725,31 @@ select{
 .swbin.on::after{left:23px;}
 .hq-block{margin-top:18px;padding:15px 16px;border-radius:var(--radius-md);
   background:var(--warn-tint);border:1px solid rgba(226,105,76,.35);color:var(--warn);font-size:13px;line-height:1.55;}
-.hq-block b{color:#F0846A;}
+/* prima era un arancio fisso (#F0846A): leggibile sul tema scuro ma
+   quasi invisibile sul rosa pallido di --warn-tint nel tema chiaro
+   (Prompt-colore, bug tema chiaro). Eredita var(--warn), gia' testato
+   per contrasto in entrambi i temi fissi. */
 .terms-box{max-height:38vh;overflow-y:auto;text-align:left;background:rgba(255,255,255,.05);
   border:1px solid #4a443e;border-radius:10px;padding:14px 15px;margin:6px 0 14px;
   font-size:12.5px;line-height:1.62;color:#c9c1b7;-webkit-overflow-scrolling:touch;}
 .terms-box h4{margin:14px 0 5px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;
   color:var(--flesh);font-family:var(--font-mono);}
 .terms-box h4:first-child{margin-top:0;}
-.terms-box p{margin:0 0 8px;} .terms-box b{color:var(--ink);}
+.terms-box p{margin:0 0 8px;} .terms-box b{color:var(--stamp-text);}
 .terms-check{display:flex;align-items:flex-start;gap:10px;text-align:left;color:#b9afa4;
   font-size:12.5px;line-height:1.5;margin-bottom:11px;cursor:pointer;}
 .terms-check input{width:19px;height:19px;flex:none;margin-top:1px;}
-.terms-check.on{color:var(--ink);}
+.terms-check.on{color:var(--stamp-text);}
 /* frase di recupero: 12 parole numerate, leggibili per trascriverle a mano */
 .frase-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin:10px 0 16px;text-align:left;}
 .frase-grid span{background:rgba(255,255,255,.07);border:1px solid #6b635a;border-radius:7px;
-  padding:8px 10px;font-family:var(--font-mono);font-size:13.5px;color:var(--ink);user-select:all;}
+  padding:8px 10px;font-family:var(--font-mono);font-size:13.5px;color:var(--stamp-text);user-select:all;}
 .frase-grid span i{color:#8d857b;font-style:normal;margin-right:7px;font-size:11px;}
 .frase-input{width:100%;min-height:96px;font-family:var(--font-mono);font-size:13.5px;line-height:1.7;
-  background:rgba(255,255,255,.06);border:1px solid #6b635a;border-radius:10px;color:var(--ink);
+  background:rgba(255,255,255,.06);border:1px solid #6b635a;border-radius:10px;color:var(--stamp-text);
   padding:12px;resize:vertical;}
 .lock-alt{margin-top:20px;padding-top:16px;border-top:1px solid #4a443e;text-align:left;}
-.lock-alt h4{margin:0 0 6px;font-size:13px;color:var(--ink);font-family:var(--font-display);}
+.lock-alt h4{margin:0 0 6px;font-size:13px;color:var(--stamp-text);font-family:var(--font-display);}
 .lock-alt p{margin:0 0 10px;font-size:12px;line-height:1.55;color:#9a9188;}
 .recovery-check{display:flex;align-items:center;gap:10px;justify-content:center;color:#B9AFA4;font-size:13px;margin-bottom:18px;cursor:pointer;}
 .recovery-check input{width:18px;height:18px;flex:none;}
@@ -757,7 +773,16 @@ select{
   .mobile-topbar{
     display:flex !important;position:sticky;top:0;z-index:30;
     margin:-20px -16px 16px;padding:10px 16px;
-    background:rgba(21,19,26,.85);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+    /* era rgba(21,19,26,.85) fisso, il nero-quasi di --paper SCURO
+       anche col tema chiaro attivo: il testo dentro (.mt-name, colore
+       var(--ink-faint)) nel chiaro diventa un grigio scuro pensato per
+       sfondo chiaro, quasi illeggibile su questo nero fisso
+       (Prompt-colore, bug tema chiaro). var(--paper) segue il tema; il
+       fallback opaco prima della riga con color-mix serve ai browser
+       che non lo supportano ancora. */
+    background:var(--paper);
+    background:color-mix(in srgb, var(--paper) 88%, transparent);
+    -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
     border-bottom:1px solid var(--line-soft);
   }
   .mobile-topbar .mt-name{font-family:var(--font-mono);font-size:11px;letter-spacing:.05em;
@@ -931,20 +956,131 @@ const FONT_THEMES = {
   moderno:     { label: "Moderno",     display: "'Space Grotesk', sans-serif",       body: "'Inter', sans-serif" },
   essenziale:  { label: "Essenziale",  display: "'Inter', sans-serif",               body: "'Inter', sans-serif" },
   manoscritto: { label: "Manoscritto", display: "'Caveat', cursive",                 body: "'IBM Plex Sans', sans-serif" },
+  elegante:    { label: "Elegante",    display: "'Playfair Display', Georgia, serif", body: "'IBM Plex Sans', sans-serif" },
+  bold:        { label: "Bold",        display: "'Oswald', sans-serif",              body: "'Inter', sans-serif" },
+  vintage:     { label: "Vintage",     display: "'Bebas Neue', sans-serif",          body: "'IBM Plex Sans', sans-serif" },
+  arrotondato: { label: "Arrotondato", display: "'Quicksand', sans-serif",           body: "'Inter', sans-serif" },
+  tecnico:     { label: "Tecnico",     display: "'JetBrains Mono', ui-monospace, monospace", body: "'Inter', sans-serif" },
+  pulito:      { label: "Pulito",      display: "'Manrope', sans-serif",             body: "'Manrope', sans-serif" },
 };
+/* Font personalizzato caricato dallo studio (Prompt-colore, TASK EXTRA):
+   sostituisce display+body SOLO nell'app, mai nel PDF del consenso —
+   vedi generazione PDF più sotto, resta sempre su doc.setFont("helvetica",..),
+   un font di sistema testato che non dipende da questa scelta. Così un
+   font caricato corrotto o senza accentate non può mai compromettere la
+   leggibilità del documento legale, solo (nel peggiore dei casi, prima
+   ancora del fallback automatico sotto) l'aspetto dell'app stessa. */
+const CUSTOM_FONT_MAX_MB = 2;
+const CUSTOM_FONT_EXTS = ["ttf","otf","woff","woff2"];
+let _customFontAppliedKey = null; // scopeId:family già iniettato in document.fonts, per non ricaricare da IndexedDB a ogni applyStudioConfig()
+function customFontScopeId(){ const t = tatuatoreAttivo(); return t ? t.id : "shared"; }
+function customFontStoreKey(scopeId){ return "custom_font_" + (scopeId || customFontScopeId()); }
+/* Carica (se serve) e applica il font personalizzato salvato per il profilo
+   attivo, sopra la coppia scelta in FONT_THEMES come ripiego. Asincrona e
+   "fire and forget": applyStudioConfig() resta sincrona come prima, questa
+   arriva un istante dopo — se il file salvato non è più un font valido
+   (corrotto, cancellato) semplicemente non fa nulla e resta il font di
+   sistema già applicato sopra: nessuna interfaccia rotta. */
+function hydrateCustomFont(a, fallbackDisplay, fallbackBody){
+  const scopeId = customFontScopeId();
+  if (!a.customFontFamily){ _customFontAppliedKey = null; return; }
+  const key = scopeId + ":" + a.customFontFamily;
+  if (_customFontAppliedKey === key) return;
+  idbGet(customFontStoreKey(scopeId)).then(rec => {
+    if (!rec || !rec.dataUrl || rec.family !== a.customFontFamily) return;
+    const face = new FontFace(rec.family, `url(${rec.dataUrl})`);
+    face.load().then(loaded => {
+      document.fonts.add(loaded);
+      _customFontAppliedKey = key;
+      document.documentElement.style.setProperty("--font-display", `'${rec.family}', ${fallbackDisplay}`);
+      document.documentElement.style.setProperty("--font-body", `'${rec.family}', ${fallbackBody}`);
+    }).catch(() => console.warn("Font personalizzato salvato non è più valido, resto sul font di sistema."));
+  });
+}
 
-/* ---------- tema chiaro/scuro ----------
-   Scuro e' il tema nativo dell'app (di default, sempre) e l'unico che
-   riceve la personalizzazione colori dello studio. Il chiaro e' un
-   fallback fisso di leggibilita' (per chi lavora alla luce diretta, o
-   lo preferisce): NON risente dei colori studio, cosi' resta sempre
-   leggibile senza dover ripetere la validazione contrasto per ogni
-   combinazione possibile di colori scelti dallo studio. */
+/* ---------- tre temi distinti: Scuro, Chiaro, Personalizzato ----------
+   Prima "chiaro" era un fallback fisso e i 4 colori personalizzabili
+   funzionavano SOLO nello scuro: i due temi si accavallavano, non
+   esisteva un vero "personalizzato" — era lo scuro sempre truccato, e
+   il chiaro (mai testato contro quei colori) restava con variabili non
+   ridefinite in giro per l'app (Prompt-colore, bug tema chiaro).
+   Ora sono tre modalità nettamente separate, mai un mix implicito:
+   - dark / light: le due palette fisse e testate qui sotto — i 4 colori
+     di "Aspetto grafico personale" non le toccano MAI.
+   - custom: si attiva da sola appena lo studio tocca uno dei 4 colori
+     (vedi azione "save-aspetto"), parte da qualunque dei due fissi fosse
+     attivo in quel momento (customBase, salvato sull'aspetto del
+     tatuatore attivo — ognuno il proprio, come gli altri campi lì) e
+     applica sopra solo le differenze scelte. */
 const THEME_KEY = "inkconsent_theme_v1";
-function loadTheme(){ try { return localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark"; } catch(e){ return "dark"; } }
+const CUSTOM_COLOR_FIELDS = ["colorInk","colorStamp","colorStencil","colorFlesh"];
+const THEME_FIXED = {
+  dark:  { colorInk: "#F1ECE3", colorStamp: "#241A30", colorStencil: "#96659A", colorFlesh: "#D2946E" },
+  light: { colorInk: "#1B1A19", colorStamp: "#1B1A19", colorStencil: "#5B3B63", colorFlesh: "#C98F6C" },
+};
+const THEME_PAPER = { dark: "#15131A", light: "#EDE8E2" }; // --paper fisso dei due temi, mai personalizzabile
+function loadTheme(){
+  try {
+    const v = localStorage.getItem(THEME_KEY);
+    return (v === "light" || v === "custom") ? v : "dark";
+  } catch(e){ return "dark"; }
+}
 function setTheme(t){
-  try { localStorage.setItem(THEME_KEY, t === "light" ? "light" : "dark"); } catch(e){}
+  const v = (t === "light" || t === "custom") ? t : "dark";
+  try { localStorage.setItem(THEME_KEY, v); } catch(e){}
   applyStudioConfig();
+}
+/* Colori + base risolti per il tema Personalizzato: parte dal fisso
+   (customBase) e applica sopra, in ordine di priorità crescente, il
+   vecchio overrides condiviso (percorso offline senza profilo) e poi
+   l'aspetto del profilo attivo — così un campo mai toccato mostra
+   sempre il valore corretto del fisso scelto, non quello (scuro) di
+   STUDIO_DEFAULTS travestito da "personalizzato" su base chiara.
+   bufferPatch (opzionale) è la bozza non ancora salvata di Impostazioni,
+   per la preview live dei contrasti mentre si sceglie un colore. */
+function aspettoResolved(bufferPatch){
+  const oShared = loadStudioOverrides();
+  const oRaw = aspettoAttivo();
+  const buf = bufferPatch || {};
+  const customBase = (buf.customBase || oRaw.customBase || oShared.customBase || "dark") === "light" ? "light" : "dark";
+  const cfg = { ...STUDIO_DEFAULTS, ...THEME_FIXED[customBase], ...oShared, ...oRaw, ...buf };
+  return { cfg, customBase };
+}
+/* ---------- controllo minimo di leggibilità del Personalizzato ----------
+   Non impedisce di salvare: avvisa soltanto se una coppia testo/sfondo
+   scende sotto una soglia ragionevole (WCAG 2.x, contrasto relativo). */
+function hexToRgbArr(hex){
+  const h = (hex||"").replace("#","").trim();
+  const n = h.length === 3 ? h.split("").map(c=>c+c).join("") : h;
+  if (!/^[0-9a-fA-F]{6}$/.test(n)) return null;
+  const num = parseInt(n, 16);
+  return [(num>>16)&255, (num>>8)&255, num&255];
+}
+function relLuminance(rgb){
+  const [r,g,b] = rgb.map(v => { const c = v/255; return c <= 0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); });
+  return 0.2126*r + 0.7152*g + 0.0722*b;
+}
+function contrastRatio(hexA, hexB){
+  const a = hexToRgbArr(hexA), b = hexToRgbArr(hexB);
+  if (!a || !b) return null;
+  const L1 = relLuminance(a), L2 = relLuminance(b);
+  const hi = Math.max(L1,L2), lo = Math.min(L1,L2);
+  return (hi + 0.05) / (lo + 0.05);
+}
+function contrastWarnings(cc, base){
+  const warn = [];
+  const r1 = contrastRatio(cc.colorInk, THEME_PAPER[base]);
+  if (r1 !== null && r1 < 4.5) warn.push(`Testo principale e sfondo pagina troppo simili (contrasto ${r1.toFixed(1)}:1, minimo consigliato 4.5:1): rischio di non leggersi.`);
+  const r2 = contrastRatio(cc.colorInk, cc.colorStamp);
+  if (r2 !== null && r2 < 4.5) warn.push(`Testo principale e superficie scura (rail, badge) troppo simili (contrasto ${r2.toFixed(1)}:1).`);
+  // soglia 2.5 (non 3, WCAG "UI component") apposta: --flesh fisso di
+  // fabbrica è già a ~2.6:1 in entrambi i temi, un limite preesistente
+  // del brand — a 3 la card avviserebbe anche chi non ha toccato nulla.
+  const r3 = contrastRatio("#ffffff", cc.colorStencil);
+  if (r3 !== null && r3 < 2.5) warn.push("Accento area consenso troppo chiaro per il testo bianco di bottoni e badge.");
+  const r4 = contrastRatio("#ffffff", cc.colorFlesh);
+  if (r4 !== null && r4 < 2.5) warn.push("Accento area preventivo troppo chiaro per il testo bianco di bottoni e badge.");
+  return warn;
 }
 
 /* Fonde defaults + override salvati dallo studio nei campi vivi di STUDIO_CONFIG,
@@ -955,7 +1091,11 @@ function applyStudioConfig(){
   // firma) non più da "o" (condiviso, STUDIO_STORE_KEY) ma dal profilo
   // del tatuatore attivo — ognuno il proprio, STUDIO_DEFAULTS resta il
   // fallback di fabbrica per chi non ha ancora personalizzato nulla.
-  const a = { ...STUDIO_DEFAULTS, ...aspettoAttivo() };
+  // aspettoResolved() correggendo un bug preesistente: senza profilo
+  // attivo, "o" (il vecchio percorso condiviso) ora viene davvero letto
+  // qui sotto invece di essere ignorato — prima un salvataggio aspetto
+  // senza tatuatore attivo non aveva mai effetto reale.
+  const { cfg: a, customBase } = aspettoResolved(null);
   STUDIO_CONFIG.studioName = o.studioName;
   document.title = o.studioName ? `InkConsent · ${o.studioName}` : "InkConsent";
   STUDIO_CONFIG.studioCity = o.studioCity;
@@ -993,22 +1133,24 @@ function applyStudioConfig(){
   STUDIO_CONFIG.inkEffect = !!a.inkEffect;
   STUDIO_CONFIG.signatureColor = a.signatureColor || "";
   STUDIO_CONFIG.giorniGuarigione = Math.max(1, parseInt(ac.giorni, 10) || 14);
-  const theme = loadTheme();
-  document.documentElement.setAttribute("data-theme", theme);
+  const mode = loadTheme(); // 'dark' | 'light' | 'custom'
+  const visualBase = mode === "custom" ? customBase : mode;
+  document.documentElement.setAttribute("data-theme", visualBase === "light" ? "light" : "dark");
   const r = document.documentElement.style;
-  if (theme === "light"){
-    // fallback fisso: nessuna personalizzazione, si affida ai valori di :root[data-theme="light"]
-    r.removeProperty("--ink"); r.removeProperty("--stamp");
-    r.removeProperty("--stencil"); r.removeProperty("--flesh");
-  } else {
+  if (mode === "custom"){
     r.setProperty("--ink", a.colorInk);
-    r.setProperty("--stamp", a.colorStamp || "#241A30");
+    r.setProperty("--stamp", a.colorStamp || THEME_FIXED[customBase].colorStamp);
     r.setProperty("--stencil", a.colorStencil);
     r.setProperty("--flesh", a.colorFlesh);
+  } else {
+    // dark/light fissi: nessuna personalizzazione, si affidano ai valori di :root/:root[data-theme="light"]
+    r.removeProperty("--ink"); r.removeProperty("--stamp");
+    r.removeProperty("--stencil"); r.removeProperty("--flesh");
   }
   const ft = FONT_THEMES[a.fontTheme] || FONT_THEMES.moderno;
   r.setProperty("--font-display", ft.display);
   r.setProperty("--font-body", ft.body);
+  hydrateCustomFont(a, ft.display, ft.body);
   return o;
 }
 
@@ -6484,7 +6626,7 @@ function renderLeadShell(){
       <div class="rail-brand">
         <div class="rail-mark">${markHtml()}</div>
         <div>
-          <div class="rail-brand-name" style="color:var(--ink);">${esc(STUDIO_CONFIG.studioName)}</div>
+          <div class="rail-brand-name">${esc(STUDIO_CONFIG.studioName)}</div>
           <span class="area-badge">Preventivo</span>
           <div class="rail-brand-sub">Richiesta consulenza · passo ${state.leadStep} di ${total}</div>
         </div>
@@ -7753,7 +7895,16 @@ document.addEventListener("click", (e) => {
     // scelta profilo, invariato da prima) ricade sul vecchio
     // comportamento condiviso, per compatibilità con chi non è mai
     // passato dalla scelta profilo.
-    const patch = state.aspettoBuffer || {};
+    const patch = { ...(state.aspettoBuffer || {}) };
+    // Prompt-colore: toccare uno dei 4 colori attiva da solo il tema
+    // Personalizzato, a partire da qualunque fisso fosse attivo in quel
+    // momento — mai un mix implicito col vecchio comportamento (dove lo
+    // scuro era sempre "personalizzabile" e basta).
+    if (CUSTOM_COLOR_FIELDS.some(k => k in patch)){
+      const attuale = loadTheme();
+      patch.customBase = attuale === "custom" ? aspettoResolved(null).customBase : (attuale === "light" ? "light" : "dark");
+      setTheme("custom");
+    }
     const t = tatuatoreAttivo();
     if (t) setAspettoTatuatore(t.id, patch);
     else saveStudioOverrides({ ...loadStudioOverrides(), ...patch });
@@ -7766,9 +7917,11 @@ document.addEventListener("click", (e) => {
     if (t) resetAspettoTatuatore(t.id);
     else {
       const o = loadStudioOverrides();
-      ["logoDataUrl","colorInk","colorStamp","colorStencil","colorFlesh","fontTheme","inkEffect","signatureColor"].forEach(k => delete o[k]);
+      ["logoDataUrl","colorInk","colorStamp","colorStencil","colorFlesh","fontTheme","inkEffect","signatureColor","customBase","customFontName","customFontFamily"].forEach(k => delete o[k]);
       saveStudioOverrides(o);
     }
+    idbSet(customFontStoreKey(t ? t.id : "shared"), null);
+    _customFontAppliedKey = null;
     applyStudioConfig();
     state.aspettoBuffer = null; state.aspettoSaved = false;
     render();
@@ -7862,8 +8015,21 @@ document.addEventListener("click", (e) => {
   else if (action === "set-fonttheme"){
     state.aspettoBuffer = { ...(state.aspettoBuffer||{}), fontTheme: btn.dataset.v };
     const ft = FONT_THEMES[btn.dataset.v] || FONT_THEMES.classico;
-    document.documentElement.style.setProperty("--font-display", ft.display);
-    document.documentElement.style.setProperty("--font-body", ft.body);
+    // se un font personalizzato è già attivo resta sopra (priorità sua),
+    // la coppia scelta qui gli fa solo da ripiego se mai smettesse di
+    // caricare — non lo si sostituisce cliccando un chip diverso.
+    const cfam = (state.aspettoBuffer.customFontFamily !== undefined ? state.aspettoBuffer.customFontFamily : aspettoAttivo().customFontFamily);
+    document.documentElement.style.setProperty("--font-display", cfam ? `'${cfam}', ${ft.display}` : ft.display);
+    document.documentElement.style.setProperty("--font-body", cfam ? `'${cfam}', ${ft.body}` : ft.body);
+    render();
+  }
+  else if (action === "pick-custom-font"){ const inp = qs("#custom-font-file"); if (inp) inp.click(); }
+  else if (action === "remove-custom-font"){
+    state.aspettoBuffer = { ...(state.aspettoBuffer||{}), customFontName: "", customFontFamily: "" };
+    idbSet(customFontStoreKey(), null);
+    _customFontAppliedKey = null;
+    state.customFontError = null;
+    applyStudioConfig(); // torna subito alla coppia scelta sopra in FONT_THEMES
     render();
   }
   else if (action === "pick-logo"){ const inp = qs("#logo-file"); if (inp) inp.click(); }
@@ -8160,7 +8326,14 @@ document.addEventListener("change", (e) => {
     if (studioField === "regione"){ applyStudioConfig(); state.studioSaved = false; render(); return; }
   }
   const aspettoFieldC = e.target.dataset.fieldAspetto;
-  if (aspettoFieldC){ state.aspettoBuffer = { ...(state.aspettoBuffer||{}), [aspettoFieldC]: e.target.value }; }
+  if (aspettoFieldC){
+    state.aspettoBuffer = { ...(state.aspettoBuffer||{}), [aspettoFieldC]: e.target.value };
+    // ri-disegna subito per i 4 colori: aggiorna in tempo reale l'avviso
+    // di contrasto minimo sotto ai selettori (Prompt-colore, "controllo
+    // minimo di leggibilità"), applicato solo dopo "Salva e applica" come
+    // per il resto dell'aspetto — vedi hint sopra ai colori.
+    if (CUSTOM_COLOR_FIELDS.includes(aspettoFieldC)){ render(); return; }
+  }
   const artistaIdxC = e.target.dataset.artistaIdx;
   if (artistaIdxC !== undefined){
     // CORREZIONE (PromptFixFinal, Task 3, fix del timing): l'evento
@@ -8302,6 +8475,53 @@ document.addEventListener("change", (e) => {
       img.onerror = () => alert("Immagine non valida.");
       img.src = reader.result;
     };
+    reader.readAsDataURL(file);
+    return;
+  }
+  /* Font personalizzato (Prompt-colore, TASK EXTRA): valida dimensione ed
+     estensione, poi lascia che sia il browser stesso a giudicare se è un
+     font vero — FontFace().load() fallisce da solo su un file corrotto o
+     non-font, e in quel caso non tocchiamo nulla, restando sul font di
+     sistema già attivo (fallback automatico, nessuna interfaccia rotta).
+     I byte vanno in IndexedDB (chiave dedicata per profilo, non nel
+     localStorage condiviso di "aspetto"/tatuatori: un font pesa molto più
+     di un logo, vedi commento su IDB_STORE più sopra) — sul profilo resta
+     solo il nome del file e il nome-famiglia CSS generato. */
+  if (e.target.id === "custom-font-file" && e.target.files && e.target.files[0]){
+    const file = e.target.files[0];
+    const maxBytes = CUSTOM_FONT_MAX_MB * 1024 * 1024;
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+    if (file.size > maxBytes){
+      state.customFontError = `Il file è troppo grosso: massimo ${CUSTOM_FONT_MAX_MB} MB.`;
+      e.target.value = ""; render(); return;
+    }
+    if (!CUSTOM_FONT_EXTS.includes(ext)){
+      state.customFontError = "Formato non riconosciuto: usa .ttf, .otf, .woff o .woff2.";
+      e.target.value = ""; render(); return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      const scopeId = customFontScopeId();
+      const family = "InkConsentCustomFont_" + scopeId.replace(/[^a-zA-Z0-9]/g, "") + "_" + Date.now();
+      const face = new FontFace(family, `url(${dataUrl})`);
+      face.load().then(loaded => {
+        document.fonts.add(loaded);
+        idbSet(customFontStoreKey(scopeId), { dataUrl, family, fileName: file.name });
+        _customFontAppliedKey = scopeId + ":" + family;
+        const ft = FONT_THEMES[(state.aspettoBuffer && state.aspettoBuffer.fontTheme) || aspettoAttivo().fontTheme || "moderno"] || FONT_THEMES.moderno;
+        document.documentElement.style.setProperty("--font-display", `'${family}', ${ft.display}`);
+        document.documentElement.style.setProperty("--font-body", `'${family}', ${ft.body}`);
+        state.aspettoBuffer = { ...(state.aspettoBuffer||{}), customFontName: file.name, customFontFamily: family };
+        state.customFontError = null;
+        render();
+      }).catch(() => {
+        state.customFontError = "Il file non è un font valido o è danneggiato: resto sul font di sistema.";
+        e.target.value = "";
+        render();
+      });
+    };
+    reader.onerror = () => { state.customFontError = "Impossibile leggere il file."; render(); };
     reader.readAsDataURL(file);
     return;
   }
@@ -8701,7 +8921,8 @@ function renderSettings(){
   // ATTIVO (aspettoAttivo), non più dallo stesso store condiviso di
   // nome studio/città/tatuatori — vedi renderArtistiFields più sotto
   // per la card "Dati studio", ora separata e riservata al titolare.
-  const acfg = { ...STUDIO_DEFAULTS, ...aspettoAttivo(), ...(state.aspettoBuffer||{}) };
+  const { cfg: acfg, customBase } = aspettoResolved(state.aspettoBuffer);
+  const temaAttuale = loadTheme();
   const vedeDatiStudio = puoVedereDatiStudio();
   return `
   <div class="topbar"><div><h1>Impostazioni studio</h1><p>Identità, artisti e link di compilazione in studio</p></div></div>
@@ -8754,27 +8975,42 @@ function renderSettings(){
 
       <div class="subhead">Tema</div>
       <div class="field">
-        <div class="chip-grid" style="grid-template-columns:1fr 1fr;">
-          <button class="chip ${loadTheme()!=='light'?'on':''}" data-action="set-theme" data-v="dark">Scuro (nativo)</button>
-          <button class="chip ${loadTheme()==='light'?'on':''}" data-action="set-theme" data-v="light">Chiaro (lettura)</button>
+        <div class="chip-grid" style="grid-template-columns:1fr 1fr 1fr;">
+          <button class="chip ${temaAttuale==='dark'?'on':''}" data-action="set-theme" data-v="dark">Scuro</button>
+          <button class="chip ${temaAttuale==='light'?'on':''}" data-action="set-theme" data-v="light">Chiaro</button>
+          <button class="chip ${temaAttuale==='custom'?'on':''}" data-action="set-theme" data-v="custom">Personalizzato</button>
         </div>
-        <div class="hint">Lo scuro è il tema di InkConsent e l'unico personalizzabile coi colori qui sotto. Il chiaro è un fallback fisso ad alta leggibilità, utile alla luce diretta, e non cambia con i colori. Vale per questo dispositivo, non è legato a un profilo.</div>
+        <div class="hint">Scuro e Chiaro sono due palette fisse e testate: i colori qui sotto non le toccano mai. Personalizzato parte dal tema attivo in questo momento (${customBase==='light'?'Chiaro':'Scuro'}) e applica sopra solo le tue scelte — si attiva da solo appena cambi un colore, oppure selezionalo qui per tornare all'ultima personalizzazione salvata. Vale per questo profilo.</div>
       </div>
-      <div class="subhead">Colori (tema scuro)</div>
+      <div class="subhead">Colori (solo nel tema Personalizzato)</div>
       <div class="grid-2">
         <div class="field"><label>Colore testo principale</label><input type="color" data-field-aspetto="colorInk" value="${esc(acfg.colorInk)}" style="height:44px;padding:4px;"></div>
-        <div class="field"><label>Superficie scura (rail, badge)</label><input type="color" data-field-aspetto="colorStamp" value="${esc(acfg.colorStamp||'#241A30')}" style="height:44px;padding:4px;"></div>
+        <div class="field"><label>Superficie scura (rail, badge)</label><input type="color" data-field-aspetto="colorStamp" value="${esc(acfg.colorStamp||THEME_FIXED[customBase].colorStamp)}" style="height:44px;padding:4px;"></div>
       </div>
       <div class="grid-2">
         <div class="field"><label>Accento — area consenso</label><input type="color" data-field-aspetto="colorStencil" value="${esc(acfg.colorStencil)}" style="height:44px;padding:4px;"></div>
         <div class="field"><label>Accento — area preventivo</label><input type="color" data-field-aspetto="colorFlesh" value="${esc(acfg.colorFlesh)}" style="height:44px;padding:4px;"></div>
       </div>
+      ${(() => {
+        const warnings = contrastWarnings(acfg, customBase);
+        return warnings.length ? `<div class="callout warn" style="margin-top:4px;">${warnings.map(w=>`<div>${esc(w)}</div>`).join("")}</div>` : "";
+      })()}
 
       <div class="subhead">Font</div>
       <div class="field">
         <div class="chip-grid">
           ${Object.keys(FONT_THEMES).map(k => `<button class="chip ${(acfg.fontTheme||'moderno')===k?'on':''}" data-action="set-fonttheme" data-v="${k}">${FONT_THEMES[k].label}</button>`).join("")}
         </div>
+      </div>
+      <div class="field">
+        <label>Font personalizzato</label>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" data-action="pick-custom-font">Carica il tuo font…</button>
+          ${acfg.customFontName ? `<span class="mono" style="font-size:12.5px;color:var(--ink-soft);">${esc(acfg.customFontName)}</span><button class="btn btn-ghost btn-sm" data-action="remove-custom-font">Rimuovi</button>` : ""}
+          <input type="file" id="custom-font-file" accept=".ttf,.otf,.woff,.woff2" style="display:none;">
+        </div>
+        <div class="hint">.otf, .ttf o web-font (.woff/.woff2), massimo ${CUSTOM_FONT_MAX_MB} MB. Sostituisce la coppia scelta sopra solo nell'app, solo per te. Se il file è danneggiato o non è un font valido resta il font di sistema, senza rompere l'interfaccia. Il consenso in PDF continua sempre a usare un font di sistema testato, indipendentemente da questa scelta: la leggibilità del documento legale non dipende mai dal font che carichi qui.</div>
+        ${state.customFontError ? `<div class="callout warn" style="margin-top:8px;">${esc(state.customFontError)}</div>` : ""}
       </div>
 
       <div class="subhead">Firma</div>
@@ -9246,7 +9482,7 @@ function renderAftercarePage(){
       <div class="rail-brand">
         <div class="rail-mark">${markHtml()}</div>
         <div>
-          <div class="rail-brand-name" style="color:var(--ink);">${esc(STUDIO_CONFIG.studioName)}</div>
+          <div class="rail-brand-name">${esc(STUDIO_CONFIG.studioName)}</div>
           <span class="area-badge">Guarigione</span>
           <div class="rail-brand-sub">Percorso di cura del tatuaggio</div>
         </div>
@@ -9287,7 +9523,7 @@ function renderClientShell(){
       <div class="rail-brand">
         <div class="rail-mark">${markHtml()}</div>
         <div>
-          <div class="rail-brand-name" style="color:var(--ink);">${esc(STUDIO_CONFIG.studioName)}</div>
+          <div class="rail-brand-name">${esc(STUDIO_CONFIG.studioName)}</div>
           <span class="area-badge">Consenso medico-legale</span>
           <div class="rail-brand-sub">Consenso informato · passo ${state.step} di ${total}</div>
         </div>
