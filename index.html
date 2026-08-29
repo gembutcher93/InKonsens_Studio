@@ -315,7 +315,7 @@ select{
    ("l'azione sicura da premere"), accent = viola acceso (il CTA di
    marca), ghost = contorno (tutto il resto). */
 .btn{
-  all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;
   padding:12px 22px;border-radius:9px;font-size:13.5px;font-weight:600;
   letter-spacing:.01em;transition:transform .1s ease,background .12s ease,opacity .12s ease;
 }
@@ -918,6 +918,13 @@ const STUDIO_DEFAULTS = {
   colorTopbar: "#15131A",     // sfondo topbar mobile (era --paper fisso)
   colorNavActive: "#96659A",  // icona/testo bottom bar attiva (era --stencil fisso)
   colorNavInactive: "#9A9188",// icona/testo bottom bar inattiva (era hardcoded)
+  // FIXPROMPT sfondo: --paper/--paper-raised erano "mai personalizzabili"
+  // per scelta (vedi ex THEME_PAPER) — lo studio non poteva davvero
+  // cambiare lo sfondo pagina/card visibile dietro tutto. --paper-field
+  // (il "foglio" del modulo/firma) resta apposta escluso: è il documento
+  // legale, non chrome dell'app, e va tenuto sempre leggibile.
+  colorPaper: "#15131A",       // sfondo pagina, dietro liste/contenuti (era --paper fisso)
+  colorPaperRaised: "#201C26", // sfondo card/righe lista (era --paper-raised fisso)
   fontTheme: "moderno", // classico | moderno | essenziale | manoscritto
   logoDataUrl: "",       // logo caricato dallo studio (data URL), sovrascrive la sigla
   aftercareText: "Ciao {nome}! Grazie per la fiducia. Ecco come prenderti cura del tuo tatuaggio nei prossimi giorni:\n\n• Tieni la pellicola per le ore indicate.\n• Lava delicatamente con acqua tiepida e sapone neutro.\n• Applica un velo sottile di crema specifica 2-3 volte al giorno.\n• Niente sole diretto, piscina, mare o sauna per 2-3 settimane.\n• Non grattare né staccare le crosticine.\n\nPer qualsiasi dubbio scrivimi. A presto!",
@@ -1026,18 +1033,23 @@ function hydrateCustomFont(a, fallbackDisplay, fallbackBody){
      tatuatore attivo — ognuno il proprio, come gli altri campi lì) e
      applica sopra solo le differenze scelte. */
 const THEME_KEY = "inkconsent_theme_v1";
-const CUSTOM_COLOR_FIELDS = ["colorInk","colorStamp","colorStencil","colorFlesh","colorTopbar","colorNavActive","colorNavInactive"];
+const CUSTOM_COLOR_FIELDS = ["colorInk","colorStamp","colorStencil","colorFlesh","colorTopbar","colorNavActive","colorNavInactive","colorPaper","colorPaperRaised"];
 const THEME_FIXED = {
   // prompt18: colorTopbar/colorNavActive/colorNavInactive aggiunti con
   // lo stesso valore che --paper/--stencil/il grigio hardcoded già
   // mostravano in ciascun tema fisso — zero differenza visiva finché
   // lo studio non li tocca in "Personalizzato".
+  // FIXPROMPT sfondo: colorPaper/colorPaperRaised aggiunti con lo stesso
+  // criterio — stesso valore che --paper/--paper-raised fissavano già
+  // (ex THEME_PAPER, ora assorbito qui), zero differenza finché lo
+  // studio non li tocca.
   dark:  { colorInk: "#F1ECE3", colorStamp: "#241A30", colorStencil: "#96659A", colorFlesh: "#D2946E",
-           colorTopbar: "#15131A", colorNavActive: "#96659A", colorNavInactive: "#9A9188" },
+           colorTopbar: "#15131A", colorNavActive: "#96659A", colorNavInactive: "#9A9188",
+           colorPaper: "#15131A", colorPaperRaised: "#201C26" },
   light: { colorInk: "#1B1A19", colorStamp: "#1B1A19", colorStencil: "#5B3B63", colorFlesh: "#C98F6C",
-           colorTopbar: "#EDE8E2", colorNavActive: "#5B3B63", colorNavInactive: "#9A9188" },
+           colorTopbar: "#EDE8E2", colorNavActive: "#5B3B63", colorNavInactive: "#9A9188",
+           colorPaper: "#EDE8E2", colorPaperRaised: "#F8F5F0" },
 };
-const THEME_PAPER = { dark: "#15131A", light: "#EDE8E2" }; // --paper fisso dei due temi, mai personalizzabile
 function loadTheme(){
   try {
     const v = localStorage.getItem(THEME_KEY);
@@ -1088,7 +1100,7 @@ function contrastRatio(hexA, hexB){
 }
 function contrastWarnings(cc, base){
   const warn = [];
-  const r1 = contrastRatio(cc.colorInk, THEME_PAPER[base]);
+  const r1 = contrastRatio(cc.colorInk, cc.colorPaper);
   if (r1 !== null && r1 < 4.5) warn.push(`Testo principale e sfondo pagina troppo simili (contrasto ${r1.toFixed(1)}:1, minimo consigliato 4.5:1): rischio di non leggersi.`);
   const r2 = contrastRatio(cc.colorInk, cc.colorStamp);
   if (r2 !== null && r2 < 4.5) warn.push(`Testo principale e superficie scura (rail, badge) troppo simili (contrasto ${r2.toFixed(1)}:1).`);
@@ -1177,11 +1189,14 @@ function applyStudioConfig(){
     r.setProperty("--topbar-bg", a.colorTopbar || THEME_FIXED[customBase].colorTopbar);
     r.setProperty("--nav-active", a.colorNavActive || THEME_FIXED[customBase].colorNavActive);
     r.setProperty("--nav-inactive", a.colorNavInactive || THEME_FIXED[customBase].colorNavInactive);
+    r.setProperty("--paper", a.colorPaper || THEME_FIXED[customBase].colorPaper);
+    r.setProperty("--paper-raised", a.colorPaperRaised || THEME_FIXED[customBase].colorPaperRaised);
   } else {
     // dark/light fissi: nessuna personalizzazione, si affidano ai valori di :root/:root[data-theme="light"]
     r.removeProperty("--ink"); r.removeProperty("--stamp");
     r.removeProperty("--stencil"); r.removeProperty("--flesh");
     r.removeProperty("--topbar-bg"); r.removeProperty("--nav-active"); r.removeProperty("--nav-inactive");
+    r.removeProperty("--paper"); r.removeProperty("--paper-raised");
   }
   const ft = FONT_THEMES[a.fontTheme] || FONT_THEMES.moderno;
   r.setProperty("--font-display", ft.display);
@@ -7953,7 +7968,7 @@ document.addEventListener("click", (e) => {
     if (t) resetAspettoTatuatore(t.id);
     else {
       const o = loadStudioOverrides();
-      ["logoDataUrl","colorInk","colorStamp","colorStencil","colorFlesh","colorTopbar","colorNavActive","colorNavInactive","fontTheme","inkEffect","signatureColor","customBase","customFontName","customFontFamily"].forEach(k => delete o[k]);
+      ["logoDataUrl","colorInk","colorStamp","colorStencil","colorFlesh","colorTopbar","colorNavActive","colorNavInactive","colorPaper","colorPaperRaised","fontTheme","inkEffect","signatureColor","customBase","customFontName","customFontFamily"].forEach(k => delete o[k]);
       saveStudioOverrides(o);
     }
     idbSet(customFontStoreKey(t ? t.id : "shared"), null);
@@ -9022,6 +9037,10 @@ function renderSettings(){
       <div class="grid-2">
         <div class="field"><label>Colore testo principale</label><input type="color" data-field-aspetto="colorInk" value="${esc(acfg.colorInk)}" style="height:44px;padding:4px;"></div>
         <div class="field"><label>Superficie scura (rail, badge)</label><input type="color" data-field-aspetto="colorStamp" value="${esc(acfg.colorStamp||THEME_FIXED[customBase].colorStamp)}" style="height:44px;padding:4px;"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Sfondo principale</label><input type="color" data-field-aspetto="colorPaper" value="${esc(acfg.colorPaper||THEME_FIXED[customBase].colorPaper)}" style="height:44px;padding:4px;"></div>
+        <div class="field"><label>Sfondo secondario (card, righe lista)</label><input type="color" data-field-aspetto="colorPaperRaised" value="${esc(acfg.colorPaperRaised||THEME_FIXED[customBase].colorPaperRaised)}" style="height:44px;padding:4px;"></div>
       </div>
       <div class="grid-2">
         <div class="field"><label>Accento — area consenso</label><input type="color" data-field-aspetto="colorStencil" value="${esc(acfg.colorStencil)}" style="height:44px;padding:4px;"></div>
