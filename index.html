@@ -8726,13 +8726,26 @@ function initRichiestaMode(){
   leadDraft = blankRichiesta();
   // prompt11, Task 2: link/QR condiviso da un tatuatore specifico (vedi
   // buildLeadLink) — precompila la scelta, il cliente può comunque
-  // cambiarla nei chip di renderLeadStep1. Solo se il nome nel link
-  // corrisponde davvero a un artista dichiarato di questo studio.
+  // cambiarla nei chip di renderLeadStep1. Il NOME viene precompilato
+  // solo se corrisponde davvero a un artista dichiarato di questo
+  // studio (STUDIO_CONFIG.artists sul dispositivo del cliente — chip
+  // visibili, coerenza con renderLeadStep1).
+  // BUGFIX (prompt fix richieste): tatuatore_id NON deve dipendere da
+  // questo match sul nome. STUDIO_CONFIG.artists sul dispositivo del
+  // CLIENTE arriva da localStorage/STUDIO_DEFAULTS locali a quel
+  // dispositivo, mai sincronizzati dal link pubblico — uno scarto anche
+  // minimo (spazi, maiuscole, un artista rinominato dopo aver generato
+  // il link) fa fallire l'includes() e faceva perdere silenziosamente
+  // ANCHE l'id, pur essendo presente e corretto nell'URL. L'id è un
+  // dato opaco verificato server-side (FK su licenza_tatuatori, con
+  // retry automatico senza id se non risultasse valido — vedi
+  // inviaRichiestaSupabase): nessun bisogno che il nome combaci in
+  // locale per fidarsene, va letto e passato sempre.
   const tParam = params.get("tatuatore");
   if (tParam && STUDIO_CONFIG.artists.includes(tParam)){
     leadDraft.tatuatoreScelto = tParam;
-    leadDraft.tatuatoreSceltoId = params.get("tatuatore_id") || "";
   }
+  leadDraft.tatuatoreSceltoId = params.get("tatuatore_id") || "";
   state.leadStep = 1;
   render();
 }
