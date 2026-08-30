@@ -3157,10 +3157,26 @@ async function pollRichiesteSupabase(){
     }
     const daCancellare = rows.filter(row => row.id).map(row => row.id);
     if (daCancellare.length){
-      fetch(`${SUPABASE_CONFIG.url}/rest/v1/richieste?id=in.(${daCancellare.join(",")})`, {
-        method: "DELETE",
-        headers: { "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${token}` },
-      }).catch(e => console.warn("Pulizia richieste su Supabase fallita, resta comunque salvata in locale:", e));
+      // BUGFIX (PromptNew, Task 1): un DELETE bloccato dalla RLS (o
+      // rifiutato per qualunque altro motivo HTTP) risolve comunque la
+      // fetch con successo — solo res.ok è false, non viene lanciata
+      // un'eccezione. Il vecchio codice reagiva solo a un errore di RETE
+      // (.catch), quindi un 403/400 passava completamente inosservato:
+      // la riga restava per sempre su Supabase, silenziosamente, stesso
+      // pattern già visto altrove in questo file per un'INSERT (vedi
+      // studio_esiste sopra). Ora l'esito viene sempre controllato e loggato,
+      // cosi' un blocco lato server (es. una policy DELETE toccata per
+      // errore) è visibile in console invece di sparire nel nulla.
+      try {
+        const delRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/richieste?id=in.(${daCancellare.join(",")})`, {
+          method: "DELETE",
+          headers: { "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${token}` },
+        });
+        if (!delRes.ok){
+          const body = await delRes.text().catch(() => "");
+          console.error(`Pulizia richieste su Supabase rifiutata dal server (HTTP ${delRes.status}) — le righe restano su Supabase finché questo non si risolve:`, body);
+        }
+      } catch(e){ console.warn("Pulizia richieste su Supabase fallita (rete), resta comunque salvata in locale:", e); }
     }
   } catch(e){ console.warn("Controllo nuove richieste fallito:", e); }
 }
@@ -3414,6 +3430,12 @@ function blankAppuntamento(dataISO){
     origine: { tipo: "manuale", id: null }, // 'manuale' | 'richiesta' | 'consenso'
     artista: nomeTatuatoreAttivo() || STUDIO_CONFIG.artists[0] || "",
     stato: "da_confermare", // da_confermare | confermato | saltato
+    // PromptNew, Task 2: distingue in Agenda una consulenza (prima
+    // chiacchierata/valutazione) da un vero appuntamento fissato per il
+    // tatuaggio — indipendente da "stato" sopra (quello resta il flusso
+    // conferma/salta). Testo semplice per ora (vedi TIPO_APPT),
+    // colori/bollini in un giro successivo.
+    tipoAppt: "appuntamento", // 'consulenza' | 'appuntamento'
     note: "",
     promemoriaInviato: false,
     // chiusura lavoro (prompt6, Task 10): orthogonale allo stato di
@@ -3430,6 +3452,14 @@ const STATO_APPT = {
   da_confermare: { label: "Da confermare", cls: "flesh" },
   confermato:    { label: "Confermato",    cls: "ok" },
   saltato:       { label: "Saltato",       cls: "warn" },
+};
+/* PromptNew, Task 2: etichetta testuale che distingue una consulenza da
+   un appuntamento vero e proprio in Agenda — vedi blankAppuntamento
+   (tipoAppt) e renderAppuntamentoRow/settimana/mese. Solo testo per
+   questo giro, come richiesto (colori in un giro successivo). */
+const TIPO_APPT = {
+  consulenza:   { label: "Consulenza" },
+  appuntamento: { label: "Appuntamento confermato" },
 };
 function appuntamentiDelGiorno(dataISO){
   return loadAppuntamenti().filter(a => a.data === dataISO).sort((a,b) => (a.ora||"").localeCompare(b.ora||""));
@@ -4927,7 +4957,7 @@ function renderStudioView(){
   if (state.view === "contabilita") return renderContabilita();
   if (state.view === "guest-consensi") return renderGuestConsensi();
   if (state.view === "paywall") return renderPaywall();
-  // ordine importante: un draft già aperto (open-session, lead-to-consenso,
+  // ordine importante: un draft già aperto (open-session, appuntamento-to-consenso,
   // ecc.) vince sempre sulle schermate di scelta/attesa di "Nuovo consenso"
   // — evita che un flag rimasto true da un giro precedente (prompt13,
   // Task 4) nasconda un consenso che si sta davvero aprendo.
@@ -5176,7 +5206,7 @@ function renderAgendaSettimana(dataISO){
       <div class="agenda-day ${g===oggi?'is-today':''}">
         <div class="agenda-day-head">${GIORNI_SETTIMANA[(d.getDay()+6)%7].slice(0,3)}<br><b>${d.getDate()}</b></div>
         <div class="agenda-day-list">
-          ${list.length ? list.map(a => `<div class="agenda-chip" data-action="open-appuntamento" data-id="${a.id}" title="${esc(a.clienteNome)} ${esc(a.clienteCognome)}">${esc(a.ora)} ${esc(a.clienteNome)}</div>`).join("") : `<div class="agenda-day-empty">—</div>`}
+          ${list.length ? list.map(a => `<div class="agenda-chip" data-action="open-appuntamento" data-id="${a.id}" title="${esc(a.clienteNome)} ${esc(a.clienteCognome)} · ${esc((TIPO_APPT[a.tipoAppt]||TIPO_APPT.appuntamento).label)}">${esc(a.ora)} ${esc(a.clienteNome)}${a.tipoAppt==="consulenza"?" (C)":""}</div>`).join("") : `<div class="agenda-day-empty">—</div>`}
         </div>
       </div>`;
     }).join("")}
@@ -5216,12 +5246,13 @@ function renderAgendaMese(dataISO){
 }
 function renderAppuntamentoRow(a){
   const st = STATO_APPT[a.stato] || STATO_APPT.da_confermare;
+  const tipo = TIPO_APPT[a.tipoAppt] || TIPO_APPT.appuntamento;
   return `
   <div class="lead-row" data-action="open-appuntamento" data-id="${a.id}">
     <div class="arch-idx mono">${esc(a.ora||"—")}</div>
     <div class="lead-main">
       <b>${esc(a.clienteNome)} ${esc(a.clienteCognome)}</b>
-      <span>${STUDIO_CONFIG.artists.length > 1 && a.artista ? esc(a.artista) + (a.note ? " · " : "") : ""}${esc(a.note||"")}</span>
+      <span>${esc(tipo.label)}${STUDIO_CONFIG.artists.length > 1 && a.artista ? " · " + esc(a.artista) : ""}${a.note ? " · " + esc(a.note) : ""}</span>
     </div>
     <span class="lead-status appt-${a.stato}">${st.label}</span>
     <button class="disp-icon-btn" data-action="edit-appuntamento" data-id="${a.id}" title="Modifica">${icon("pen",14)}</button>
@@ -5302,6 +5333,12 @@ function renderAppuntamentoFormPage(){
         </select>
       </div>` : ""}
       <div class="field">
+        <label>Tipo</label>
+        <div class="chip-grid" style="grid-template-columns:1fr 1fr;">
+          ${Object.keys(TIPO_APPT).map(k => `<button class="chip ${(a.tipoAppt||"appuntamento")===k?'on':''}" data-action="set-appt-tipo" data-v="${k}">${TIPO_APPT[k].label}</button>`).join("")}
+        </div>
+      </div>
+      <div class="field">
         <label>Stato</label>
         <div class="chip-grid">
           ${Object.keys(STATO_APPT).map(k => `<button class="chip ${a.stato===k?'on':''}" data-action="set-appt-stato" data-v="${k}">${STATO_APPT[k].label}</button>`).join("")}
@@ -5314,6 +5351,7 @@ function renderAppuntamentoFormPage(){
         ${esiste ? `<button class="btn btn-ghost" data-action="delete-appuntamento" data-id="${a.id}">Elimina</button>` : ""}
       </div>
       ${esiste && a.origine.tipo !== "manuale" ? `<div class="btn-row"><button class="btn btn-ghost btn-sm" data-action="open-appuntamento-cliente" data-id="${a.id}">${icon("clipboard",14)} Apri scheda cliente</button></div>` : ""}
+      ${esiste && a.origine.tipo !== "consenso" ? `<div class="btn-row"><button class="btn btn-primary btn-sm" data-action="appuntamento-to-consenso">${icon("clipboard",14)} Genera consenso per questo appuntamento</button></div>` : ""}
     </div>
     ${esiste ? `
     <div class="card">
@@ -7033,8 +7071,9 @@ function renderLeadDetail(){
       <div class="field"><label>Note interne</label><textarea data-field-lead="noteStudio" placeholder="Note su questo cliente…">${esc(l.noteStudio)}</textarea></div>
       <div class="btn-row">
         ${c.telefono ? `<a class="wa-btn" href="${waLink(c.telefono, waMessageFor(l))}" target="_blank" rel="noopener">Scrivi su WhatsApp</a>` : ""}
-        <button class="btn btn-primary" data-action="lead-to-consenso">Crea consenso per questo cliente</button>
+        <button class="btn btn-primary" data-action="lead-fissa-appuntamento">${icon("calendar",15)} Fissa appuntamento</button>
       </div>
+      <p class="field hint">Il consenso informato non si crea più da qui: si firma solo quando il cliente è fisicamente in studio. Creane uno dalla sezione Consensi, oppure apri in Agenda l'appuntamento fissato per questo cliente e genera il consenso da lì.</p>
       <div class="btn-row"><button class="btn btn-ghost btn-sm" data-action="save-lead">Salva</button></div>
     </div>
   </div>`;
@@ -7785,11 +7824,16 @@ document.addEventListener("click", (e) => {
     if (confirm("Eliminare questo appuntamento?")){ deleteAppuntamento(btn.dataset.id); state.apptBuffer = null; state.view = "agenda"; render(); }
   }
   else if (action === "open-appuntamento"){
+    // PromptNew, Task 2: prima un tap sulla riga per un appuntamento
+    // collegato a una richiesta/consenso saltava dritto alla scheda
+    // cliente, senza mai passare dall'editor dell'appuntamento — ma è
+    // proprio lì ("apri l'appuntamento → genera consenso da lì") che ora
+    // vive l'unico altro punto da cui creare un consenso, oltre alla
+    // sezione Consensi. Il tap apre sempre l'editor (stesso comportamento
+    // della matita, edit-appuntamento); "Apri scheda cliente" nell'editor
+    // resta il modo per saltare al record collegato, quando serve.
     const a = getAppuntamento(btn.dataset.id);
-    if (!a) return;
-    if (a.origine.tipo === "richiesta" && getRichiesta(a.origine.id)){ leadDraft = getRichiesta(a.origine.id); state.view = "lead-detail"; render(); }
-    else if (a.origine.tipo === "consenso" && getSession(a.origine.id)){ draft = getSession(a.origine.id); state.view = "form"; state.step = resumeStep(draft); render(); }
-    else { state.apptBuffer = { ...a, origine: { ...a.origine } }; render(); }
+    if (a) { state.apptBuffer = { ...a, origine: { ...a.origine } }; render(); }
   }
   else if (action === "open-appuntamento-cliente"){
     const a = getAppuntamento(btn.dataset.id);
@@ -7798,6 +7842,7 @@ document.addEventListener("click", (e) => {
     else if (a.origine.tipo === "consenso" && getSession(a.origine.id)){ draft = getSession(a.origine.id); state.apptBuffer = null; state.view = "form"; state.step = resumeStep(draft); render(); }
   }
   else if (action === "set-appt-stato"){ state.apptBuffer.stato = btn.dataset.v; render(); }
+  else if (action === "set-appt-tipo"){ state.apptBuffer.tipoAppt = btn.dataset.v; render(); }
   else if (action === "set-compenso-modalita"){
     const cfg = compensoArtista(btn.dataset.artista);
     setCompensoArtista(btn.dataset.artista, { ...cfg, modalita: btn.dataset.v });
@@ -8286,27 +8331,72 @@ document.addEventListener("click", (e) => {
     }).catch(() => { prompt("Copia il link:", buildLeadLink()); });
   }
   else if (action === "set-lead-status"){ leadDraft.status = btn.dataset.v; upsertRichiesta(leadDraft); render(); }
-  else if (action === "save-lead"){ upsertRichiesta(leadDraft); render(); }
-  else if (action === "lead-to-consenso"){
-    const s = blankSession();
-    s.anagrafica.nome = leadDraft.cliente.nome;
-    s.anagrafica.cognome = leadDraft.cliente.cognome;
-    s.anagrafica.nascita = leadDraft.cliente.nascita;
-    s.anagrafica.telefono = leadDraft.cliente.telefono;
-    s.anagrafica.email = leadDraft.cliente.email;
-    // porta con sé la zona segnata sul preventivo: usa direttamente la sagoma
-    if ((leadDraft.markers && leadDraft.markers.length) || (leadDraft.strokes && leadDraft.strokes.length)){
-      s.zonaMode = "sagoma";
-      s.genere = leadDraft.genere;
-      s.zonaSegnaMode = leadDraft.zonaSegnaMode || "pin";
-      s.markers = (leadDraft.markers||[]).map(m => ({...m}));
-      s.strokes = (leadDraft.strokes||[]).map(st => ({ view: st.view, points: st.points.map(p=>({...p})) }));
+  else if (action === "save-lead"){
+    upsertRichiesta(leadDraft);
+    // PromptNew, Task 2: la CONSULENZA resta un semplice campo data su
+    // questa schermata (azione invariata, come richiesto) — ma il
+    // risultato deve comunque comparire in Agenda con la sua etichetta
+    // (vedi TIPO_APPT), altrimenti resterebbe visibile solo qui.
+    // Crea/aggiorna (mai cancella: un tocco manuale in Agenda su data/ora
+    // non va perso solo perché questo campo viene risalvato) l'unico
+    // appuntamento di tipo "consulenza" già collegato a questa richiesta.
+    if (leadDraft.dataConsulenza){
+      const esistente = loadAppuntamenti().find(a => a.origine.tipo === "richiesta" && a.origine.id === leadDraft.id && a.tipoAppt === "consulenza");
+      const a = esistente ? { ...esistente } : blankAppuntamento(leadDraft.dataConsulenza);
+      a.data = leadDraft.dataConsulenza;
+      a.tipoAppt = "consulenza";
+      a.origine = { tipo: "richiesta", id: leadDraft.id };
+      a.clienteNome = leadDraft.cliente.nome; a.clienteCognome = leadDraft.cliente.cognome; a.clienteTelefono = leadDraft.cliente.telefono;
+      if (leadDraft.tatuatoreScelto && STUDIO_CONFIG.artists.includes(leadDraft.tatuatoreScelto)) a.artista = leadDraft.tatuatoreScelto;
+      upsertAppuntamento(a);
     }
-    if (leadDraft.dimensione) s.grandezza = leadDraft.dimensione;
-    s.origineRichiestaId = leadDraft.id; // per la statistica "preventivi convertiti"
+    render();
+  }
+  else if (action === "lead-fissa-appuntamento"){
+    // PromptNew, Task 2: unico nuovo pulsante sul preventivo — apre
+    // l'editor Agenda già collegato a questa richiesta (stesso
+    // meccanismo del collegamento inverso già esistente, "Collega a
+    // richiesta/consenso esistente" nell'editor appuntamento — quello
+    // resta invariato). Riapre l'appuntamento "appuntamento" già
+    // collegato se esiste, invece di crearne uno duplicato.
+    const esistente = loadAppuntamenti().find(a => a.origine.tipo === "richiesta" && a.origine.id === leadDraft.id && a.tipoAppt === "appuntamento");
+    const a = esistente ? { ...esistente, origine: { ...esistente.origine } } : blankAppuntamento();
+    a.tipoAppt = "appuntamento";
+    a.origine = { tipo: "richiesta", id: leadDraft.id };
+    a.clienteNome = leadDraft.cliente.nome; a.clienteCognome = leadDraft.cliente.cognome; a.clienteTelefono = leadDraft.cliente.telefono;
+    if (leadDraft.tatuatoreScelto && STUDIO_CONFIG.artists.includes(leadDraft.tatuatoreScelto)) a.artista = leadDraft.tatuatoreScelto;
+    state.apptBuffer = a; state.view = "agenda"; render();
+  }
+  else if (action === "appuntamento-to-consenso"){
+    // PromptNew, Task 2: rimpiazza il vecchio "lead-to-consenso" —
+    // stessa identica logica di arricchimento dalla richiesta (zona
+    // segnata, dimensione), ma raggiungibile solo da un appuntamento già
+    // fissato in Agenda, mai più direttamente dalla schermata preventivo
+    // (vedi renderLeadDetail, pulsante rimosso).
+    const a = state.apptBuffer;
+    if (!a) return;
+    const s = blankSession();
+    s.anagrafica.nome = a.clienteNome;
+    s.anagrafica.cognome = a.clienteCognome;
+    s.anagrafica.telefono = a.clienteTelefono;
+    if (a.artista && STUDIO_CONFIG.artists.includes(a.artista)) s.artista = a.artista;
+    const r = a.origine.tipo === "richiesta" ? getRichiesta(a.origine.id) : null;
+    if (r){
+      s.anagrafica.nascita = r.cliente.nascita;
+      s.anagrafica.email = r.cliente.email;
+      if ((r.markers && r.markers.length) || (r.strokes && r.strokes.length)){
+        s.zonaMode = "sagoma";
+        s.genere = r.genere;
+        s.zonaSegnaMode = r.zonaSegnaMode || "pin";
+        s.markers = (r.markers||[]).map(m => ({...m}));
+        s.strokes = (r.strokes||[]).map(st => ({ view: st.view, points: st.points.map(p=>({...p})) }));
+      }
+      if (r.dimensione) s.grandezza = r.dimensione;
+      s.origineRichiestaId = r.id; // per la statistica "preventivi convertiti"
+      r.status = "chiusa"; r.convertito = true; upsertRichiesta(r);
+    }
     upsertSession(s);
-    leadDraft.status = "chiusa"; leadDraft.convertito = true; upsertRichiesta(leadDraft);
-    draft = s; state.view = "form"; state.step = 1; state.showErrors = null;
+    draft = s; state.apptBuffer = null; state.view = "form"; state.step = 1; state.showErrors = null;
     render();
   }
   // --- richiesta preventivo (client-facing lead intake) ---
