@@ -2801,7 +2801,7 @@ async function registraTatuatoreCorrente(t){
     const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/registra_tatuatore`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${token}` },
-      body: JSON.stringify({ p_tatuatore_id: t.supabaseId }),
+      body: JSON.stringify({ p_tatuatore_id: t.supabaseId, p_nome: t.nome }),
     });
     if (!res.ok) return { consentito: true };
     const rows = await res.json();
@@ -2819,6 +2819,60 @@ async function rimuoviTatuatoreRemoto(supabaseId){
     });
     return res.ok;
   } catch(e){ return false; }
+}
+/* Trova su Supabase l'id di un tatuatore già registrato per QUESTO
+   studio con lo stesso nome (supabase-tatuatore-match-nome.sql) —
+   stesso pattern di elencoDispositiviStudio: richiede solo la
+   sessione dell'account studio, non un dispositivo/tatuatore già
+   "consentito". Torna null se non configurato, non autenticato, o
+   nessun tatuatore con quel nome esiste ancora per lo studio. */
+async function trovaTatuatorePerNome(nome){
+  if (!SUPABASE_CONFIG.url || !nome) return null;
+  const token = await validStudioAccessToken();
+  if (!token) return null;
+  try {
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/trova_tatuatore_per_nome`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ p_nome: nome }),
+    });
+    if (!res.ok) return null;
+    const id = await res.json();
+    return id || null;
+  } catch(e){ console.warn("Ricerca tatuatore per nome fallita:", e); return null; }
+}
+/* CORREZIONE (FixLoginInkonsent): su un dispositivo NUOVO per uno
+   studio già esistente, assicuraProfiliTatuatori() crea un profilo
+   locale con un supabaseId generato a caso (blankTatuatoreProfilo) per
+   ogni nome in "Artisti" — se quel nome corrisponde già a un tatuatore
+   registrato su Supabase da un altro dispositivo, usare l'id nuovo
+   invece di quello vero fa nascere una riga duplicata in
+   licenza_tatuatori ad ogni "rifai onboarding dopo aver perso il
+   riconoscimento del device" (stesso bug di fondo di licenseIds/
+   device_id, versione tatuatore). Qui si riallineano SOLO i profili
+   "vergini" (senza hash: mai usati su QUESTO dispositivo — se ha già
+   un hash è un profilo vero, non toccarlo) al vero id remoto, se
+   trovato per nome, PRIMA che registraTatuatoreCorrente() possa
+   registrarne uno nuovo. Va chiamata solo dopo un
+   sincronizzaDatiStudioDaRemoto() riuscito (altrimenti non c'è alcun
+   "dispositivo nuovo su studio esistente" da riconciliare). Se
+   assicuraProfiliTatuatori() ha dovuto trattenere il salvataggio
+   (cassaforte non ancora sbloccata, vedi profiliTatuatoriInSospeso):
+   niente da riconciliare ora, i profili non sono nemmeno persistiti. */
+async function riconciliaProfiliTatuatoriConRemoto(){
+  const profili = assicuraProfiliTatuatori();
+  if (profiliTatuatoriInSospeso) return;
+  const list = loadTatuatori();
+  let changed = false;
+  for (const profilo of profili){
+    if (profilo.hash) continue;
+    const idRemoto = await trovaTatuatorePerNome(profilo.nome);
+    if (idRemoto && idRemoto !== profilo.supabaseId){
+      const i = list.findIndex(t => t.id === profilo.id);
+      if (i >= 0){ list[i] = { ...list[i], supabaseId: idRemoto }; changed = true; }
+    }
+  }
+  if (changed) saveTatuatori(list);
 }
 
 const SUBSCRIPTION_KEY = "inkconsent_subscription_active_v1";
@@ -7192,6 +7246,7 @@ document.addEventListener("click", (e) => {
       // profilo tatuatore con un nome diverso per la stessa persona.
       const remoto = await sincronizzaDatiStudioDaRemoto();
       if (remoto.completato){
+        await riconciliaProfiliTatuatoriConRemoto();
         registraDispositivoCorrente().then(esito => {
           if (esito && esito.consentito === false) state.deviceLimitBlock = esito;
           render();
@@ -8956,6 +9011,7 @@ function initRichiestaMode(){
       // altrove (stesso studio, altro dispositivo) — non richiederla di
       // nuovo, i dati arrivano da sincronizzaDatiStudioDaRemoto().
       const remoto = await sincronizzaDatiStudioDaRemoto();
+      if (remoto.completato) await riconciliaProfiliTatuatoriConRemoto();
       state.needsTrialChoice = !remoto.completato;
     }
     // primo avvio in assoluto, con Supabase configurato: prima di tutto
