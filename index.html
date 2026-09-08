@@ -3504,9 +3504,14 @@ function upsertFornitura(item){
   const list = loadForniture();
   const i = list.findIndex(x => x.id === item.id);
   if (i >= 0) list[i] = item; else list.unshift(item);
-  saveForniture(list); return item;
+  saveForniture(list);
+  syncFornituraRemoto(item);
+  return item;
 }
-function deleteFornitura(id){ saveForniture(loadForniture().filter(x => x.id !== id)); }
+function deleteFornitura(id){
+  saveForniture(loadForniture().filter(x => x.id !== id));
+  eliminaFornituraRemoto(id);
+}
 /* movimento: delta (+ carico, - scarico), prezzo totale opzionale (solo carichi) */
 function addMovimento(id, delta, prezzo){
   const list = loadForniture();
@@ -3516,7 +3521,66 @@ function addMovimento(id, delta, prezzo){
   it.movimenti = it.movimenti || [];
   it.movimenti.push({ at: new Date().toISOString(), delta, prezzo: prezzo||0 });
   saveForniture(list);
+  syncFornituraRemoto(it);
   return it;
+}
+/* Sync magazzino Forniture su Supabase (FixNewFeature, punto 4):
+   offline-first — il local storage resta la fonte primaria, questa
+   chiamata è sempre fire-and-forget (mai un await nei chiamanti, mai un
+   blocco se la rete manca o Supabase non è configurato) e non tenta
+   alcuna risoluzione di conflitti: ultima scrittura vince, adatta a un
+   magazzino condiviso da poche persone dello stesso studio, non a
+   scritture concorrenti reali. Ogni item resta un blob jsonb opaco
+   lato server (supabase-magazzino-forniture-sync.sql): lo schema
+   locale può cambiare (es. punto 6, doppia scadenza) senza mai dover
+   toccare la tabella. */
+async function syncFornituraRemoto(item){
+  if (!SUPABASE_CONFIG.url || !item) return;
+  try {
+    const token = await validStudioAccessToken();
+    if (!token) return;
+    await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/salva_fornitura`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ p_item_id: item.id, p_data: item }),
+    });
+  } catch(e){ console.warn("Sync fornitura fallita, resta valida solo in locale:", e); }
+}
+async function eliminaFornituraRemoto(id){
+  if (!SUPABASE_CONFIG.url || !id) return;
+  try {
+    const token = await validStudioAccessToken();
+    if (!token) return;
+    await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/elimina_fornitura`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ p_item_id: id }),
+    });
+  } catch(e){ console.warn("Rimozione fornitura remota fallita:", e); }
+}
+/* Scarica lo snapshot dal server e ricostruisce il local storage — SOLO
+   su un dispositivo nuovo (magazzino locale ancora vuoto): mai a
+   sovrascrivere dati locali già presenti. Offline-first vuol dire che
+   il dispositivo che li ha scritti resta la fonte di verità finché non
+   sincronizza lui stesso — un pull qui non deve mai poter cancellare
+   modifiche locali non ancora spinte. */
+async function scaricaFornitureRemoto(){
+  if (!SUPABASE_CONFIG.url || loadForniture().length) return;
+  try {
+    const token = await validStudioAccessToken();
+    if (!token) return;
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/lista_forniture_studio`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${token}` },
+      body: "{}",
+    });
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (Array.isArray(rows) && rows.length && !loadForniture().length){
+      saveForniture(rows.map(r => r.data));
+      render(); // fire-and-forget dal login: se il magazzino era ancora sullo schermo vuoto, aggiornalo ora
+    }
+  } catch(e){ console.warn("Scaricamento magazzino fallito, resto vuoto in locale:", e); }
 }
 /* stato scorta in base a quantità vs soglia riordino */
 function statoScorta(it){
@@ -3543,6 +3607,25 @@ function isExpiringSoon(dateStr){
 function isExpired(dateStr){
   if (!dateStr) return false;
   return new Date(dateStr) < new Date();
+}
+/* Doppia scadenza inchiostri (FixNewFeature, punto 6): un inchiostro ha
+   una scadenza assoluta stampata sul flacone (it.scadenza) E, se aperto,
+   una durata dopo apertura (it.dataApertura + it.durataMesiApertura,
+   mesi liberi — molti produttori dichiarano 6/12 mesi da apertura, mai
+   uguale alla scadenza assoluta). Quella che conta davvero per
+   isExpiringSoon()/isExpired()/il badge è la PIÙ VICINA delle due — un
+   flacone aperto scade prima di quanto scritto sull'etichetta, un
+   flacone mai aperto usa solo quella assoluta. */
+function scadenzaEffettivaInk(it){
+  const assoluta = it.scadenza || null;
+  let daApertura = null;
+  if (it.dataApertura && it.durataMesiApertura){
+    const d = new Date(it.dataApertura);
+    d.setMonth(d.getMonth() + Number(it.durataMesiApertura));
+    daApertura = d.toISOString().slice(0, 10);
+  }
+  if (assoluta && daApertura) return assoluta < daApertura ? assoluta : daApertura;
+  return assoluta || daApertura || null;
 }
 
 /* ============================================================
@@ -6157,6 +6240,18 @@ function renderMagazzino(){
     if (isExpiringSoon(d)) return `<span class="reg-minor" style="background:var(--flesh);">in scadenza</span>`;
     return "";
   };
+  // FixNewFeature, punto 5: proprietario su inchiostri/aghi — solo con
+  // più di un tatuatore ha senso scegliere, con uno solo resta sempre e
+  // comunque "suo" implicitamente (stesso criterio già usato altrove
+  // per nascondere scelte tra un solo tatuatore possibile). Le
+  // forniture generiche (guanti, creme) restano condivise apposta, non
+  // toccate qui.
+  const nomiTatuatori = assicuraProfiliTatuatori().filter(tatuatoreAbilitato).map(t => t.nome);
+  const campoProprietario = (valore) => nomiTatuatori.length > 1 ? `
+          <div class="field"><label>Proprietario</label><select data-inv-field="proprietario">
+            <option value="">Condiviso (tutti)</option>
+            ${nomiTatuatori.map(n => `<option value="${esc(n)}" ${valore===n?"selected":""}>${esc(n)}</option>`).join("")}
+          </select></div>` : "";
   const tab = state.magTab || "forniture";
   const forniture = loadForniture();
   const now = new Date();
@@ -6219,8 +6314,13 @@ function renderMagazzino(){
           </div>
           <div class="grid-2">
             <div class="field"><label>Numero di lotto</label><input type="text" data-inv-field="lotto" value="${esc(eb.lotto||'')}" placeholder="Es. LT-2024-0912"></div>
-            <div class="field"><label>Scadenza</label><input type="date" data-inv-field="scadenza" value="${esc(eb.scadenza||'')}"></div>
+            <div class="field"><label>Scadenza (sul flacone)</label><input type="date" data-inv-field="scadenza" value="${esc(eb.scadenza||'')}"></div>
           </div>
+          <div class="grid-2">
+            <div class="field"><label>Data apertura (se già aperto)</label><input type="date" data-inv-field="dataApertura" value="${esc(eb.dataApertura||'')}"></div>
+            <div class="field"><label>Durata dopo apertura (mesi)</label><input type="number" min="0" step="1" data-inv-field="durataMesiApertura" value="${esc(eb.durataMesiApertura||'')}" placeholder="Es. 6"></div>
+          </div>
+          ${campoProprietario(eb.proprietario)}
           <div class="btn-row">
             <button class="btn btn-primary btn-sm" data-action="ink-save">${eb.id ? "Salva modifiche" : "Aggiungi"}</button>
             <button class="btn btn-ghost btn-sm" data-action="inv-cancel">Annulla</button>
@@ -6230,8 +6330,8 @@ function renderMagazzino(){
         <div class="inv-list">
           ${inks.map(it => `
             <div class="inv-row">
-              <div class="inv-main"><b>${esc(it.nome||"—")}</b>${it.colore ? ` · ${esc(it.colore)}` : ""} ${scadBadge(it.scadenza)}
-                <span class="inv-sub">Lotto ${esc(it.lotto||"—")}${it.scadenza ? " · scad. " + fmtDate(it.scadenza) : ""}</span>
+              <div class="inv-main"><b>${esc(it.nome||"—")}</b>${it.colore ? ` · ${esc(it.colore)}` : ""} ${scadBadge(scadenzaEffettivaInk(it))}
+                <span class="inv-sub">Lotto ${esc(it.lotto||"—")}${it.scadenza ? " · scad. " + fmtDate(it.scadenza) : ""}${it.dataApertura && it.durataMesiApertura ? " · aperto " + fmtDate(it.dataApertura) + " (+" + esc(it.durataMesiApertura) + " mesi)" : ""}${it.proprietario ? " · " + esc(it.proprietario) : ""}</span>
               </div>
               <div class="inv-actions">
                 <button class="btn btn-ghost btn-sm" data-action="ink-edit" data-id="${it.id}">Modifica</button>
@@ -6258,6 +6358,7 @@ function renderMagazzino(){
             <div class="field"><label>Numero di lotto</label><input type="text" data-inv-field="lotto" value="${esc(eb.lotto||'')}" placeholder="Es. AG-2024-4471"></div>
             <div class="field"><label>Scadenza</label><input type="date" data-inv-field="scadenza" value="${esc(eb.scadenza||'')}"></div>
           </div>
+          ${campoProprietario(eb.proprietario)}
           <div class="btn-row">
             <button class="btn btn-primary btn-sm" data-action="needle-save">${eb.id ? "Salva modifiche" : "Aggiungi"}</button>
             <button class="btn btn-ghost btn-sm" data-action="inv-cancel">Annulla</button>
@@ -6268,7 +6369,7 @@ function renderMagazzino(){
           ${needles.map(it => `
             <div class="inv-row">
               <div class="inv-main"><b>${esc(it.tipo||"—")}</b>${it.marca ? ` · ${esc(it.marca)}` : ""} ${scadBadge(it.scadenza)}
-                <span class="inv-sub">Lotto ${esc(it.lotto||"—")}${it.scadenza ? " · scad. " + fmtDate(it.scadenza) : ""}</span>
+                <span class="inv-sub">Lotto ${esc(it.lotto||"—")}${it.scadenza ? " · scad. " + fmtDate(it.scadenza) : ""}${it.proprietario ? " · " + esc(it.proprietario) : ""}</span>
               </div>
               <div class="inv-actions">
                 <button class="btn btn-ghost btn-sm" data-action="needle-edit" data-id="${it.id}">Modifica</button>
@@ -7429,6 +7530,7 @@ document.addEventListener("click", (e) => {
       const remoto = await sincronizzaDatiStudioDaRemoto();
       if (remoto.completato){
         await riconosciOReconciliaTatuatori();
+        scaricaFornitureRemoto(); // FixNewFeature, punto 4: fire-and-forget, no-op se il magazzino locale non è vuoto
         registraDispositivoCorrente().then(esito => {
           if (esito && esito.consentito === false) state.deviceLimitBlock = esito;
           render();
@@ -8094,7 +8196,7 @@ document.addEventListener("click", (e) => {
   else if (action === "ink-save"){
     const b = state.editBuffer || {};
     if (!(b.nome||"").trim()){ alert("Inserisci almeno marca/nome dell'inchiostro."); return; }
-    upsertInk({ id: b.id || newId(), nome: b.nome||"", colore: b.colore||"", lotto: b.lotto||"", scadenza: b.scadenza||"" });
+    upsertInk({ id: b.id || newId(), nome: b.nome||"", colore: b.colore||"", lotto: b.lotto||"", scadenza: b.scadenza||"", dataApertura: b.dataApertura||"", durataMesiApertura: b.durataMesiApertura||"", proprietario: b.proprietario||"" });
     state.showInkForm = false; state.editBuffer = {}; render();
   }
   else if (action === "ink-delete"){
@@ -8105,7 +8207,7 @@ document.addEventListener("click", (e) => {
   else if (action === "needle-save"){
     const b = state.editBuffer || {};
     if (!(b.tipo||"").trim()){ alert("Inserisci almeno il tipo dell'ago (es. 3RL)."); return; }
-    upsertNeedle({ id: b.id || newId(), marca: b.marca||"", tipo: b.tipo||"", lotto: b.lotto||"", scadenza: b.scadenza||"" });
+    upsertNeedle({ id: b.id || newId(), marca: b.marca||"", tipo: b.tipo||"", lotto: b.lotto||"", scadenza: b.scadenza||"", proprietario: b.proprietario||"" });
     state.showNeedleForm = false; state.editBuffer = {}; render();
   }
   else if (action === "needle-delete"){
@@ -9289,7 +9391,10 @@ function initRichiestaMode(){
       // altrove (stesso studio, altro dispositivo) — non richiederla di
       // nuovo, i dati arrivano da sincronizzaDatiStudioDaRemoto().
       const remoto = await sincronizzaDatiStudioDaRemoto();
-      if (remoto.completato) await riconosciOReconciliaTatuatori();
+      if (remoto.completato){
+        await riconosciOReconciliaTatuatori();
+        scaricaFornitureRemoto(); // FixNewFeature, punto 4: fire-and-forget, no-op se il magazzino locale non è vuoto
+      }
       state.needsTrialChoice = !remoto.completato;
     }
     // primo avvio in assoluto, con Supabase configurato: prima di tutto
