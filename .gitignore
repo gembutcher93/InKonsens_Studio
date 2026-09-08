@@ -1,9 +1,10 @@
-# Cartelle dell'ambiente virtuale e configurazioni locali (NON PUSHARI)
+# Cartelle e file da NON PUSHARE (rimangono solo in locale)
 .claude/
 .venv/
 .vscode/
+utili/
 
-# Ignora i file di log o temporanei del sistema
+# Ignora i file di log o temporanei
 *.log
 .DS_Store
 Thumbs.db
