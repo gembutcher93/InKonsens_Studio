@@ -4578,7 +4578,7 @@ function renderRiconoscimentoTatuatori(){
       <h2 class="lock-title">Chi sei tu su questo dispositivo?</h2>
       <p class="lock-sub">Abbiamo trovato ${trovati.length === 1 ? "un tatuatore già registrato" : "questi tatuatori già registrati"} per questo studio:</p>
       <div class="btn-row" style="flex-direction:column; gap:8px; align-items:stretch;">
-        ${trovati.map(t => `<button class="btn btn-accent" data-action="riconosci-tatuatore" data-id="${esc(t.id)}" data-nome="${esc(t.nome)}">${esc(t.nome)}</button>`).join("")}
+        ${trovati.map(t => `<button class="btn btn-accent" data-action="riconosci-tatuatore">${esc(t.nome)}</button>`).join("")}
       </div>
     </div>
   </div>`;
@@ -7451,39 +7451,45 @@ document.addEventListener("click", (e) => {
     elencoDispositiviStudio().then(list => { state.deviceList = list; render(); });
   }
   else if (action === "riconosci-tatuatore"){
-    // CORREZIONE (FixLoginInkonsent2): l'utente ha scelto esplicitamente
-    // chi è tra i tatuatori reali trovati su Supabase (renderRiconoscimentoTatuatori).
-    // Se il nome scelto non è ancora in "Artisti" su questo dispositivo
-    // (caso tipico: un tatuatore non titolare, che sincronizzaDatiStudioDaRemoto
-    // non ripristina — vedi nota sopra), lo aggiungiamo ORA, così
-    // assicuraProfiliTatuatori() gli crea/ritrova il profilo locale.
-    // BUGFIX (trovato nel test end-to-end con 2 tatuatori): quella stessa
-    // assicuraProfiliTatuatori() crea/ritrova un profilo per OGNI nome già
-    // in "Artisti", non solo per quello scelto — es. il titolare, il cui
-    // nome arriva già da sincronizzaDatiStudioDaRemoto prima di questa
-    // schermata. Riconciliare solo il profilo scelto lasciava il titolare
-    // con un supabaseId casuale mai verificato: pronto a duplicarsi al
-    // primo sblocco. Ora si riconciliano TUTTI i profili locali "vergini"
-    // (senza hash) il cui nome combacia con uno dei tatuatori VERI appena
-    // trovati (state.tatuatoriDaRiconoscere), non solo quello cliccato.
-    const nome = btn.dataset.nome;
+    // CORREZIONE (FixLoginInkonsent2): il tap serve solo a confermare che
+    // l'utente ha visto la lista e vuole proseguire — chi diventa attivo
+    // ORA si sceglie comunque subito dopo nella schermata "chi sta
+    // lavorando ora" (renderTatuatoreSwitch), non qui. Prima si aggiungeva
+    // ad "Artisti" SOLO il nome cliccato (più il titolare, già lì da
+    // sincronizzaDatiStudioDaRemoto): con 3+ tatuatori, quelli non
+    // cliccati restavano completamente sconosciuti a questo dispositivo,
+    // invisibili anche dopo altri sblocchi. Ora si aggiungono TUTTI i nomi
+    // di state.tatuatoriDaRiconoscere (la lista vera trovata su Supabase),
+    // così assicuraProfiliTatuatori() crea un profilo "vergine" per
+    // ciascuno e il loop sotto li riallinea tutti ai supabaseId reali in
+    // un solo passaggio — non solo titolare + quello cliccato.
     const ov = loadStudioOverrides();
     const nomiAttuali = artistiArray(ov).filter(Boolean);
-    if (!nomiAttuali.includes(nome)){
-      saveStudioOverrides({ ...ov, artistsText: [...nomiAttuali, nome].join(", ") });
+    const trovati = state.tatuatoriDaRiconoscere || [];
+    const nomiDaAggiungere = trovati.map(t => t.nome).filter(n => n && !nomiAttuali.includes(n));
+    if (nomiDaAggiungere.length){
+      saveStudioOverrides({ ...ov, artistsText: [...nomiAttuali, ...nomiDaAggiungere].join(", ") });
       applyStudioConfig();
     }
     const profili = assicuraProfiliTatuatori();
-    const trovati = state.tatuatoriDaRiconoscere || [];
     const list = loadTatuatori();
     let changed = false;
     for (const profilo of profili){
       if (profilo.hash) continue;
       const match = trovati.find(t => t.nome === profilo.nome);
-      if (match && match.id !== profilo.supabaseId){
-        const i = list.findIndex(t => t.id === profilo.id);
-        if (i >= 0){ list[i] = { ...list[i], supabaseId: match.id }; changed = true; }
-      }
+      if (!match) continue;
+      const i = list.findIndex(t => t.id === profilo.id);
+      if (i < 0) continue;
+      const patch = {};
+      if (match.id !== profilo.supabaseId) patch.supabaseId = match.id;
+      // Trovato in lista_tatuatori_studio = tatuatore VERO e già ammesso
+      // sotto il tetto del piano per questo studio, non un'ipotesi: senza
+      // abilitato:true qui, un profilo non titolare appena riconciliato
+      // resta comunque escluso da tatuatoreAbilitato() e quindi invisibile
+      // in "chi sta lavorando ora" (renderTatuatoreSwitch la filtra),
+      // vanificando il riconoscimento appena fatto.
+      if (!profilo.abilitato) patch.abilitato = true;
+      if (Object.keys(patch).length){ list[i] = { ...list[i], ...patch }; changed = true; }
     }
     if (changed) saveTatuatori(list);
     state.tatuatoriDaRiconoscere = null;
