@@ -4422,6 +4422,19 @@ function renderTrialChoice(){
   </div>`;
 }
 
+/* CORREZIONE (FixTasksLogin): prima richiedeva di rimuovere il
+   dispositivo in eccesso da "un dispositivo già attivo" — ma per uno
+   studio con un solo dispositivo che perde i dati locali (pulizia dati
+   di navigazione, cambio telefono...), il device_id viene rigenerato
+   da zero e il NUOVO dispositivo resta bloccato qui, senza alcun altro
+   dispositivo attivo da cui gestire l'elenco: vicolo cieco reale,
+   nessuna via self-service per rientrare nella licenza già pagata.
+   Ora l'elenco/rimozione (stesse funzioni già usate in Impostazioni →
+   "Account studio e dispositivi", elencoDispositiviStudio/
+   rimuoviDispositivoRemoto) è disponibile direttamente qui: bastano le
+   credenziali dell'account studio (già verificate per arrivare a
+   questa schermata), NON serve un dispositivo "consentito" per
+   vederlo o liberare un posto. */
 function renderDeviceLimitBlock(){
   const info = state.deviceLimitBlock || {};
   return `
@@ -4430,9 +4443,20 @@ function renderDeviceLimitBlock(){
       <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
       <h2 class="lock-title">Limite dispositivi raggiunto</h2>
       <p class="lock-sub">${esc(info.messaggio || "Hai già raggiunto il limite di 2 dispositivi per questo studio.")}</p>
-      <p class="lock-hint">Per continuare qui, rimuovi un dispositivo dall'account (da un dispositivo già attivo, Impostazioni → "Account studio e dispositivi"), poi ricarica questa pagina. Il backup/ripristino resta il modo per spostare i dati tra i dispositivi consentiti.</p>
+      <p class="lock-hint">Questo è un dispositivo nuovo per la licenza (es. dati di navigazione cancellati, o cambio telefono): per usarlo, libera un posto rimuovendo qui sotto un dispositivo vecchio/non più in uso, poi premi "Ho liberato un posto, riprova".</p>
       <div class="btn-row" style="justify-content:center;">
-        <button class="btn btn-ghost" data-action="device-limit-retry">Ho liberato un posto, riprova</button>
+        <button class="btn btn-ghost btn-sm" data-action="refresh-device-list">${state.deviceList ? "Aggiorna elenco" : "Mostra dispositivi registrati"}</button>
+      </div>
+      ${state.deviceList ? `
+      <div class="inv-list" style="margin-top:12px; text-align:left;">
+        ${!state.deviceList.length ? `<p class="field hint">Nessun dispositivo registrato ancora.</p>` : state.deviceList.map(d => `
+        <div class="inv-row">
+          <div class="inv-main"><b>${esc(d.nome_dispositivo || "Dispositivo")}</b><span class="inv-sub">ultimo uso ${fmtDateTime(d.ultimo_utilizzo)}</span></div>
+          <div class="inv-actions"><button class="btn btn-ghost btn-sm" data-action="remove-dispositivo" data-id="${d.id}">Rimuovi</button></div>
+        </div>`).join("")}
+      </div>` : ""}
+      <div class="btn-row" style="justify-content:center; margin-top:12px;">
+        <button class="btn btn-accent" data-action="device-limit-retry">Ho liberato un posto, riprova</button>
         <button class="btn btn-ghost" data-action="account-sign-out">Esci da questo account</button>
       </div>
     </div>
