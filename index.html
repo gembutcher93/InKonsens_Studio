@@ -2819,7 +2819,18 @@ async function registraTatuatoreCorrente(t){
     const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/registra_tatuatore`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${token}` },
-      body: JSON.stringify({ p_tatuatore_id: t.supabaseId, p_nome: t.nome }),
+      // p_termini_accettati (FixNewFeature, punto 3): il flag va mandato
+      // "quando l'utente accetta i termini per la prima volta" — ma a
+      // quel preciso click (azione "terms-accept") lo schermo di scelta
+      // profilo non è ancora passato, quindi non sappiamo ancora PER
+      // QUALE tatuatore. registraTatuatoreCorrente gira invece subito
+      // dopo un claim/login riuscito, quando il profilo attivo è certo
+      // — e questa schermata è raggiungibile solo a termini già accettati
+      // (needsTerms viene prima nel dispatcher), quindi termsAccepted()
+      // qui è sempre vero al primo giro utile. La RPC non sovrascrive mai
+      // una data già presente (coalesce), quindi rimandarlo ad ogni
+      // claim/login successivo è innocuo, non solo al primissimo.
+      body: JSON.stringify({ p_tatuatore_id: t.supabaseId, p_nome: t.nome, p_termini_accettati: termsAccepted() }),
     });
     if (!res.ok) return { consentito: true };
     const rows = await res.json();
@@ -2885,10 +2896,18 @@ async function riconciliaProfiliTatuatoriConRemoto(){
   for (const profilo of profili){
     if (profilo.hash) continue;
     const idRemoto = await trovaTatuatorePerNome(profilo.nome);
-    if (idRemoto && idRemoto !== profilo.supabaseId){
-      const i = list.findIndex(t => t.id === profilo.id);
-      if (i >= 0){ list[i] = { ...list[i], supabaseId: idRemoto }; changed = true; }
-    }
+    if (!idRemoto) continue;
+    const i = list.findIndex(t => t.id === profilo.id);
+    if (i < 0) continue;
+    const patch = {};
+    if (idRemoto !== profilo.supabaseId) patch.supabaseId = idRemoto;
+    // FixNewFeature, punto 1: un match qui prova che questo NON è un
+    // profilo vergine anonimo, anche se non ha ancora una password
+    // locale su questo dispositivo — vedi picked.riconciliato in
+    // renderTatuatoreSwitch (offre "hai già un backup?" solo a chi lo è
+    // davvero).
+    if (!profilo.riconciliato) patch.riconciliato = true;
+    if (Object.keys(patch).length){ list[i] = { ...list[i], ...patch }; changed = true; }
   }
   if (changed) saveTatuatori(list);
 }
@@ -2910,6 +2929,36 @@ async function riconciliaProfiliTatuatoriConRemoto(){
    mostrare in una scelta esplicita. */
 async function riconosciOReconciliaTatuatori(){
   const trovati = (await elencoTatuatoriStudio()).filter(t => t && t.nome);
+  // FixNewFeature, punto 3: i termini sono legati al TATUATORE
+  // (termini_accettati_il, licenza_tatuatori), non al dispositivo — se lo
+  // studio ha ALMENO un tatuatore che li ha già accettati altrove, questo
+  // dispositivo non è davvero "nuovo" per il team: saltiamo needsTerms
+  // (mai chiesto ORA, prima ancora che sappiamo su quale profilo questo
+  // dispositivo finirà — vedi render(): needsTerms viene valutato prima
+  // della scelta profilo, non dopo). Va fatto PRIMA di decidere
+  // silenzioso/schermata sotto, cosi' il boot() che segue (dove
+  // termsAccepted() viene controllato) vede già lo stato corretto.
+  if (trovati.some(t => t.termini_accettati_il)){
+    saveTermsAccepted();
+    // boot() valuta e imposta state.needsTerms PRIMA di chiamare questa
+    // funzione (per il redirect di conferma email) o comunque prima che
+    // l'utente arrivi qui (account-signin, dopo needsStudioAccount): un
+    // saveTermsAccepted() da solo aggiorna il localStorage ma non lo
+    // stato già in memoria di questo giro, che resterebbe true.
+    state.needsTerms = false;
+    // BUGFIX (trovato nel test end-to-end): needsSetup (la creazione
+    // della cassaforte/password di studio, renderFirstRunSetup) oggi
+    // diventa true SOLO come effetto collaterale dell'azione
+    // "terms-accept" — mai altrove in questo percorso (né qui né in
+    // boot(), che per il redirect di conferma email salta l'intero
+    // if/else di authIsSet()/tourDismissed()/needsSetup quando
+    // sessioneDaRedirect è vera). Saltare needsTerms qui salterebbe
+    // anche "terms-accept", e con lui needsSetup: il dispositivo
+    // arriverebbe dritto alla scelta tatuatore SENZA aver mai creato
+    // la cassaforte locale. Va impostato esplicitamente qui, con la
+    // stessa condizione che avrebbe usato "terms-accept".
+    if (!authIsSet()) state.needsSetup = true; else state.locked = true;
+  }
   if (trovati.length){
     state.tatuatoriDaRiconoscere = trovati;
     render();
@@ -3938,6 +3987,21 @@ function collectBackup(){
     inks: loadInks(),
     needles: loadNeedles(),
     forniture: loadForniture(),
+    appuntamenti: loadAppuntamenti(),
+    waitlist: loadWaitlist(),
+    movimenti: loadMovimenti(),
+    // tatuatori (FixNewFeature, punto 2): deliberatamente FUORI dalla
+    // cassaforte cifrata in locale (leggibile prima dello sblocco, vedi
+    // commento su TATUATORI_KEY) — ma un export/import è una cosa
+    // diversa dalla cassaforte, e senza restaurare username/hash qui un
+    // ripristino da backup rimanda comunque ogni tatuatore a "prima
+    // volta: scegli username e password" come se non avesse mai avuto
+    // un accesso proprio.
+    tatuatori: loadTatuatori(),
+    // termini (FixNewFeature, punto 2): stessa ragione — un dispositivo
+    // ripristinato da un backup di uno studio che li aveva già accettati
+    // non deve tornare a chiederli da capo.
+    terms: (() => { try { return JSON.parse(localStorage.getItem(TERMS_KEY)); } catch(e){ return null; } })(),
   };
 }
 async function deriveKey(password, salt){
@@ -4042,10 +4106,49 @@ async function importBackup(fileText, password, frase){
   if (obj.inks) saveInks(obj.inks);
   if (obj.needles) saveNeedles(obj.needles);
   if (obj.forniture) saveForniture(obj.forniture);
+  if (obj.appuntamenti) saveAppuntamenti(obj.appuntamenti);
+  if (obj.waitlist) saveWaitlist(obj.waitlist);
+  if (obj.movimenti) saveMovimenti(obj.movimenti);
+  if (obj.tatuatori) saveTatuatori(obj.tatuatori);
+  if (obj.terms) localStorage.setItem(TERMS_KEY, JSON.stringify(obj.terms));
   return {
     sessions: (obj.sessions||[]).length,
     richieste: (obj.richieste||[]).length,
   };
+}
+/* Ripristino guidato da file di backup, stessa sequenza di tentativi
+   ovunque nell'app si offra "hai già un backup? Importalo" (FixNewFeature,
+   punto 1): prova prima senza password (file non cifrato o "vecchio"
+   formato in chiaro), poi chiede la password del backup, poi in ultima
+   istanza le 12 parole di recupero. Torna il risultato di importBackup()
+   se riesce; lancia un errore altrimenti — "CANCELLED" se l'utente ha
+   chiuso un prompt senza scegliere, "NEITHER_WORKS" se né password né
+   frase aprono il file, o il messaggio originale di importBackup negli
+   altri casi (NOT_A_BACKUP, ecc.). Sta al chiamante decidere cosa
+   mostrare: i tre punti di aggancio (login classico, primo avvio,
+   sblocco del singolo tatuatore) hanno testi/stato d'errore diversi. */
+async function importBackupInterattivo(fileText){
+  const tenta = (pw, frase) => importBackup(fileText, pw, frase);
+  try { return await tenta(""); }
+  catch(err){
+    if (err.message !== "PASSWORD_REQUIRED" && err.message !== "WRONG_PASSWORD") throw err;
+    const pw = prompt("Questo backup è cifrato. Inserisci la password del backup.\n\nSe non la ricordi lascia vuoto e premi OK: ti chiedo le 12 parole.");
+    if (pw == null) throw new Error("CANCELLED");
+    if (pw.trim()){
+      try { return await tenta(pw); }
+      catch(e2){ if (e2.message !== "WRONG_PASSWORD") throw e2; }
+    }
+    const frase = prompt("Scrivi le 12 parole di recupero, separate da uno spazio:");
+    if (frase == null) throw new Error("CANCELLED");
+    try { return await tenta("", frase); }
+    catch(e3){ throw new Error((e3.message === "WRONG_PHRASE" || e3.message === "PASSWORD_REQUIRED") ? "NEITHER_WORKS" : e3.message); }
+  }
+}
+/* Messaggio d'errore comune ai tre punti di aggancio di importBackupInterattivo(). */
+function messaggioErroreImportBackup(err){
+  if (err.message === "NEITHER_WORKS") return "Né la password né le 12 parole aprono questo backup.";
+  if (err.message === "NOT_A_BACKUP") return "Questo file non è un backup InkConsent.";
+  return "File non valido.";
 }
 
 /* ============================================================
@@ -4618,6 +4721,12 @@ function renderTatuatoreSwitch(){
         <h2 class="lock-title">${esc(picked.nome)}</h2>
         <p class="lock-sub">${primaVolta ? "Prima volta: scegli username e password personali per sbloccare l'app su questo dispositivo." : "Inserisci la tua password per sbloccare l'app come " + esc(picked.nome) + "."}</p>
         ${state.tatuatoreSwitchError ? `<p class="lock-err">${esc(state.tatuatoreSwitchError)}</p>` : ""}
+        ${primaVolta && picked.riconciliato ? `
+        <div class="btn-row" style="justify-content:center;">
+          <button class="btn btn-ghost" data-action="tatswitch-restore-pick">${icon("upload",15)} Hai già un backup? Importalo</button>
+        </div>
+        <input type="file" id="tatswitch-restore-file" accept="application/json,.json" style="display:none;">
+        <p class="lock-hint" style="margin:10px 0 18px;">Sei già un tatuatore di questo studio: se hai un tuo backup (fatto su un dispositivo precedente), importalo qui per rientrare con la password che avevi già, senza sceglierne una nuova.</p>` : ""}
         <div class="login-fields">
           ${primaVolta ? `<input type="text" class="login-input" placeholder="Username" value="${esc((state.tatuatoreSwitchBuffer||{}).username||'')}" data-tatswitch-field="username" autocomplete="off">` : ""}
           <input type="password" class="login-input" placeholder="Password" value="${esc((state.tatuatoreSwitchBuffer||{}).password||'')}" data-tatswitch-field="password">
@@ -4626,6 +4735,7 @@ function renderTatuatoreSwitch(){
         <div class="btn-row" style="justify-content:center;">
           <button class="btn btn-accent" data-action="${primaVolta ? 'tatuatore-claim' : 'tatuatore-login'}" ${state.tatuatoreSwitchBusy ? "disabled" : ""}>${state.tatuatoreSwitchBusy ? "Un momento…" : (primaVolta ? "Imposta e continua" : "Continua")}</button>
         </div>
+        ${primaVolta && picked.riconciliato ? `<p class="lock-hint">Senza un backup tuo da importare, questa è l'unica strada: la password locale non viene mai salvata su nessun server, per questo va scelta qui di persona.</p>` : ""}
         <p class="lock-hint"><a data-action="tatuatore-pick-back">← Non sono ${esc(picked.nome)}</a></p>
         <div class="callout info" style="margin-top:16px;text-align:left;">Questa password sblocca solo il TUO profilo su questo dispositivo condiviso: resta sempre e solo locale, non va mai su Supabase — usane una diversa da quella dell'account studio.</div>
         ${primaVolta && !picked.isTitolare ? `<div class="callout info" style="margin-top:10px;text-align:left;">Se in futuro dimentichi questa password, chiedi al titolare dello studio di reimpostartela (Impostazioni → Tatuatori): non hai una frase di recupero personale, l'unica esiste ed è custodita solo da lui.</div>` : ""}
@@ -4695,6 +4805,11 @@ function renderFirstRunSetup(){
       <h2 class="lock-title">Crea l'accesso allo studio</h2>
       <p class="lock-sub">Scegli un ID e una password: serviranno a proteggere i dati dei clienti su questo dispositivo.</p>
       ${state.loginError ? `<p class="lock-err">${esc(state.loginError)}</p>` : ""}
+      <div class="btn-row" style="justify-content:center;">
+        <button class="btn btn-ghost" data-action="firstrun-restore-pick">${icon("upload",15)} Hai già un backup? Importalo</button>
+      </div>
+      <input type="file" id="firstrun-restore-file" accept="application/json,.json" style="display:none;">
+      <p class="lock-hint" style="margin:10px 0 18px;">Se hai già usato InkConsent su un altro dispositivo (o su questo, prima di perdere i dati del browser) e hai un file di backup, importalo qui: salti del tutto la creazione di una password nuova ed entri con quella che avevi già.</p>
       <div class="login-fields">
         <input type="text" class="login-input" placeholder="ID studio (es. tuostudio)" value="${esc(b.studioId||'')}" data-login-field="studioId" autocomplete="off">
         <input type="password" class="login-input" placeholder="Password" value="${esc(b.pw||'')}" data-login-field="pw">
@@ -4703,7 +4818,7 @@ function renderFirstRunSetup(){
       <div class="btn-row" style="justify-content:center;">
         <button class="btn btn-accent" data-action="setup-create">Crea e continua</button>
       </div>
-      <p class="lock-hint">Al passo successivo riceverai un codice di recupero, utile se dimentichi la password.</p>
+      <p class="lock-hint">Senza un backup da importare, questa è l'unica strada: la password locale protegge i dati dei clienti su questo dispositivo e non viene mai salvata su nessun server, nemmeno il nostro — per questo va scelta qui, di persona, e non può arrivare da nessuna parte al posto tuo.</p>
       ${loadStudioAccount() ? `<div class="callout info" style="margin-top:16px;text-align:left;">Questo ID/password sbloccano <b>solo questo dispositivo</b> e restano sempre in locale: usane uno diverso dall'email/password del tuo account studio (${esc(loadStudioAccount().email||"")}), per non rendere banale risalire dall'uno all'altro.</div>` : ""}
     </div>
   </div>`;
@@ -7489,6 +7604,10 @@ document.addEventListener("click", (e) => {
       // in "chi sta lavorando ora" (renderTatuatoreSwitch la filtra),
       // vanificando il riconoscimento appena fatto.
       if (!profilo.abilitato) patch.abilitato = true;
+      // FixNewFeature, punto 1: stesso segnale di riconciliaProfiliTatuatoriConRemoto
+      // — un match qui prova che non è un profilo vergine anonimo, usato
+      // da renderTatuatoreSwitch per offrire "hai già un backup?".
+      if (!profilo.riconciliato) patch.riconciliato = true;
       if (Object.keys(patch).length){ list[i] = { ...list[i], ...patch }; changed = true; }
     }
     if (changed) saveTatuatori(list);
@@ -7806,6 +7925,10 @@ document.addEventListener("click", (e) => {
   if (action === "ickey-import-pick"){ const i = qs("#ickey-file"); if (i) i.click(); return; }
   // --- ripristino da backup dalla schermata di login ---
   if (action === "login-restore-pick"){ const inp = qs("#login-restore-file"); if (inp) inp.click(); return; }
+  // --- ripristino da backup PRIMA di creare una password nuova (FixNewFeature, punto 1) ---
+  if (action === "firstrun-restore-pick"){ const inp = qs("#firstrun-restore-file"); if (inp) inp.click(); return; }
+  // --- ripristino da backup dalla schermata "prima volta" del singolo tatuatore già riconciliato (FixNewFeature, punto 1) ---
+  if (action === "tatswitch-restore-pick"){ const inp = qs("#tatswitch-restore-file"); if (inp) inp.click(); return; }
 
   if (action === "nav"){
     state.view = btn.dataset.view; state.step = 1; state.showErrors = null; state.railOpen = false; state.studioSaved = false; state.authSaved = false; state.authError = null; state.backupMsg = null; render();
@@ -8955,37 +9078,80 @@ document.addEventListener("change", (e) => {
     const file = e.target.files[0];
     const reader = new FileReader();
     reader.onload = async () => {
-      const doRestore = async (pw, frase) => {
-        const res = await importBackup(reader.result, pw, frase);
+      try {
+        const res = await importBackupInterattivo(reader.result);
         applyStudioConfig();
         state.locked = false; state.needsSetup = false; state.recoveryMode = false;
         state.loginError = null;
         state.backupMsg = `Ripristino riuscito: ${res.sessions} consensi. Ora sei dentro.`;
         render();
-      };
-      try { await doRestore(""); }
-      catch(err){
-        if (err.message === "PASSWORD_REQUIRED" || err.message === "WRONG_PASSWORD"){
-          const pw = prompt("Questo backup è cifrato. Inserisci la password del backup.\n\nSe non la ricordi lascia vuoto e premi OK: ti chiedo le 12 parole.");
-          if (pw == null) return;
-          if (pw.trim()){
-            try { await doRestore(pw); return; }
-            catch(e2){
-              if (e2.message !== "WRONG_PASSWORD"){ state.loginError = "File non valido."; render(); return; }
-            }
-          }
-          const frase = prompt("Scrivi le 12 parole di recupero, separate da uno spazio:");
-          if (frase == null) return;
-          try { await doRestore("", frase); }
-          catch(e3){
-            state.loginError = (e3.message === "WRONG_PHRASE" || e3.message === "PASSWORD_REQUIRED")
-              ? "Né la password né le 12 parole aprono questo backup."
-              : "File non valido.";
-            render();
-          }
-        } else {
-          state.loginError = err.message === "NOT_A_BACKUP" ? "Questo file non è un backup InkConsent." : "File non valido."; render();
+      } catch(err){
+        if (err.message === "CANCELLED") return;
+        state.loginError = messaggioErroreImportBackup(err); render();
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+    return;
+  }
+  // --- ripristino da backup PRIMA di creare una password nuova (FixNewFeature, punto 1) ---
+  if (e.target.id === "firstrun-restore-file" && e.target.files && e.target.files[0]){
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const res = await importBackupInterattivo(reader.result);
+        applyStudioConfig();
+        state.needsSetup = false; state.setupPhase = null; state.setupBuffer = {};
+        state.locked = false;
+        state.loginError = null;
+        state.backupMsg = `Ripristino riuscito: ${res.sessions} consensi. Ora sei dentro.`;
+        render();
+      } catch(err){
+        if (err.message === "CANCELLED") return;
+        state.loginError = messaggioErroreImportBackup(err); render();
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+    return;
+  }
+  // --- ripristino da backup dalla schermata "prima volta" del singolo
+  // tatuatore già riconciliato (FixNewFeature, punto 1) — a differenza
+  // degli altri due, qui il profilo locale "vergine" scelto prima
+  // dell'import (state.tatuatoreSwitchPick) può essere sostituito dal
+  // ripristino di TATUATORI_KEY (punto 2): ri-cerchiamo per NOME dopo
+  // l'import, non fidandoci del vecchio id in memoria.
+  if (e.target.id === "tatswitch-restore-file" && e.target.files && e.target.files[0]){
+    const file = e.target.files[0];
+    const pickedNome = (getTatuatoreProfilo(state.tatuatoreSwitchPick) || {}).nome;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        await importBackupInterattivo(reader.result);
+        applyStudioConfig();
+        const restored = loadTatuatori().find(t => t.nome === pickedNome);
+        if (!restored){
+          state.tatuatoreSwitchError = "Il backup importato non contiene un profilo con questo nome.";
+          render(); return;
         }
+        const id = restored.id;
+        ACTIVE_TATUATORE = id;
+        await salvaSessioneAttiva(id, DEK);
+        state.locked = false; state.forceEmergencyUnlock = false; state.tatuatoreSwitchError = null;
+        const t = tatuatoreAttivo();
+        const esitoT = await registraTatuatoreCorrente(t);
+        if (esitoT && esitoT.consentito === false){
+          state.deviceLimitBlock = esitoT; state.tatuatoreSwitchPick = null; render(); return;
+        }
+        const esitoD = await registraDispositivoCorrente();
+        state.tatuatoreSwitchPick = null; state.tatuatoreSwitchBuffer = null;
+        state.deviceLimitBlock = (esitoD && esitoD.consentito === false) ? esitoD : null;
+        render();
+        refreshLicenseFromSupabase();
+      } catch(err){
+        if (err.message === "CANCELLED") return;
+        state.tatuatoreSwitchError = messaggioErroreImportBackup(err); render();
       }
     };
     reader.readAsText(file);
