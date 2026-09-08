@@ -2487,6 +2487,24 @@ async function rimuoviDispositivoRemoto(deviceId){
     return res.ok;
   } catch(e){ return false; }
 }
+/* Elenco {id, nome, creato_il} dei tatuatori già registrati per questo
+   studio (lista_tatuatori_studio, estesa con "nome" da
+   supabase-tatuatore-match-nome.sql) — usato per il riconoscimento
+   esplicito su un dispositivo nuovo (FixLoginInkonsent2), stesso
+   pattern di elencoDispositiviStudio. */
+async function elencoTatuatoriStudio(){
+  const token = await validStudioAccessToken();
+  if (!token) return [];
+  try {
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/lista_tatuatori_studio`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${token}` },
+      body: "{}",
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch(e){ return []; }
+}
 
 /* ============================================================
    TATUATORI — profilo locale per singolo tatuatore, dentro
@@ -2873,6 +2891,31 @@ async function riconciliaProfiliTatuatoriConRemoto(){
     }
   }
   if (changed) saveTatuatori(list);
+}
+/* CORREZIONE (FixLoginInkonsent2): riconciliaProfiliTatuatoriConRemoto()
+   indovina da solo il tatuatore giusto per nome — funziona solo se
+   STUDIO_CONFIG.artists contiene già quel nome (in pratica: solo il
+   titolare, l'unico che sincronizzaDatiStudioDaRemoto ripristina da
+   dati_studio). Un tatuatore NON titolare su un dispositivo nuovo non ha
+   ancora il proprio nome in "Artisti" qui: andrebbe silenziosamente
+   ignorato, o peggio duplicato al primo uso. Ora, se lo studio ha
+   tatuatori già registrati (lista_tatuatori_studio, nome incluso), si
+   chiede esplicitamente "chi sei" invece di indovinare — mostra la lista
+   vera lato server, sceglie l'utente, mai il client. Il fallback
+   silenzioso (comportamento precedente) resta SOLO per lo studio senza
+   alcun tatuatore ancora registrato lì (lista vuota: niente da
+   riconoscere) o quando l'unica riga trovata non ha ancora un nome
+   salvato (avvia_trial storico, non tocca questo giro — vedi nota nel
+   commit precedente): in quel caso non c'è nulla di significativo da
+   mostrare in una scelta esplicita. */
+async function riconosciOReconciliaTatuatori(){
+  const trovati = (await elencoTatuatoriStudio()).filter(t => t && t.nome);
+  if (trovati.length){
+    state.tatuatoriDaRiconoscere = trovati;
+    render();
+  } else {
+    await riconciliaProfiliTatuatoriConRemoto();
+  }
 }
 
 const SUBSCRIPTION_KEY = "inkconsent_subscription_active_v1";
@@ -4203,6 +4246,7 @@ function render(){
   else if (state.mode === "richiesta") root.innerHTML = renderLeadShell();
   else if (state.needsStudioAccount) root.innerHTML = renderStudioAccountSetup();
   else if (state.needsTrialChoice) root.innerHTML = renderTrialChoice();
+  else if (state.tatuatoriDaRiconoscere) root.innerHTML = renderRiconoscimentoTatuatori();
   else if (state.showTour) root.innerHTML = renderTour();
   else if (state.needsTerms) root.innerHTML = renderTerms();
   else if (state.needsSetup) root.innerHTML = renderFirstRunSetup();
@@ -4512,6 +4556,29 @@ function renderDeviceLimitBlock(){
       <div class="btn-row" style="justify-content:center; margin-top:12px;">
         <button class="btn btn-accent" data-action="device-limit-retry">Ho liberato un posto, riprova</button>
         <button class="btn btn-ghost" data-action="account-sign-out">Esci da questo account</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* Riconoscimento esplicito (FixLoginInkonsent2): su un dispositivo nuovo
+   per uno studio con almeno un tatuatore già registrato su Supabase
+   (lista_tatuatori_studio), chiede all'utente chi è tra i nomi VERI
+   trovati lato server, invece di indovinare (riconciliaProfiliTatuatoriConRemoto,
+   che funziona solo per il titolare). La scelta viene applicata
+   dall'azione "riconosci-tatuatore" nel dispatcher: crea/ritrova il
+   profilo locale per quel nome e gli assegna il supabaseId scelto,
+   PRIMA che un profilo "vergine" possa registrarne uno per sbaglio. */
+function renderRiconoscimentoTatuatori(){
+  const trovati = state.tatuatoriDaRiconoscere || [];
+  return `
+  <div class="lock-wrap">
+    <div class="lock-card">
+      <div class="lock-logo"><img src="${STUDIO_CONFIG.logoDataUrl || 'icons/icon-192.png'}" alt="" onerror="this.style.display='none'"></div>
+      <h2 class="lock-title">Chi sei tu su questo dispositivo?</h2>
+      <p class="lock-sub">Abbiamo trovato ${trovati.length === 1 ? "un tatuatore già registrato" : "questi tatuatori già registrati"} per questo studio:</p>
+      <div class="btn-row" style="flex-direction:column; gap:8px; align-items:stretch;">
+        ${trovati.map(t => `<button class="btn btn-accent" data-action="riconosci-tatuatore" data-id="${esc(t.id)}" data-nome="${esc(t.nome)}">${esc(t.nome)}</button>`).join("")}
       </div>
     </div>
   </div>`;
@@ -7246,7 +7313,7 @@ document.addEventListener("click", (e) => {
       // profilo tatuatore con un nome diverso per la stessa persona.
       const remoto = await sincronizzaDatiStudioDaRemoto();
       if (remoto.completato){
-        await riconciliaProfiliTatuatoriConRemoto();
+        await riconosciOReconciliaTatuatori();
         registraDispositivoCorrente().then(esito => {
           if (esito && esito.consentito === false) state.deviceLimitBlock = esito;
           render();
@@ -7382,6 +7449,45 @@ document.addEventListener("click", (e) => {
   }
   else if (action === "refresh-device-list"){
     elencoDispositiviStudio().then(list => { state.deviceList = list; render(); });
+  }
+  else if (action === "riconosci-tatuatore"){
+    // CORREZIONE (FixLoginInkonsent2): l'utente ha scelto esplicitamente
+    // chi è tra i tatuatori reali trovati su Supabase (renderRiconoscimentoTatuatori).
+    // Se il nome scelto non è ancora in "Artisti" su questo dispositivo
+    // (caso tipico: un tatuatore non titolare, che sincronizzaDatiStudioDaRemoto
+    // non ripristina — vedi nota sopra), lo aggiungiamo ORA, così
+    // assicuraProfiliTatuatori() gli crea/ritrova il profilo locale.
+    // BUGFIX (trovato nel test end-to-end con 2 tatuatori): quella stessa
+    // assicuraProfiliTatuatori() crea/ritrova un profilo per OGNI nome già
+    // in "Artisti", non solo per quello scelto — es. il titolare, il cui
+    // nome arriva già da sincronizzaDatiStudioDaRemoto prima di questa
+    // schermata. Riconciliare solo il profilo scelto lasciava il titolare
+    // con un supabaseId casuale mai verificato: pronto a duplicarsi al
+    // primo sblocco. Ora si riconciliano TUTTI i profili locali "vergini"
+    // (senza hash) il cui nome combacia con uno dei tatuatori VERI appena
+    // trovati (state.tatuatoriDaRiconoscere), non solo quello cliccato.
+    const nome = btn.dataset.nome;
+    const ov = loadStudioOverrides();
+    const nomiAttuali = artistiArray(ov).filter(Boolean);
+    if (!nomiAttuali.includes(nome)){
+      saveStudioOverrides({ ...ov, artistsText: [...nomiAttuali, nome].join(", ") });
+      applyStudioConfig();
+    }
+    const profili = assicuraProfiliTatuatori();
+    const trovati = state.tatuatoriDaRiconoscere || [];
+    const list = loadTatuatori();
+    let changed = false;
+    for (const profilo of profili){
+      if (profilo.hash) continue;
+      const match = trovati.find(t => t.nome === profilo.nome);
+      if (match && match.id !== profilo.supabaseId){
+        const i = list.findIndex(t => t.id === profilo.id);
+        if (i >= 0){ list[i] = { ...list[i], supabaseId: match.id }; changed = true; }
+      }
+    }
+    if (changed) saveTatuatori(list);
+    state.tatuatoriDaRiconoscere = null;
+    render();
   }
 
   // --- scelta/switch tatuatore attivo (prompt6, Task 1) ---
@@ -9011,7 +9117,7 @@ function initRichiestaMode(){
       // altrove (stesso studio, altro dispositivo) — non richiederla di
       // nuovo, i dati arrivano da sincronizzaDatiStudioDaRemoto().
       const remoto = await sincronizzaDatiStudioDaRemoto();
-      if (remoto.completato) await riconciliaProfiliTatuatoriConRemoto();
+      if (remoto.completato) await riconosciOReconciliaTatuatori();
       state.needsTrialChoice = !remoto.completato;
     }
     // primo avvio in assoluto, con Supabase configurato: prima di tutto
@@ -9024,7 +9130,13 @@ function initRichiestaMode(){
     if (sessioneDaRedirect){
       // gate già risolto sopra, niente altro qui
     } else if (SUPABASE_CONFIG.url && !hasLocalLicenseIdentity()){
-      state.needsStudioAccount = true;
+      // CORREZIONE (FixLoginInkonsent2): senza questa riga il modulo
+      // partiva sempre su "Crea l'account studio" (default di
+      // renderStudioAccountSetup quando accountMode non è impostato),
+      // anche per chi ha già uno studio e sta solo aggiungendo un
+      // secondo dispositivo — stesso accountMode già impostato da
+      // account-sign-out, qui mancava.
+      state.needsStudioAccount = true; state.accountMode = "signin";
     } else if (authIsSet()){
       // sicurezza prima di tutto: se c'è un accesso, l'app parte bloccata.
       state.locked = true;
