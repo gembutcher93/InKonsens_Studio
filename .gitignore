@@ -1,0 +1,12 @@
+# Cartelle dell'ambiente virtuale e configurazioni locali (NON PUSHARI)
+.claude/
+.venv/
+.vscode/
+
+# Ignora i file di log o temporanei del sistema
+*.log
+.DS_Store
+Thumbs.db
+
+
+

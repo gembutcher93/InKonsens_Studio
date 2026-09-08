@@ -1,0 +1,24 @@
+                
+Valle d'Aosta           (X)   (✓)
+Piemonte                (✓) 
+Liguria                 (✓)             
+Lombardia               (✓)   
+Trentino-Alto Adige     (✓)    
+Veneto                  (✓)  
+Friuli-Venezia Giulia   (✓) 
+Emilia-Romagna          (✓) 
+Toscana                 (✓)             
+Umbria                  (X)  (✓)
+Marche                  (✓) 
+Lazio                   (✓)
+Abruzzo                 (X)  (✓)
+Molise                  (✓)
+Campania                (X)  (✓)
+Puglia                  (X)  (✓)
+Basilicata              (X)  (✓)
+Calabria                (✓)
+Sicilia                 (✓)
+Sardegna                (✓)
+
+
+

@@ -1,0 +1,39 @@
+{
+  "_nota": "Testi del consenso, aggiornabili senza ripubblicare l'app. Va nella root, accanto a index.html. Se manca, l'app usa i testi incorporati. Alza sempre 'versione' quando cambi un testo: i consensi gia' firmati conservano la versione con cui sono stati firmati. Le voci con nome che inizia per underscore vengono ignorate: servono da esempio.",
+
+  "base": {
+    "versione": "2.0",
+    "avvertenze": []
+  },
+
+  "regioni": {
+
+    "piemonte": {
+      "versione": "1.0",
+      "riferimento": "D.P.G.R. Piemonte 46/R del 2003 · Allegati D ed E",
+      "avvertenze": [
+        "Infezioni locali: in genere si risolvono senza lasciare alterazioni della cute; non eccezionalmente possono generarsi cicatrici deturpanti o cheloidi, soprattutto per applicazioni multiple sulla cartilagine delle orecchie.",
+        "Infezioni sistemiche: gli agenti infettanti possono essere virus epatitici (in particolare epatite B), virus HIV e qualsiasi tipo di virus e batteri.",
+        "Sensibilizzazioni allergiche: l'introduzione di colori o metalli puo' provocare una reazione allergica, a breve o a lungo termine; in caso di difficolta' respiratorie o sudorazione ricorrere ai servizi di emergenza sanitaria. Frequente la sensibilizzazione al nichel.",
+        "Altre manifestazioni: sono state segnalate reazioni infiammatorie (granulomatosi, iperplasia capillare, reazione lichenoide, fenomeno di Koebner nei soggetti con psoriasi), lesioni ai nervi con alterazione della sensibilita' o della motricita' locale; complicazioni serie ma rare sono melanoma maligno e carcinoma delle cellule basali.",
+        "L'asportazione di un tatuaggio o piercing comporta una cicatrice permanente.",
+        "Non e' consentito sottoporsi a tatuaggio o piercing a donne in gravidanza o con patologie in atto.",
+        "Qualsiasi reazione indesiderata conseguente al tatuaggio o piercing deve essere segnalata a personale medico.",
+        "La documentazione del consenso deve essere conservata dall'esercente per almeno cinque anni."
+      ],
+      "effettiFrequenti": [],
+      "effettiRari": [],
+      "dichiarazioneExtra": "Dichiaro di essere stato informato in merito ai potenziali rischi per la salute derivanti dall'applicazione di tatuaggio o piercing sopra elencati, e controfirmo per presa visione ai sensi del D.P.G.R. Piemonte 46/R/2003 (Allegato D)."
+    },
+
+    "_esempio": {
+      "_nota": "Modello di voce. Togli l'underscore dal nome quando il testo e' verificato.",
+      "versione": "1.0",
+      "riferimento": "estremi dell'atto regionale",
+      "avvertenze": ["riga aggiuntiva richiesta dalla Regione"],
+      "effettiFrequenti": [],
+      "effettiRari": [],
+      "dichiarazioneExtra": "capoverso aggiunto in coda alla dichiarazione firmata."
+    }
+  }
+}
