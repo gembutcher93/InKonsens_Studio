@@ -3204,14 +3204,18 @@ async function notifyNewRichiesta(r){
 }
 
 /* Invio della richiesta a Supabase (prompt6, Task 8-9): chiamata dal
-   DISPOSITIVO DEL CLIENTE, mai autenticato — solo INSERT, mai lettura
-   (RLS in supabase-tatuatori-trial-richieste.sql, blocco 6). Lo
-   studio_id arriva dal link (vedi buildLeadLink); senza quel
+   DISPOSITIVO DEL CLIENTE, mai autenticato — via RPC (security
+   definer), mai un INSERT diretto (audit di sicurezza 2026-09-10, vedi
+   supabase-richieste-rpc-hardening.sql: l'INSERT diretto era aperto ad
+   anon senza rate-limit né validazione, sfruttabile da chiunque avesse
+   l'anon key + lo studio_id pubblico di un link "richiedi preventivo").
+   Lo studio_id arriva dal link (vedi buildLeadLink); senza quel
    parametro, o senza Supabase configurato, la richiesta resta comunque
    salvata in locale sul dispositivo del cliente (upsertRichiesta) più
    la notifica ntfy — questo è solo un canale IN PIÙ, mai l'unico, per
    restare offline-first anche qui. Niente foto (referenceImg) inviata:
-   resta solo sul dispositivo del cliente.
+   resta solo sul dispositivo del cliente (e comunque tolta di nuovo
+   lato server dalla funzione, difesa in profondità).
    tatuatore_id (prompt11, Task 2): valorizzata SOLO quando il cliente
    non ha cambiato scelta rispetto al link condiviso (vedi
    tatuatoreSceltoId in blankRichiesta/set-lead-tatuatore) — altrimenti
@@ -3220,34 +3224,37 @@ async function notifyNewRichiesta(r){
    licenza_tatuatori lato Supabase, mai l'unica fonte di verità. Se
    quell'id non risulta ancora registrato lato server (dispositivo del
    tatuatore mai stato online dopo la creazione del profilo, vedi
-   registraTatuatoreCorrente), l'insert fallirebbe per violazione della
-   foreign key: si ritenta subito senza, così la richiesta arriva
-   comunque allo studio, solo senza quel collegamento.
+   registraTatuatoreCorrente), la funzione lo azzera da sola e la
+   richiesta arriva comunque allo studio, solo senza quel collegamento
+   — non serve più il doppio tentativo lato client di prima, un solo
+   giro di rete basta.
    Valore di ritorno (prompt12, Task A): undefined se non c'era nulla da
    inviare (Supabase non configurato o link senza &studio= — percorso
    solo locale, comportamento invariato, nessun avviso); true/false se
-   un vero tentativo di invio è stato fatto — false solo dopo che
-   ENTRAMBI i tentativi (con e senza tatuatore_id) sono falliti
-   davvero, usato dal chiamante per mostrare un avviso onesto al
-   cliente invece di far credere che sia comunque arrivata. */
+   un vero tentativo di invio è stato fatto, usato dal chiamante per
+   mostrare un avviso onesto al cliente invece di far credere che sia
+   comunque arrivata (false anche se il server rifiuta per rate-limit
+   o payload non valido, non solo per un errore di rete). */
 async function inviaRichiestaSupabase(r){
   const studioId = params.get("studio");
   if (!SUPABASE_CONFIG.url || !studioId) return;
   const payload = { ...r };
   delete payload.referenceImg;
-  const post = (tatuatoreId) => fetch(`${SUPABASE_CONFIG.url}/rest/v1/richieste`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "apikey": SUPABASE_CONFIG.anonKey,
-      "Authorization": `Bearer ${SUPABASE_CONFIG.anonKey}`,
-      "Prefer": "return=minimal",
-    },
-    body: JSON.stringify({ id: r.id, studio_id: studioId, tatuatore_id: tatuatoreId, payload }),
-  });
   try {
-    let res = await post(r.tatuatoreSceltoId || null);
-    if (!res.ok && r.tatuatoreSceltoId) res = await post(null);
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/invia_richiesta_preventivo`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_CONFIG.anonKey,
+        "Authorization": `Bearer ${SUPABASE_CONFIG.anonKey}`,
+      },
+      body: JSON.stringify({
+        p_id: r.id,
+        p_studio_id: studioId,
+        p_tatuatore_id: r.tatuatoreSceltoId || null,
+        p_payload: payload,
+      }),
+    });
     return res.ok;
   } catch(e){
     console.warn("Invio richiesta a Supabase fallito, resta comunque salvata in locale sul telefono del cliente:", e);
