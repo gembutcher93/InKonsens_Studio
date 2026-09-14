@@ -105,10 +105,22 @@
    chiede esplicitamente skipWaiting (bottone "Aggiorna ora" nel banner,
    o dalle Impostazioni) — vedi index.html, message listener sotto.
 
+   v36: fix_magazzino_online — sync Supabase estesa a Inchiostri e Aghi
+   (prima solo Forniture); refresh magazzino non più solo a local
+   storage vuoto ma a ogni apertura app/ritorno da background/bottone
+   manuale, con merge riga per riga (mai un pull che cancella una
+   modifica locale più recente); conflitti veri (stesso articolo
+   cambiato su due dispositivi, o cancellato su uno e modificato
+   sull'altro) non più risolti in automatico — schermata dedicata per
+   scegliere quale versione tenere, singolarmente o in blocco; quantità
+   e barra scorta anche dentro Aghi (scala di 1 automaticamente
+   all'archiviazione del consenso in cui l'ago è stato selezionato) e
+   Inchiostri (solo manuale, nessuno scarico automatico).
+
    Nota: i dati (consensi, magazzino) NON passano da qui. Stanno in
    IndexedDB sul dispositivo e il service worker non li tocca mai.   */
 
-const CACHE = "inkconsent-v35";
+const CACHE = "inkconsent-v36";
 
 const PRECACHE = [
   "./",

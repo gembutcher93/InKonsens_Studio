@@ -2097,7 +2097,14 @@ document.addEventListener("visibilitychange", () => {
   // prompt15, Task 2: ritorno in primo piano = occasione per accorgersi
   // di un piano cambiato a mano su Supabase, non solo il tap manuale su
   // "Verifica abbonamento".
-  else if (state.mode === "studio") refreshLicenseSeServeIl();
+  else if (state.mode === "studio"){
+    refreshLicenseSeServeIl();
+    // fix_magazzino_online punto 2: stesso momento, refresh magazzino —
+    // solo ad archivio già sbloccato, altrimenti loadForniture()/loadInks()/
+    // loadNeedles() leggerebbero (e il merge scriverebbe sopra) uno store
+    // ancora vuoto perché non idratato.
+    if (!state.locked) aggiornaMagazzinoRemoto();
+  }
 });
 window.addEventListener("pagehide", flushStores);
 
@@ -3404,17 +3411,47 @@ function saveNeedles(list){ writeStore(NEEDLES_KEY, list); }
 function upsertInk(item){
   const list = loadInks();
   const i = list.findIndex(x => x.id === item.id);
+  item.updatedAt = new Date().toISOString();
   if (i >= 0) list[i] = item; else list.unshift(item);
-  saveInks(list); return item;
+  saveInks(list);
+  syncMagazzinoItemRemoto(MAGAZZINO_STORES.inks, item);
+  return item;
 }
-function deleteInk(id){ saveInks(loadInks().filter(x => x.id !== id)); }
+function deleteInk(id){
+  saveInks(loadInks().filter(x => x.id !== id));
+  eliminaMagazzinoItemRemoto(MAGAZZINO_STORES.inks, id);
+}
 function upsertNeedle(item){
   const list = loadNeedles();
   const i = list.findIndex(x => x.id === item.id);
+  item.updatedAt = new Date().toISOString();
   if (i >= 0) list[i] = item; else list.unshift(item);
-  saveNeedles(list); return item;
+  saveNeedles(list);
+  syncMagazzinoItemRemoto(MAGAZZINO_STORES.needles, item);
+  return item;
 }
-function deleteNeedle(id){ saveNeedles(loadNeedles().filter(x => x.id !== id)); }
+function deleteNeedle(id){
+  saveNeedles(loadNeedles().filter(x => x.id !== id));
+  eliminaMagazzinoItemRemoto(MAGAZZINO_STORES.needles, id);
+}
+/* fix_magazzino_online punto 4: scala automaticamente 1 dalla quantità
+   dell'ago quando il consenso in cui è stato selezionato viene
+   archiviato (vedi action "finalize-studio") — non alla sola selezione
+   in bozza, per non scalare aghi mai davvero usati (bozza abbandonata
+   o selezione cambiata prima di archiviare). Due scatole dello stesso
+   lotto restano articoli separati: ognuna scala solo se selezionata
+   lei stessa (l'id salvato nel consenso è quello dell'articolo, non del
+   lotto). Niente cronologia movimenti qui (a differenza di
+   addMovimento per le Forniture): per gli aghi basta la quantità. */
+function scalaAgoUsato(id){
+  const list = loadNeedles();
+  const it = list.find(x => x.id === id);
+  if (!it) return;
+  it.quantita = Math.max(0, (it.quantita||0) - 1);
+  it.updatedAt = new Date().toISOString();
+  saveNeedles(list);
+  syncMagazzinoItemRemoto(MAGAZZINO_STORES.needles, it);
+}
 function newId(){ return "x" + Math.random().toString(36).slice(2, 9); }
 
 /* Il vecchio gate "Premium a password" (vetrina di lancio con password
@@ -3510,14 +3547,15 @@ function saveForniture(list){ writeStore(FORNITURE_KEY, list); }
 function upsertFornitura(item){
   const list = loadForniture();
   const i = list.findIndex(x => x.id === item.id);
+  item.updatedAt = new Date().toISOString();
   if (i >= 0) list[i] = item; else list.unshift(item);
   saveForniture(list);
-  syncFornituraRemoto(item);
+  syncMagazzinoItemRemoto(MAGAZZINO_STORES.forniture, item);
   return item;
 }
 function deleteFornitura(id){
   saveForniture(loadForniture().filter(x => x.id !== id));
-  eliminaFornituraRemoto(id);
+  eliminaMagazzinoItemRemoto(MAGAZZINO_STORES.forniture, id);
 }
 /* movimento: delta (+ carico, - scarico), prezzo totale opzionale (solo carichi) */
 function addMovimento(id, delta, prezzo){
@@ -3527,67 +3565,167 @@ function addMovimento(id, delta, prezzo){
   it.quantita = Math.max(0, (it.quantita||0) + delta);
   it.movimenti = it.movimenti || [];
   it.movimenti.push({ at: new Date().toISOString(), delta, prezzo: prezzo||0 });
+  it.updatedAt = new Date().toISOString();
   saveForniture(list);
-  syncFornituraRemoto(it);
+  syncMagazzinoItemRemoto(MAGAZZINO_STORES.forniture, it);
   return it;
 }
-/* Sync magazzino Forniture su Supabase (FixNewFeature, punto 4):
-   offline-first — il local storage resta la fonte primaria, questa
-   chiamata è sempre fire-and-forget (mai un await nei chiamanti, mai un
-   blocco se la rete manca o Supabase non è configurato) e non tenta
-   alcuna risoluzione di conflitti: ultima scrittura vince, adatta a un
-   magazzino condiviso da poche persone dello stesso studio, non a
-   scritture concorrenti reali. Ogni item resta un blob jsonb opaco
-   lato server (supabase-magazzino-forniture-sync.sql): lo schema
-   locale può cambiare (es. punto 6, doppia scadenza) senza mai dover
-   toccare la tabella. */
-async function syncFornituraRemoto(item){
+/* Sync magazzino su Supabase (FixNewFeature punto 4, esteso a tutti e
+   tre gli store in fix_magazzino_online punto 1): offline-first — il
+   local storage resta la fonte primaria, ogni chiamata qui è sempre
+   fire-and-forget (mai un await nei chiamanti, mai un blocco se la
+   rete manca o Supabase non è configurato). Ogni item resta un blob
+   jsonb opaco lato server (supabase-magazzino-forniture-sync.sql e
+   supabase-magazzino-inks-needles-sync.sql): lo schema locale può
+   cambiare senza mai dover toccare le tabelle.
+   MAGAZZINO_STORES mappa ciascuno dei tre store locali (forniture,
+   inchiostri, aghi) alle sue funzioni load/save e alle sue RPC — stesso
+   pattern, tre tabelle separate lato server, per non mescolare mai gli
+   articoli tra le sezioni (vedi punto 4 del prompt: niente voci
+   duplicate tra Forniture e Aghi/Inchiostri). */
+const MAGAZZINO_STORES = {
+  forniture: { load: loadForniture, save: saveForniture, rpcSalva: "salva_fornitura", rpcElimina: "elimina_fornitura", rpcLista: "lista_forniture_studio" },
+  inks:      { load: loadInks,      save: saveInks,      rpcSalva: "salva_inchiostro", rpcElimina: "elimina_inchiostro", rpcLista: "lista_inchiostri_studio" },
+  needles:   { load: loadNeedles,   save: saveNeedles,   rpcSalva: "salva_ago",        rpcElimina: "elimina_ago",        rpcLista: "lista_aghi_studio" },
+};
+async function syncMagazzinoItemRemoto(cfg, item){
   if (!SUPABASE_CONFIG.url || !item) return;
   try {
     const token = await validStudioAccessToken();
     if (!token) return;
-    await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/salva_fornitura`, {
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/${cfg.rpcSalva}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${token}` },
       body: JSON.stringify({ p_item_id: item.id, p_data: item }),
     });
-  } catch(e){ console.warn("Sync fornitura fallita, resta valida solo in locale:", e); }
+    // fix_magazzino_online punto 3: appena il server conferma di avere
+    // questa versione, segna qui la "baseline" (_syncedAt) — è il punto
+    // di riferimento che il prossimo refresh usa per capire se, nel
+    // frattempo, è stato SOLO il locale a cambiare, SOLO il remoto, o
+    // entrambi (vero conflitto). Senza aggiornarla qui, ogni pull dopo
+    // un push riuscito sembrerebbe "entrambi cambiati dall'ultima
+    // baseline" anche quando non c'è alcun conflitto reale.
+    if (res.ok){
+      const list = cfg.load();
+      const i = list.findIndex(x => x.id === item.id);
+      if (i >= 0){ list[i]._syncedAt = item.updatedAt; cfg.save(list); }
+    }
+  } catch(e){ console.warn("Sync magazzino fallita, resta valida solo in locale:", e); }
 }
-async function eliminaFornituraRemoto(id){
+async function eliminaMagazzinoItemRemoto(cfg, id){
   if (!SUPABASE_CONFIG.url || !id) return;
   try {
     const token = await validStudioAccessToken();
     if (!token) return;
-    await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/elimina_fornitura`, {
+    await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/${cfg.rpcElimina}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${token}` },
       body: JSON.stringify({ p_item_id: id }),
     });
-  } catch(e){ console.warn("Rimozione fornitura remota fallita:", e); }
+  } catch(e){ console.warn("Rimozione magazzino remota fallita:", e); }
 }
-/* Scarica lo snapshot dal server e ricostruisce il local storage — SOLO
-   su un dispositivo nuovo (magazzino locale ancora vuoto): mai a
-   sovrascrivere dati locali già presenti. Offline-first vuol dire che
-   il dispositivo che li ha scritti resta la fonte di verità finché non
-   sincronizza lui stesso — un pull qui non deve mai poter cancellare
-   modifiche locali non ancora spinte. */
-async function scaricaFornitureRemoto(){
-  if (!SUPABASE_CONFIG.url || loadForniture().length) return;
+/* Refresh continuo (fix_magazzino_online punto 2) + scelta esplicita sui
+   conflitti (punto 3). Ogni item locale porta un `_syncedAt`: l'ultima
+   versione (updatedAt) che sappiamo per certo essere anche sul server —
+   aggiornata qui dopo un fast-forward pulito, e dentro
+   syncMagazzinoItemRemoto dopo un push riuscito. Al refresh, per ogni
+   riga:
+   - non esiste in locale -> mai vista su questo dispositivo, si
+     aggiunge senza che sia un conflitto;
+   - esiste in locale ma senza baseline (dati di prima di questo
+     aggiornamento, o mai sincronizzati) -> nessun conflitto rilevabile,
+     si adotta la versione più recente per updatedAt (stessa regola già
+     in produzione dal punto 2), e SI STABILISCE la baseline da qui in
+     avanti;
+   - esiste con una baseline: se solo il remoto è cambiato da lì,
+     fast-forward silenzioso; se ANCHE il locale è cambiato da lì, è un
+     conflitto vero — non si tocca nulla, si accoda a state.magConflicts
+     per la schermata di scelta esplicita (renderMagConflitti).
+   Stessa logica per le cancellazioni: una riga locale sparita dal
+   server, se non era stata toccata dopo la baseline, si cancella in
+   silenzio; se era stata toccata, è un conflitto ("cancellato altrove,
+   ma tu l'hai appena modificato"). Una riga senza baseline che non è
+   (ancora) sul server non è mai trattata come cancellazione: potrebbe
+   solo essere stata creata offline e non ancora spinta. */
+function mergeMagazzinoRemoto(storeKey, cfg, rows){
+  const list = cfg.load();
+  const remoteById = new Map((Array.isArray(rows) ? rows : []).map(r => [r.item_id, r]));
+  const conflitti = [];
+  let changed = false;
+
+  remoteById.forEach((r, id) => {
+    const remoteItem = r.data;
+    if (!remoteItem) return;
+    const remoteTs = remoteItem.updatedAt || r.aggiornato_il || null;
+    const i = list.findIndex(x => x.id === id);
+    if (i < 0){
+      list.push({ ...remoteItem, _syncedAt: remoteTs });
+      changed = true;
+      return;
+    }
+    const local = list[i];
+    const baseline = local._syncedAt || null;
+    if (!baseline){
+      // primo incontro dopo l'introduzione della baseline: nessun
+      // conflitto rilevabile, vince il più recente (regola del punto 2).
+      if (!local.updatedAt || (remoteTs && remoteTs > local.updatedAt)){
+        list[i] = { ...remoteItem, _syncedAt: remoteTs };
+      } else {
+        local._syncedAt = local.updatedAt || remoteTs;
+      }
+      changed = true;
+      return;
+    }
+    const remoteChanged = remoteTs && remoteTs > baseline;
+    if (!remoteChanged) return;
+    const localChanged = local.updatedAt && local.updatedAt > baseline;
+    if (!localChanged){
+      list[i] = { ...remoteItem, _syncedAt: remoteTs };
+      changed = true;
+    } else {
+      conflitti.push({ type: "update", id, local: { ...local }, remote: { ...remoteItem } });
+    }
+  });
+
+  list.slice().forEach(local => {
+    if (remoteById.has(local.id)) return;
+    if (!local._syncedAt) return; // mai stata confermata sul server: non è una cancellazione
+    const localChanged = local.updatedAt && local.updatedAt > local._syncedAt;
+    if (!localChanged){
+      const idx = list.findIndex(x => x.id === local.id);
+      if (idx >= 0){ list.splice(idx, 1); changed = true; }
+    } else {
+      conflitti.push({ type: "delete", id: local.id, local: { ...local }, remote: null });
+    }
+  });
+
+  if (changed) cfg.save(list);
+  state.magConflicts = state.magConflicts || {};
+  state.magConflicts[storeKey] = conflitti;
+  return changed;
+}
+async function scaricaMagazzinoRemoto(storeKey, cfg){
+  if (!SUPABASE_CONFIG.url) return false;
   try {
     const token = await validStudioAccessToken();
-    if (!token) return;
-    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/lista_forniture_studio`, {
+    if (!token) return false;
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/${cfg.rpcLista}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "apikey": SUPABASE_CONFIG.anonKey, "Authorization": `Bearer ${token}` },
       body: "{}",
     });
-    if (!res.ok) return;
+    if (!res.ok) return false;
     const rows = await res.json();
-    if (Array.isArray(rows) && rows.length && !loadForniture().length){
-      saveForniture(rows.map(r => r.data));
-      render(); // fire-and-forget dal login: se il magazzino era ancora sullo schermo vuoto, aggiornalo ora
-    }
-  } catch(e){ console.warn("Scaricamento magazzino fallito, resto vuoto in locale:", e); }
+    return mergeMagazzinoRemoto(storeKey, cfg, rows);
+  } catch(e){ console.warn("Aggiornamento magazzino fallito, resto con i dati locali:", e); return false; }
+}
+/* Refresh di tutti e tre gli store insieme — chiamata a ogni apertura
+   dell'app, al ritorno da background, e dal bottone manuale "Aggiorna
+   magazzino" (renderMagazzino). Sempre fire-and-forget, mai un errore
+   bloccante se manca la connessione: resta valido il local storage. */
+async function aggiornaMagazzinoRemoto(){
+  await Promise.all(Object.entries(MAGAZZINO_STORES).map(([storeKey, cfg]) => scaricaMagazzinoRemoto(storeKey, cfg)));
+  render();
 }
 /* stato scorta in base a quantità vs soglia riordino */
 function statoScorta(it){
@@ -3596,6 +3734,20 @@ function statoScorta(it){
   if (q <= s) return { key:"bassa", label:"Riordina", cls:"stk-low" };
   if (s > 0 && q <= s*2) return { key:"buono", label:"In riserva", cls:"stk-ok" };
   return { key:"ottimo", label:"Coperto", cls:"stk-top" };
+}
+/* fix_magazzino_online punto 4: stessa UI di stato scorta delle
+   Forniture (statoScorta, barra colorata, badge), riusata dentro Aghi e
+   Inchiostri — versione compatta per la riga di lista invece che la
+   card intera di renderFornCard. */
+function renderScortaRow(it){
+  const st = statoScorta(it);
+  const q = it.quantita||0, soglia = it.soglia||0;
+  const pct = soglia > 0 ? Math.max(6, Math.min(100, (q/(soglia*3))*100)) : (q>0?100:6);
+  return `<div class="disp-qty-row" style="max-width:240px;margin-top:6px;">
+    <span class="disp-qty">${q}</span>
+    <div class="disp-bar"><i class="${st.cls}" style="width:${pct}%"></i>${soglia > 0 ? `<span class="tick" style="left:33.3%" title="soglia di riordino"></span>` : ""}</div>
+    <span class="disp-badge ${st.cls}">${st.label}</span>
+  </div>`;
 }
 /* spesa in un dato mese (YYYY-MM) sommando i carichi con prezzo */
 function spesaMese(ym){
@@ -3973,6 +4125,10 @@ async function apriArchivio(dek){
       if (Array.isArray(vecchio) && vecchio.length) saveTatuatori(vecchio);
     } catch(e){}
   }
+  // fix_magazzino_online punto 2: refresh magazzino appena l'archivio è
+  // leggibile — copre lo sblocco manuale (cassaforte a password), che il
+  // refresh di boot() non vede perché lì lo store è ancora vuoto/cifrato.
+  if (state.mode === "studio") aggiornaMagazzinoRemoto();
 }
 async function creaCassaforteEMigra(password){
   await apriArchivio(null);                 // prima leggo quello che c'e' in chiaro
@@ -6238,7 +6394,130 @@ function renderFornForm(eb, catList){
   </div>`;
 }
 
+/* ---- fix_magazzino_online punto 3: schermata di scelta esplicita sui
+   conflitti raccolti da mergeMagazzinoRemoto in state.magConflicts.
+   Gli item sono blob opachi diversi per ogni store: invece di scrivere
+   un confronto su misura per Forniture/Inchiostri/Aghi, si elenca solo
+   i campi che differiscono davvero tra le due versioni. ---- */
+const MAG_CAMPI_ESCLUSI = new Set(["id", "_syncedAt", "movimenti"]);
+const MAG_CAMPO_LABEL = {
+  nome:"Nome", categoria:"Categoria", quantita:"Quantità", soglia:"Soglia riordino",
+  colore:"Colore", lotto:"Lotto", scadenza:"Scadenza", dataApertura:"Data apertura",
+  durataMesiApertura:"Durata dopo apertura (mesi)", proprietario:"Proprietario",
+  marca:"Marca", tipo:"Tipo", foto:"Foto", updatedAt:"Ultima modifica",
+};
+function magCampoLabel(k){ return MAG_CAMPO_LABEL[k] || k; }
+function magFmtValore(v){
+  if (v == null || v === "") return "—";
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v)) return fmtDate(v.slice(0,10));
+  return String(v);
+}
+function magDifferenzeCampi(a, b){
+  const chiavi = new Set([...(a?Object.keys(a):[]), ...(b?Object.keys(b):[])]);
+  const diffs = [];
+  chiavi.forEach(k => {
+    if (MAG_CAMPI_ESCLUSI.has(k)) return;
+    const va = a ? a[k] : undefined, vb = b ? b[k] : undefined;
+    if (JSON.stringify(va) !== JSON.stringify(vb)) diffs.push({ campo: k, locale: va, remoto: vb });
+  });
+  return diffs;
+}
+function magRiassuntoArticolo(storeKey, item){
+  if (!item) return "—";
+  if (storeKey === "forniture") return item.nome || "—";
+  if (storeKey === "inks") return `${item.nome||"—"}${item.colore ? " · "+item.colore : ""}`;
+  if (storeKey === "needles") return `${item.marca||""} ${item.tipo||"—"}`.trim();
+  return "—";
+}
+function contaConflittiMagazzino(){
+  const c = state.magConflicts || {};
+  return (c.forniture||[]).length + (c.inks||[]).length + (c.needles||[]).length;
+}
+const MAG_STORE_LABEL = { forniture: "Forniture", inks: "Inchiostri", needles: "Aghi" };
+function renderMagConflitti(){
+  const c = state.magConflicts || {};
+  const righe = [];
+  Object.keys(MAGAZZINO_STORES).forEach(storeKey => {
+    (c[storeKey]||[]).forEach(conf => righe.push({ storeKey, conf }));
+  });
+  return `
+  <div class="topbar">
+    <div><h1>Differenze da risolvere</h1><p>Questi articoli sono cambiati sia su questo dispositivo sia su un altro — scegli quale versione tenere</p></div>
+  </div>
+  <div class="main-inner">
+    ${righe.length ? `
+      <div class="btn-row" style="margin-bottom:14px;">
+        <button class="btn btn-primary btn-sm" data-action="mag-conflict-scegli-tutti" data-scelta="locale">Tieni tutto: questo dispositivo</button>
+        <button class="btn btn-ghost btn-sm" data-action="mag-conflict-scegli-tutti" data-scelta="remoto">Tieni tutto: l'altro dispositivo</button>
+        <button class="btn btn-ghost btn-sm" data-action="mag-conflict-back">${icon("arrowLeft",15)} Torna al magazzino</button>
+      </div>
+      ${righe.map(({storeKey, conf}) => {
+        const nomeArticolo = magRiassuntoArticolo(storeKey, conf.local || conf.remote);
+        const diffs = conf.type === "delete" ? [] : magDifferenzeCampi(conf.local, conf.remote);
+        return `
+        <div class="card" style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;">
+            <b>${esc(nomeArticolo)}</b>
+            <span class="mono" style="color:var(--ink-faint);font-size:12px;">${MAG_STORE_LABEL[storeKey]}</span>
+          </div>
+          ${conf.type === "delete" ? `
+            <p class="section-desc" style="margin:8px 0;">Cancellato sull'altro dispositivo. Su questo dispositivo, dopo l'ultima sincronizzazione, è stato modificato.</p>
+          ` : `
+            <ul style="margin:8px 0 0;padding-left:18px;font-size:13px;">
+              ${diffs.map(d => `<li>${esc(magCampoLabel(d.campo))}: <b>${esc(magFmtValore(d.locale))}</b> (questo dispositivo) vs <b>${esc(magFmtValore(d.remoto))}</b> (altro dispositivo)</li>`).join("") || "<li>Nessuna differenza nei campi (solo il momento della modifica differisce).</li>"}
+            </ul>
+          `}
+          <div class="btn-row" style="margin-top:10px;">
+            <button class="btn btn-primary btn-sm" data-action="mag-conflict-scegli" data-store="${storeKey}" data-id="${esc(conf.id)}" data-scelta="locale">Tieni questo dispositivo</button>
+            <button class="btn btn-ghost btn-sm" data-action="mag-conflict-scegli" data-store="${storeKey}" data-id="${esc(conf.id)}" data-scelta="remoto">Tieni l'altro dispositivo</button>
+          </div>
+        </div>`;
+      }).join("")}
+    ` : `
+      <div class="arch-empty"><b>Nessuna differenza da risolvere</b><p>Tutto sincronizzato.</p><button class="btn btn-accent btn-sm" data-action="mag-conflict-back">Torna al magazzino</button></div>
+    `}
+  </div>`;
+}
+/* applica la scelta dell'utente su un singolo conflitto: "locale" tiene
+   e ripubblica la versione di questo dispositivo (anche se cancellata
+   altrove — la resuscita), "remoto" adotta la versione del server (o
+   la cancellazione, se conf.type è "delete"). */
+function risolviConflittoMagazzino(storeKey, id, scelta){
+  const cfg = MAGAZZINO_STORES[storeKey];
+  if (!cfg) return;
+  const conflitti = (state.magConflicts && state.magConflicts[storeKey]) || [];
+  const conf = conflitti.find(x => x.id === id);
+  if (!conf) return;
+  const list = cfg.load();
+  const i = list.findIndex(x => x.id === id);
+  if (scelta === "locale"){
+    const base = conf.local || (i >= 0 ? list[i] : null);
+    if (base){
+      const item = { ...base, updatedAt: new Date().toISOString() };
+      if (i >= 0) list[i] = item; else list.push(item);
+      cfg.save(list);
+      syncMagazzinoItemRemoto(cfg, item);
+    }
+  } else {
+    if (conf.type === "delete"){
+      if (i >= 0){ list.splice(i, 1); cfg.save(list); }
+    } else if (conf.remote){
+      const item = { ...conf.remote, _syncedAt: conf.remote.updatedAt };
+      if (i >= 0) list[i] = item; else list.push(item);
+      cfg.save(list);
+    }
+  }
+  state.magConflicts[storeKey] = conflitti.filter(x => x.id !== id);
+}
+function risolviTuttiConflittiMagazzino(scelta){
+  Object.keys(MAGAZZINO_STORES).forEach(storeKey => {
+    const conflitti = (state.magConflicts && state.magConflicts[storeKey]) || [];
+    conflitti.slice().forEach(conf => risolviConflittoMagazzino(storeKey, conf.id, scelta));
+  });
+}
+
 function renderMagazzino(){
+  if (state.magConflictView) return renderMagConflitti();
   const inks = loadInks();
   const needles = loadNeedles();
   const eb = state.editBuffer || {};
@@ -6275,11 +6554,20 @@ function renderMagazzino(){
   const spesaTrend = spesaPrev === 0 ? (spesaOra > 0 ? "up" : "flat") : (spesaOra > spesaPrev ? "up" : (spesaOra < spesaPrev ? "down" : "flat"));
   const catList = CATEGORIE_FORNITURE;
 
+  const nConflitti = contaConflittiMagazzino();
   return `
   <div class="topbar">
     <div><h1>Magazzino</h1><p>Dispensa dello studio · scorte, consumi e spese</p></div>
+    ${SUPABASE_CONFIG.url ? `<button class="btn btn-ghost" data-action="mag-refresh">Aggiorna magazzino</button>` : ""}
   </div>
   <div class="main-inner">
+    ${nConflitti ? `
+      <div class="card" style="margin-bottom:14px;border-color:var(--warn);">
+        <b>${nConflitti} ${nConflitti === 1 ? "differenza" : "differenze"} da risolvere</b>
+        <p class="section-desc" style="margin:4px 0 10px;">Alcuni articoli sono stati modificati sia su questo dispositivo sia su un altro. Scegli quale versione tenere prima che spariscano nuove modifiche.</p>
+        <button class="btn btn-primary btn-sm" data-action="mag-conflict-open">Risolvi differenze</button>
+      </div>
+    ` : ""}
     <div class="mag-tabs">
       <button class="mag-tab ${tab==='forniture'?'on':''}" data-action="mag-tab" data-t="forniture">${icon("basket",16)} Forniture</button>
       <button class="mag-tab ${tab==='inchiostri'?'on':''}" data-action="mag-tab" data-t="inchiostri">${icon("droplet",16)} Inchiostri</button>
@@ -6327,6 +6615,10 @@ function renderMagazzino(){
             <div class="field"><label>Data apertura (se già aperto)</label><input type="date" data-inv-field="dataApertura" value="${esc(eb.dataApertura||'')}"></div>
             <div class="field"><label>Durata dopo apertura (mesi)</label><input type="number" min="0" step="1" data-inv-field="durataMesiApertura" value="${esc(eb.durataMesiApertura||'')}" placeholder="Es. 6"></div>
           </div>
+          <div class="grid-2">
+            <div class="field"><label>Quantità (ml o flaconi)</label><input type="number" min="0" step="0.1" data-inv-field="quantita" value="${esc(eb.quantita!=null?eb.quantita:'')}" placeholder="Es. 30"></div>
+            <div class="field"><label>Soglia di riordino</label><input type="number" min="0" step="0.1" data-inv-field="soglia" value="${esc(eb.soglia!=null?eb.soglia:'')}" placeholder="Avvisami sotto…"></div>
+          </div>
           ${campoProprietario(eb.proprietario)}
           <div class="btn-row">
             <button class="btn btn-primary btn-sm" data-action="ink-save">${eb.id ? "Salva modifiche" : "Aggiungi"}</button>
@@ -6339,6 +6631,7 @@ function renderMagazzino(){
             <div class="inv-row">
               <div class="inv-main"><b>${esc(it.nome||"—")}</b>${it.colore ? ` · ${esc(it.colore)}` : ""} ${scadBadge(scadenzaEffettivaInk(it))}
                 <span class="inv-sub">Lotto ${esc(it.lotto||"—")}${it.scadenza ? " · scad. " + fmtDate(it.scadenza) : ""}${it.dataApertura && it.durataMesiApertura ? " · aperto " + fmtDate(it.dataApertura) + " (+" + esc(it.durataMesiApertura) + " mesi)" : ""}${it.proprietario ? " · " + esc(it.proprietario) : ""}</span>
+                ${renderScortaRow(it)}
               </div>
               <div class="inv-actions">
                 <button class="btn btn-ghost btn-sm" data-action="ink-edit" data-id="${it.id}">Modifica</button>
@@ -6365,6 +6658,10 @@ function renderMagazzino(){
             <div class="field"><label>Numero di lotto</label><input type="text" data-inv-field="lotto" value="${esc(eb.lotto||'')}" placeholder="Es. AG-2024-4471"></div>
             <div class="field"><label>Scadenza</label><input type="date" data-inv-field="scadenza" value="${esc(eb.scadenza||'')}"></div>
           </div>
+          <div class="grid-2">
+            <div class="field"><label>Quantità nella scatola</label><input type="number" min="0" step="1" data-inv-field="quantita" value="${esc(eb.quantita!=null?eb.quantita:'')}" placeholder="Es. 20"></div>
+            <div class="field"><label>Soglia di riordino</label><input type="number" min="0" step="1" data-inv-field="soglia" value="${esc(eb.soglia!=null?eb.soglia:'')}" placeholder="Avvisami sotto…"></div>
+          </div>
           ${campoProprietario(eb.proprietario)}
           <div class="btn-row">
             <button class="btn btn-primary btn-sm" data-action="needle-save">${eb.id ? "Salva modifiche" : "Aggiungi"}</button>
@@ -6377,6 +6674,7 @@ function renderMagazzino(){
             <div class="inv-row">
               <div class="inv-main"><b>${esc(it.tipo||"—")}</b>${it.marca ? ` · ${esc(it.marca)}` : ""} ${scadBadge(it.scadenza)}
                 <span class="inv-sub">Lotto ${esc(it.lotto||"—")}${it.scadenza ? " · scad. " + fmtDate(it.scadenza) : ""}${it.proprietario ? " · " + esc(it.proprietario) : ""}</span>
+                ${renderScortaRow(it)}
               </div>
               <div class="inv-actions">
                 <button class="btn btn-ghost btn-sm" data-action="needle-edit" data-id="${it.id}">Modifica</button>
@@ -7537,7 +7835,7 @@ document.addEventListener("click", (e) => {
       const remoto = await sincronizzaDatiStudioDaRemoto();
       if (remoto.completato){
         await riconosciOReconciliaTatuatori();
-        scaricaFornitureRemoto(); // FixNewFeature, punto 4: fire-and-forget, no-op se il magazzino locale non è vuoto
+        aggiornaMagazzinoRemoto(); // fix_magazzino_online punto 2: fire-and-forget, refresh dei tre store
         registraDispositivoCorrente().then(esito => {
           if (esito && esito.consentito === false) state.deviceLimitBlock = esito;
           render();
@@ -8158,6 +8456,10 @@ document.addEventListener("click", (e) => {
     draft.status = "archiviato";
     assignProgressivo(draft); // numero di registro definitivo
     upsertSession(draft);
+    // fix_magazzino_online punto 4: gli aghi selezionati in questa seduta
+    // sono ora davvero usati — scala la quantità solo qui, non alla
+    // selezione in bozza.
+    (draft.seduta.aghi||[]).forEach(a => scalaAgoUsato(a.id));
     attachDiagrams(draft).then(() => { try { buildPdf(draft); } catch(err){ console.warn("PDF non riuscito:", err); state.pdfWarning = true; render(); } });
     syncLicenseOnFinalize();
     state.view = "archive"; render();
@@ -8203,7 +8505,7 @@ document.addEventListener("click", (e) => {
   else if (action === "ink-save"){
     const b = state.editBuffer || {};
     if (!(b.nome||"").trim()){ alert("Inserisci almeno marca/nome dell'inchiostro."); return; }
-    upsertInk({ id: b.id || newId(), nome: b.nome||"", colore: b.colore||"", lotto: b.lotto||"", scadenza: b.scadenza||"", dataApertura: b.dataApertura||"", durataMesiApertura: b.durataMesiApertura||"", proprietario: b.proprietario||"" });
+    upsertInk({ id: b.id || newId(), nome: b.nome||"", colore: b.colore||"", lotto: b.lotto||"", scadenza: b.scadenza||"", dataApertura: b.dataApertura||"", durataMesiApertura: b.durataMesiApertura||"", proprietario: b.proprietario||"", quantita: parseFloat(b.quantita)||0, soglia: parseFloat(b.soglia)||0 });
     state.showInkForm = false; state.editBuffer = {}; render();
   }
   else if (action === "ink-delete"){
@@ -8214,7 +8516,7 @@ document.addEventListener("click", (e) => {
   else if (action === "needle-save"){
     const b = state.editBuffer || {};
     if (!(b.tipo||"").trim()){ alert("Inserisci almeno il tipo dell'ago (es. 3RL)."); return; }
-    upsertNeedle({ id: b.id || newId(), marca: b.marca||"", tipo: b.tipo||"", lotto: b.lotto||"", scadenza: b.scadenza||"", proprietario: b.proprietario||"" });
+    upsertNeedle({ id: b.id || newId(), marca: b.marca||"", tipo: b.tipo||"", lotto: b.lotto||"", scadenza: b.scadenza||"", proprietario: b.proprietario||"", quantita: parseInt(b.quantita,10)||0, soglia: parseInt(b.soglia,10)||0 });
     state.showNeedleForm = false; state.editBuffer = {}; render();
   }
   else if (action === "needle-delete"){
@@ -8369,6 +8671,19 @@ document.addEventListener("click", (e) => {
   }
   else if (action === "subscription-refresh"){ refreshLicenseFromSupabase().then(render); }
   else if (action === "mag-tab"){ state.magTab = btn.dataset.t; state.showInkForm = state.showNeedleForm = state.showFornForm = false; state.editBuffer = {}; render(); }
+  else if (action === "mag-refresh"){ aggiornaMagazzinoRemoto(); }
+  else if (action === "mag-conflict-open"){ state.magConflictView = true; render(); }
+  else if (action === "mag-conflict-back"){ state.magConflictView = false; render(); }
+  else if (action === "mag-conflict-scegli"){
+    risolviConflittoMagazzino(btn.dataset.store, btn.dataset.id, btn.dataset.scelta);
+    if (!contaConflittiMagazzino()) state.magConflictView = false;
+    render();
+  }
+  else if (action === "mag-conflict-scegli-tutti"){
+    risolviTuttiConflittiMagazzino(btn.dataset.scelta);
+    state.magConflictView = false;
+    render();
+  }
   else if (action === "forn-new"){ state.showFornForm = true; state.fornLoadMode = false; state.editBuffer = { categoria: "guanti", quantita: "", soglia: "" }; render(); }
   else if (action === "forn-edit"){ state.editBuffer = { ...(loadForniture().find(x=>x.id===btn.dataset.id)||{}) }; state.showFornForm = true; state.fornLoadMode = false; render(); }
   else if (action === "forn-save"){
@@ -9400,7 +9715,7 @@ function initRichiestaMode(){
       const remoto = await sincronizzaDatiStudioDaRemoto();
       if (remoto.completato){
         await riconosciOReconciliaTatuatori();
-        scaricaFornitureRemoto(); // FixNewFeature, punto 4: fire-and-forget, no-op se il magazzino locale non è vuoto
+        aggiornaMagazzinoRemoto(); // fix_magazzino_online punto 2: fire-and-forget, refresh dei tre store
       }
       state.needsTrialChoice = !remoto.completato;
     }
@@ -9477,6 +9792,14 @@ function initRichiestaMode(){
     // non solo al tap manuale su "Verifica abbonamento" — non blocca il
     // boot, no-op senza Supabase/account.
     if (state.mode === "studio") refreshLicenseSeServeIl();
+    // fix_magazzino_online punto 2: refresh magazzino a ogni apertura
+    // dell'app — copre il caso (il bug reale segnalato) di un dispositivo
+    // con sessione già attiva, senza cassaforte a password: qui l'archivio
+    // è già idratato (hydrateStores sopra), quindi il merge riga per riga
+    // vede i dati locali veri, non uno store vuoto. Il caso con cassaforte
+    // a password è coperto invece da apriArchivio(), chiamato al momento
+    // dello sblocco manuale.
+    if (state.mode === "studio") aggiornaMagazzinoRemoto();
   }
 
   if (state.mode === "client") await initClientMode();
