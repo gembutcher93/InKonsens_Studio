@@ -117,10 +117,21 @@
    all'archiviazione del consenso in cui l'ago è stato selezionato) e
    Inchiostri (solo manuale, nessuno scarico automatico).
 
+   v37: task_Add_Tutorial — tutorial guidato per il tatuatore, diverso
+   dal vecchio "Tour di benvenuto" a slide (quello resta, parte prima
+   dell'account/password). Questo parte DOPO l'onboarding vero (studio
+   pronto, password impostata, tatuatore scelto), una volta sola, con
+   uno spotlight sull'interfaccia reale — mai screenshot finti — su
+   navigazione, primo consenso, backup (il punto più delicato: i
+   consensi non toccano mai un server), le tre sezioni del magazzino,
+   il link preventivi e le impostazioni essenziali. Flag in
+   localStorage per non ripeterlo da solo; "Rivedi il tutorial" in
+   Impostazioni -> Guida lo rilancia quando si vuole.
+
    Nota: i dati (consensi, magazzino) NON passano da qui. Stanno in
    IndexedDB sul dispositivo e il service worker non li tocca mai.   */
 
-const CACHE = "inkconsent-v36";
+const CACHE = "inkconsent-v37";
 
 const PRECACHE = [
   "./",

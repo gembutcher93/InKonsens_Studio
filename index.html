@@ -858,11 +858,38 @@ select{
   .rail-close{all:unset;display:inline-flex;align-items:center;gap:6px;cursor:pointer;
     color:#B9AFA4;font-size:13px;margin-left:auto;}
 }
+
+/* ---- tutorial guidato (task_Add_Tutorial) ----
+   #tutorial-overlay vive FUORI da #app-root apposta: #app-root ha una
+   sua stacking context (position:relative + z-index sopra), quindi
+   nessun elemento al suo interno potrebbe mai spiccare sopra un velo
+   scuro messo lì, qualunque z-index gli si desse. Il "buco" nel velo
+   non è un ritaglio sopra l'elemento: sono quattro strisce disegnate
+   INTORNO al suo rettangolo, che quindi resta semplicemente scoperto
+   al suo livello normale — vedi aggiornaOverlayTutorial(). z-index 500
+   è ben sopra tutto il resto dell'app (il valore più alto altrove è
+   70, il notice di onboarding). */
+#tutorial-overlay{position:fixed;inset:0;z-index:500;pointer-events:none;}
+#tutorial-overlay:empty{display:none;}
+.tutorial-strip{position:fixed;background:rgba(21,19,16,.74);pointer-events:auto;}
+.tutorial-hole-blocker{position:fixed;background:transparent;pointer-events:auto;cursor:default;}
+.tutorial-ring{position:fixed;border-radius:12px;box-shadow:0 0 0 3px var(--stencil),0 0 0 7px rgba(255,255,255,.32);pointer-events:none;transition:top .2s ease,left .2s ease,width .2s ease,height .2s ease;}
+.tutorial-card{
+  position:fixed;left:12px;right:12px;margin:0 auto;max-width:420px;
+  background:var(--paper-raised);border:1px solid var(--line-soft);border-left:3px solid var(--stencil);
+  border-radius:0 var(--radius-md) var(--radius-md) 0;box-shadow:var(--shadow);
+  padding:18px 20px;pointer-events:auto;
+}
+.tutorial-progress{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:6px;}
+.tutorial-card h3{margin:0 0 8px;font-size:17px;}
+.tutorial-card p{margin:0 0 14px;font-size:13.5px;line-height:1.5;color:var(--ink-soft);}
+.tutorial-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
 </style>
 </head>
 <body>
 <div class="noise-veil"></div>
 <div id="app-root"><!-- rendered by app.js --></div>
+<div id="tutorial-overlay" hidden></div>
 
 <script>
 /* ============================================================
@@ -4626,6 +4653,11 @@ function render(){
     // funzione è già idempotente (si ferma da sola se il timer esiste
     // già), quindi richiamarla ad ogni render qui non duplica nulla.
     if (state.mode === "studio" && FEATURES.richieste) avviaPollingRichieste();
+    // task_Add_Tutorial: questo "else" è il primo punto raggiunto SOLO a
+    // onboarding davvero concluso (stesso ragionamento del commento sopra
+    // per avviaPollingRichieste) — il momento esatto in cui deve partire
+    // il tutorial guidato, non prima.
+    if (state.mode === "studio") avviaTutorialSeServeIl();
   }
   afterRender();
 }
@@ -4768,6 +4800,197 @@ function renderTour(){
     </div>
   </div>`;
 }
+
+/* ============================================================
+   TUTORIAL GUIDATO (task_Add_Tutorial) — diverso dal "Tour di
+   benvenuto" sopra: quello è una presentazione a slide, mostrata PRIMA
+   di creare l'account/la password (spiega cos'è l'app). Questo invece
+   parte DOPO che l'onboarding è finito davvero (studio creato o
+   riconosciuto, password locale impostata, tatuatore attivo scelto —
+   il primo momento in cui render() imbocca il ramo "else" e mostra
+   renderStudioShell(), vedi avviaTutorialSeServeIl chiamata da lì) e
+   punta con uno spotlight l'interfaccia VERA, schermata per schermata,
+   invece di screenshot finti. Un flag in localStorage evita di
+   ripeterlo da solo; "Rivedi il tutorial" in Impostazioni -> Guida lo
+   rilancia a mano in qualsiasi momento.
+
+   Come funziona lo spotlight: #app-root ha position:relative + z-index
+   fisso (vedi CSS), quindi crea una propria stacking context — nessun
+   elemento al suo interno può mai "salire sopra" un overlay fratello
+   nel <body>, qualunque z-index gli si dia. Percio' non si cerca di
+   far spiccare l'elemento reale sopra un velo scuro: si ritaglia
+   invece un buco vero nel velo (quattro strisce intorno al rettangolo
+   dell'elemento, mai disegnate sopra di lui) — l'elemento resta
+   semplicemente al suo livello normale, mai coperto. Un blocker
+   trasparente sopra il buco impedisce comunque di interagire con
+   l'app vera mentre il tour è attivo: si avanza solo con
+   Indietro/Avanti/Salta, mai a caso toccando quello che sta sotto. */
+const TUTORIAL_KEY = "inkconsent_tutorial_v1"; // { done: true }
+function tutorialFatto(){ try { return !!(JSON.parse(localStorage.getItem(TUTORIAL_KEY))||{}).done; } catch(e){ return false; } }
+function segnaTutorialFatto(){ try { localStorage.setItem(TUTORIAL_KEY, JSON.stringify({ done: true })); } catch(e){} }
+/* chiude form/tab aperti in Magazzino prima di uno step lì: senza,
+   uno screenshot con un form a metà o la schermata conflitti al posto
+   delle sezioni normali confonderebbe più che aiutare. */
+function tutorialPrepMagazzino(tab){
+  state.view = "magazzino";
+  if (tab) state.magTab = tab;
+  state.showFornForm = state.showInkForm = state.showNeedleForm = false;
+  state.editBuffer = {};
+  state.magConflictView = false;
+}
+/* Elenco passi: ognuno sa quale vista/stato serve (prep, eseguito PRIMA
+   del render che lo mostra) e una lista di selettori candidati per
+   l'elemento reale da evidenziare — il primo che risulta davvero
+   visibile a schermo vince (vedi trovaElementoTutorial): stessa lista
+   funziona sia sul rail desktop/tablet sia sulla bottom bar mobile,
+   senza bisogno di selettori diversi per i due layout. */
+function tutorialSteps(){
+  const passi = [
+    { id: "nav", title: "La barra di navigazione",
+      testo: "Da qui raggiungi tutto lo studio: <b>Consensi</b> (agenda e archivio), <b>Preventivi</b> (le richieste dei clienti), <b>Studio</b> (magazzino, registro, contabilità) e <b>Account</b> (impostazioni).",
+      prep: () => { state.view = "agenda"; },
+      selettori: [".bottom-bar", ".rail-nav"] },
+    { id: "consenso", title: "Crea il primo consenso",
+      testo: "Da qui parte un consenso nuovo: il cliente lo compila e lo firma sul proprio dispositivo (o sul tuo, passandoglielo in mano). L'archivio resta cifrato solo su questo dispositivo, mai su un server.",
+      prep: () => { state.view = "archive"; },
+      selettori: ['[data-action="new-session"]'] },
+    { id: "backup", title: "Il punto più importante: il backup",
+      testo: "I consensi non vanno <b>mai</b> su nessun server: restano solo qui, cifrati. Il backup è quindi una responsabilità tua — fallo con regolarità da questo tasto. E le 12 parole che hai annotato quando hai attivato la cassaforte vanno tenute fuori dall'app, su carta, in un posto sicuro: senza quelle, un archivio perso è perso per sempre.",
+      prep: () => { state.view = "archive"; },
+      selettori: ['[data-action="backup-now"]', ".bkbar"] },
+    { id: "mag-sezioni", title: "Magazzino: tre sezioni separate",
+      testo: "Forniture (guanti, creme, pellicole), Inchiostri e Aghi restano divisi apposta: ognuno con la propria scorta, mai voci doppie tra loro.",
+      prep: () => tutorialPrepMagazzino("forniture"),
+      selettori: [".mag-tabs"] },
+    { id: "mag-articolo", title: "Carica un articolo",
+      testo: "Da qui aggiungi un articolo con la quantità di partenza e una soglia di riordino. Ogni articolo mostra poi una barra che cambia colore in base a quanto resta: tranquilla finché sei coperto, d'allarme sotto la soglia che hai scelto.",
+      prep: () => tutorialPrepMagazzino("forniture"),
+      selettori: ['[data-action="forn-new"]'] },
+    { id: "mag-sync", title: "Il magazzino si sincronizza, i consensi no",
+      testo: "Forniture, Inchiostri e Aghi si aggiornano da soli tra i dispositivi dello studio (o aggiornali a mano da qui). I consensi invece — l'hai visto prima — restano solo sul dispositivo che li ha creati: è una scelta di privacy, non un limite tecnico.",
+      prep: () => tutorialPrepMagazzino(),
+      selettori: ['[data-action="mag-refresh"]'] },
+    { id: "preventivi", condizione: () => FEATURES.richieste, title: "Il link pubblico per i preventivi",
+      testo: "Un link pubblico e sempre valido: mettilo in bio su Instagram, su WhatsApp o su un cartello in studio. Chi lo apre lascia stile, zona e contatti — la richiesta arriva qui.",
+      prep: () => { state.view = "leads"; },
+      selettori: ['[data-action="copy-lead-link"]'], wrap: ".card" },
+    { id: "impostazioni", title: "Impostazioni essenziali",
+      testo: "Da qui gestisci i dati dello studio e la lista dei tatuatori. Più giù nella stessa schermata, in \"Sicurezza e accesso\", trovi anche i dispositivi collegati a questo account (massimo due per studio).",
+      prep: () => { state.view = "settings"; state.accordionOpen = { ...(state.accordionOpen||{}), branding: true }; },
+      selettori: ['[data-field-studio="studioName"]'], wrap: ".card" },
+  ];
+  return passi.filter(p => !p.condizione || p.condizione());
+}
+/* true solo se davvero a schermo ora: niente display:none/visibility
+   hidden, dimensioni reali, e un rettangolo che interseca la finestra
+   (esclude anche il rail fuori schermo su mobile, spostato con
+   transform invece che con display — vedi .rail translateX). */
+function trovaElementoTutorial(selettori){
+  for (const sel of selettori){
+    for (const el of qsa(sel)){
+      const st = getComputedStyle(el);
+      if (st.display === "none" || st.visibility === "hidden") continue;
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) continue;
+      if (r.bottom <= 0 || r.right <= 0 || r.top >= window.innerHeight || r.left >= window.innerWidth) continue;
+      return el;
+    }
+  }
+  return null;
+}
+function avviaTutorialSeServeIl(){
+  if (state.tutorial || state.mode !== "studio") return;
+  if (tutorialFatto()) return;
+  const guest = guestSessionState();
+  if (guest && !guest.scaduto) return; // solo per il tatuatore, non per un guest
+  const passi = tutorialSteps();
+  if (!passi.length) return;
+  state.tutorial = { step: 0 };
+  if (passi[0].prep) passi[0].prep();
+  setTimeout(render, 0); // fuori dalla pila di chiamate di render() corrente
+}
+function terminaTutorial(){
+  state.tutorial = null;
+  segnaTutorialFatto();
+  render();
+}
+function tutorialVai(delta){
+  const passi = tutorialSteps();
+  const attuale = state.tutorial.step || 0;
+  const prossimo = attuale + delta;
+  if (prossimo >= passi.length){ terminaTutorial(); return; }
+  const i = Math.max(0, Math.min(prossimo, passi.length - 1));
+  state.tutorial.step = i;
+  if (passi[i].prep) passi[i].prep();
+  render();
+}
+/* Costruisce l'overlay dentro #tutorial-overlay (fuori da #app-root
+   apposta — vedi nota sopra sulla stacking context) leggendo il DOM
+   VERO appena disegnato da render(): va chiamata da afterRender(),
+   mai prima che root.innerHTML sia stato aggiornato. */
+function aggiornaOverlayTutorial(){
+  const host = qs("#tutorial-overlay");
+  if (!host) return;
+  if (!state.tutorial){ host.hidden = true; host.innerHTML = ""; return; }
+  const passi = tutorialSteps();
+  const i = Math.max(0, Math.min(state.tutorial.step || 0, passi.length - 1));
+  const passo = passi[i];
+  if (!passo){ terminaTutorial(); return; }
+  host.hidden = false;
+  let el = trovaElementoTutorial(passo.selettori);
+  if (el && passo.wrap) el = el.closest(passo.wrap) || el;
+  if (el) el.scrollIntoView({ block: "center", behavior: "instant" });
+  const r = el ? el.getBoundingClientRect() : null;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const ultimo = i === passi.length - 1;
+  const pad = 6;
+  let bucoHtml = "";
+  if (r){
+    const top = Math.max(0, r.top - pad), left = Math.max(0, r.left - pad);
+    const bottom = Math.min(vh, r.bottom + pad), right = Math.min(vw, r.right + pad);
+    bucoHtml = `
+      <div class="tutorial-strip" style="top:0;left:0;right:0;height:${top}px;"></div>
+      <div class="tutorial-strip" style="top:${bottom}px;left:0;right:0;bottom:0;"></div>
+      <div class="tutorial-strip" style="top:${top}px;left:0;width:${left}px;height:${bottom-top}px;"></div>
+      <div class="tutorial-strip" style="top:${top}px;left:${right}px;right:0;height:${bottom-top}px;"></div>
+      <div class="tutorial-hole-blocker" style="top:${top}px;left:${left}px;width:${right-left}px;height:${bottom-top}px;"></div>
+      <div class="tutorial-ring" style="top:${top}px;left:${left}px;width:${right-left}px;height:${bottom-top}px;"></div>`;
+  } else {
+    bucoHtml = `<div class="tutorial-strip" style="inset:0;"></div>`;
+  }
+  host.innerHTML = `
+    ${bucoHtml}
+    <div class="tutorial-card" id="tutorial-card">
+      <div class="tutorial-progress mono">${i+1} di ${passi.length}</div>
+      <h3>${esc(passo.title)}</h3>
+      <p>${passo.testo}</p>
+      <div class="tutorial-actions">
+        <button class="btn btn-ghost btn-sm" data-action="tutorial-salta">Salta</button>
+        <div class="btn-row" style="margin:0;">
+          ${i > 0 ? `<button class="btn btn-ghost btn-sm" data-action="tutorial-indietro">${icon("arrowLeft",14)} Indietro</button>` : ""}
+          <button class="btn btn-primary btn-sm" data-action="tutorial-avanti">${ultimo ? "Fine" : "Avanti"} ${ultimo ? "" : icon("arrowRight",14)}</button>
+        </div>
+      </div>
+    </div>`;
+  // posiziona la card DOPO averla inserita: solo ora si conosce la sua altezza reale
+  const cardEl = qs("#tutorial-card", host);
+  if (cardEl){
+    const cardH = cardEl.offsetHeight;
+    const margin = 12;
+    let top;
+    if (!r){
+      top = Math.max(margin, (vh - cardH) / 2);
+    } else {
+      const spazioSotto = vh - (r.bottom + pad), spazioSopra = r.top - pad;
+      top = (spazioSotto >= cardH + margin || spazioSotto >= spazioSopra)
+        ? Math.min(r.bottom + pad + margin, vh - cardH - margin)
+        : Math.max(margin, r.top - pad - margin - cardH);
+    }
+    top = Math.max(margin, Math.min(top, vh - cardH - margin));
+    cardEl.style.top = top + "px";
+  }
+}
+window.addEventListener("resize", () => { if (state.tutorial) aggiornaOverlayTutorial(); });
 
 /* ============================================================
    ACCOUNT STUDIO — email+password vero, il PRIMO passo al primo avvio
@@ -5183,6 +5406,8 @@ function afterRender(){
 
   // lavagnetta: canvas di disegno libero (una per vista fronte/retro)
   qsa(".body-draw").forEach(cv => initBodyDrawing(cv));
+
+  aggiornaOverlayTutorial();
 }
 
 /* Disegno libero sulla sagoma: salva tracce come percentuali (indipendenti
@@ -7778,6 +8003,19 @@ document.addEventListener("click", (e) => {
     else state.locked = true;
     render(); return;
   }
+
+  // --- tutorial guidato (task_Add_Tutorial) ---
+  else if (action === "tutorial-avanti"){ tutorialVai(1); return; }
+  else if (action === "tutorial-indietro"){ tutorialVai(-1); return; }
+  else if (action === "tutorial-salta"){ terminaTutorial(); return; }
+  else if (action === "review-tutorial"){
+    const passi = tutorialSteps();
+    if (!passi.length) return;
+    state.tutorial = { step: 0 };
+    if (passi[0].prep) passi[0].prep();
+    render(); return;
+  }
+
   else if (action === "terms-check"){
     const k = btn.dataset.k || (e.target && e.target.dataset.k);
     if (k){ state.termsChecks = { ...(state.termsChecks||{}), [k]: !(state.termsChecks||{})[k] }; state.loginError = null; render(); }
@@ -10326,6 +10564,11 @@ function renderSettings(){
     </div>` : ""}
     ${accClose()}
     ${accOpen("guida", "Guida", "Rivedi la presentazione iniziale")}
+    <div class="card">
+      <h3 class="section-title">Tutorial guidato</h3>
+      <p class="section-desc">Un percorso passo passo sull'app vera: navigazione, primo consenso, backup, magazzino e impostazioni essenziali. Utile per riprendere confidenza o per mostrarla a un collaboratore.</p>
+      <button class="btn btn-ghost" data-action="review-tutorial">Rivedi il tutorial</button>
+    </div>
     <div class="card">
       <h3 class="section-title">Tour di benvenuto</h3>
       <p class="section-desc">Rivedi la presentazione iniziale dell'app, utile per mostrarla a un collaboratore.</p>
