@@ -128,10 +128,22 @@
    localStorage per non ripeterlo da solo; "Rivedi il tutorial" in
    Impostazioni -> Guida lo rilancia quando si vuole.
 
+   v38: Prompt_piercing — supporto piercing in tutta l'app. Quarta
+   sezione magazzino, Piercing (gioielli: nome, materiale, tipo di
+   sterilizzazione, lotto, scadenza, quantità/soglia, proprietario),
+   stessa sync/refresh/conflitti/backup delle altre tre sezioni; scarico
+   automatico di 1 all'archiviazione del consenso, come gli aghi. Gli
+   aghi ora hanno un tipo (tatuaggio/piercing, retrocompatibile su
+   "tatuaggio" per quelli già in archivio). Il consenso mostra solo il
+   materiale pertinente al tipo scelto (tatuaggio: inchiostri + aghi
+   tatuaggio; piercing: aghi piercing + gioielli, niente inchiostri);
+   cambiare scelta dopo aver già selezionato materiali non li cancella
+   mai in silenzio — restano salvati, con un avviso esplicito.
+
    Nota: i dati (consensi, magazzino) NON passano da qui. Stanno in
    IndexedDB sul dispositivo e il service worker non li tocca mai.   */
 
-const CACHE = "inkconsent-v37";
+const CACHE = "inkconsent-v38";
 
 const PRECACHE = [
   "./",

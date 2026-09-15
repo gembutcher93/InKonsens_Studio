@@ -1657,7 +1657,8 @@ function blankSession(){
       sedeEffettiva: "",      // zona effettivamente tatuata
       materiali: "",          // note libere aggiuntive (legacy/opzionale)
       inchiostri: [],         // [{ id, nome, colore, lotto, scadenza }] selezionati dall'archivio
-      aghi: [],               // [{ id, marca, tipo, lotto, scadenza }] selezionati dall'archivio
+      aghi: [],               // [{ id, marca, tipo, lotto, scadenza, tipoAgo }] selezionati dall'archivio
+      gioielli: [],           // [{ id, nome, materiale, lotto, scadenza }] selezionati dall'archivio (Prompt_piercing)
       lottoPigmento: "",      // legacy, non più usato dai nuovi consensi
       ago: "",                // legacy
       schedaTecnicaAllegata: false,
@@ -3479,6 +3480,47 @@ function scalaAgoUsato(id){
   saveNeedles(list);
   syncMagazzinoItemRemoto(MAGAZZINO_STORES.needles, it);
 }
+/* Prompt_piercing, punto 3: dopo un cambio tatuaggio<->piercing gli
+   aghi dell'altro tipo restano salvati in draft.seduta.aghi (mai
+   cancellati, vedi "set-tipo") ma vanno trattati come "non inclusi" —
+   niente in chip, nel riepilogo, nel PDF, né scalati dal magazzino
+   all'archiviazione. Unico punto che decide chi è "pertinente" ora. */
+function aghiPertinenti(seduta, tipoApplicazione){
+  const t = tipoApplicazione === "piercing" ? "piercing" : "tatuaggio";
+  return (seduta.aghi||[]).filter(a => (a.tipoAgo||"tatuaggio") === t);
+}
+/* Prompt_piercing, punto 1: quarta sezione magazzino, gioielli da
+   piercing. Stesso pattern esatto di Inchiostri/Aghi (load/save,
+   upsert con updatedAt+sync, delete con sync). Lo scarico funziona
+   come gli aghi (punto 4 di fix_magazzino_online), non come gli
+   inchiostri: vedi scalaGioielloUsato sotto e il suo aggancio in
+   "finalize-studio". */
+const GIOIELLI_KEY = "inkconsent_gioielli_v1";
+BIG_STORES.push(GIOIELLI_KEY);
+function loadGioielli(){ return readStore(GIOIELLI_KEY, []); }
+function saveGioielli(list){ writeStore(GIOIELLI_KEY, list); }
+function upsertGioiello(item){
+  const list = loadGioielli();
+  const i = list.findIndex(x => x.id === item.id);
+  item.updatedAt = new Date().toISOString();
+  if (i >= 0) list[i] = item; else list.unshift(item);
+  saveGioielli(list);
+  syncMagazzinoItemRemoto(MAGAZZINO_STORES.piercing, item);
+  return item;
+}
+function deleteGioiello(id){
+  saveGioielli(loadGioielli().filter(x => x.id !== id));
+  eliminaMagazzinoItemRemoto(MAGAZZINO_STORES.piercing, id);
+}
+function scalaGioielloUsato(id){
+  const list = loadGioielli();
+  const it = list.find(x => x.id === id);
+  if (!it) return;
+  it.quantita = Math.max(0, (it.quantita||0) - 1);
+  it.updatedAt = new Date().toISOString();
+  saveGioielli(list);
+  syncMagazzinoItemRemoto(MAGAZZINO_STORES.piercing, it);
+}
 function newId(){ return "x" + Math.random().toString(36).slice(2, 9); }
 
 /* Il vecchio gate "Premium a password" (vetrina di lancio con password
@@ -3614,6 +3656,7 @@ const MAGAZZINO_STORES = {
   forniture: { load: loadForniture, save: saveForniture, rpcSalva: "salva_fornitura", rpcElimina: "elimina_fornitura", rpcLista: "lista_forniture_studio" },
   inks:      { load: loadInks,      save: saveInks,      rpcSalva: "salva_inchiostro", rpcElimina: "elimina_inchiostro", rpcLista: "lista_inchiostri_studio" },
   needles:   { load: loadNeedles,   save: saveNeedles,   rpcSalva: "salva_ago",        rpcElimina: "elimina_ago",        rpcLista: "lista_aghi_studio" },
+  piercing:  { load: loadGioielli,  save: saveGioielli,  rpcSalva: "salva_gioiello",   rpcElimina: "elimina_gioiello",   rpcLista: "lista_gioielli_studio" },
 };
 async function syncMagazzinoItemRemoto(cfg, item){
   if (!SUPABASE_CONFIG.url || !item) return;
@@ -4259,6 +4302,7 @@ function collectBackup(){
     richieste: loadRichieste(),
     inks: loadInks(),
     needles: loadNeedles(),
+    gioielli: loadGioielli(),
     forniture: loadForniture(),
     appuntamenti: loadAppuntamenti(),
     waitlist: loadWaitlist(),
@@ -4378,6 +4422,7 @@ async function importBackup(fileText, password, frase){
   if (obj.richieste) saveRichieste(obj.richieste);
   if (obj.inks) saveInks(obj.inks);
   if (obj.needles) saveNeedles(obj.needles);
+  if (obj.gioielli) saveGioielli(obj.gioielli);
   if (obj.forniture) saveForniture(obj.forniture);
   if (obj.appuntamenti) saveAppuntamenti(obj.appuntamenti);
   if (obj.waitlist) saveWaitlist(obj.waitlist);
@@ -4834,7 +4879,7 @@ function segnaTutorialFatto(){ try { localStorage.setItem(TUTORIAL_KEY, JSON.str
 function tutorialPrepMagazzino(tab){
   state.view = "magazzino";
   if (tab) state.magTab = tab;
-  state.showFornForm = state.showInkForm = state.showNeedleForm = false;
+  state.showFornForm = state.showInkForm = state.showNeedleForm = state.showGioielloForm = false;
   state.editBuffer = {};
   state.magConflictView = false;
 }
@@ -6629,7 +6674,8 @@ const MAG_CAMPO_LABEL = {
   nome:"Nome", categoria:"Categoria", quantita:"Quantità", soglia:"Soglia riordino",
   colore:"Colore", lotto:"Lotto", scadenza:"Scadenza", dataApertura:"Data apertura",
   durataMesiApertura:"Durata dopo apertura (mesi)", proprietario:"Proprietario",
-  marca:"Marca", tipo:"Tipo", foto:"Foto", updatedAt:"Ultima modifica",
+  marca:"Marca", tipo:"Tipo", tipoAgo:"Tipo di applicazione", materiale:"Materiale",
+  tipoSterilizzazione:"Sterilizzazione", foto:"Foto", updatedAt:"Ultima modifica",
 };
 function magCampoLabel(k){ return MAG_CAMPO_LABEL[k] || k; }
 function magFmtValore(v){
@@ -6652,13 +6698,14 @@ function magRiassuntoArticolo(storeKey, item){
   if (storeKey === "forniture") return item.nome || "—";
   if (storeKey === "inks") return `${item.nome||"—"}${item.colore ? " · "+item.colore : ""}`;
   if (storeKey === "needles") return `${item.marca||""} ${item.tipo||"—"}`.trim();
+  if (storeKey === "piercing") return item.nome || "—";
   return "—";
 }
 function contaConflittiMagazzino(){
   const c = state.magConflicts || {};
-  return (c.forniture||[]).length + (c.inks||[]).length + (c.needles||[]).length;
+  return (c.forniture||[]).length + (c.inks||[]).length + (c.needles||[]).length + (c.piercing||[]).length;
 }
-const MAG_STORE_LABEL = { forniture: "Forniture", inks: "Inchiostri", needles: "Aghi" };
+const MAG_STORE_LABEL = { forniture: "Forniture", inks: "Inchiostri", needles: "Aghi", piercing: "Piercing" };
 function renderMagConflitti(){
   const c = state.magConflicts || {};
   const righe = [];
@@ -6745,6 +6792,7 @@ function renderMagazzino(){
   if (state.magConflictView) return renderMagConflitti();
   const inks = loadInks();
   const needles = loadNeedles();
+  const gioielli = loadGioielli();
   const eb = state.editBuffer || {};
   const scadBadge = (d) => {
     if (isExpired(d)) return `<span class="reg-minor" style="background:var(--warn);">scaduto</span>`;
@@ -6797,6 +6845,7 @@ function renderMagazzino(){
       <button class="mag-tab ${tab==='forniture'?'on':''}" data-action="mag-tab" data-t="forniture">${icon("basket",16)} Forniture</button>
       <button class="mag-tab ${tab==='inchiostri'?'on':''}" data-action="mag-tab" data-t="inchiostri">${icon("droplet",16)} Inchiostri</button>
       <button class="mag-tab ${tab==='aghi'?'on':''}" data-action="mag-tab" data-t="aghi">${icon("cartridge",16)} Aghi</button>
+      <button class="mag-tab ${tab==='piercing'?'on':''}" data-action="mag-tab" data-t="piercing">${icon("pin",16)} Piercing</button>
       <button class="mag-tab ${tab==='lotti'?'on':''}" data-action="mag-tab" data-t="lotti">${icon("search",16)} Cerca lotto</button>
     </div>
 
@@ -6875,6 +6924,10 @@ function renderMagazzino(){
       </div>
       ${state.showNeedleForm ? `
         <div class="inv-form">
+          <div class="field"><label>Tipo di applicazione</label><select data-inv-field="tipoAgo">
+            <option value="tatuaggio" ${(eb.tipoAgo||'tatuaggio')==='tatuaggio'?'selected':''}>Tatuaggio</option>
+            <option value="piercing" ${eb.tipoAgo==='piercing'?'selected':''}>Piercing</option>
+          </select></div>
           <div class="grid-2">
             <div class="field"><label>Marca</label><input type="text" data-inv-field="marca" value="${esc(eb.marca||'')}" placeholder="Es. Cheyenne"></div>
             <div class="field"><label>Tipo / configurazione</label><input type="text" data-inv-field="tipo" value="${esc(eb.tipo||'')}" placeholder="Es. 3RL, 7RS, 9M1…"></div>
@@ -6898,7 +6951,7 @@ function renderMagazzino(){
           ${needles.map(it => `
             <div class="inv-row">
               <div class="inv-main"><b>${esc(it.tipo||"—")}</b>${it.marca ? ` · ${esc(it.marca)}` : ""} ${scadBadge(it.scadenza)}
-                <span class="inv-sub">Lotto ${esc(it.lotto||"—")}${it.scadenza ? " · scad. " + fmtDate(it.scadenza) : ""}${it.proprietario ? " · " + esc(it.proprietario) : ""}</span>
+                <span class="inv-sub">${it.tipoAgo==='piercing'?'Piercing':'Tatuaggio'} · Lotto ${esc(it.lotto||"—")}${it.scadenza ? " · scad. " + fmtDate(it.scadenza) : ""}${it.proprietario ? " · " + esc(it.proprietario) : ""}</span>
                 ${renderScortaRow(it)}
               </div>
               <div class="inv-actions">
@@ -6910,10 +6963,57 @@ function renderMagazzino(){
     </div>
     ` : ""}
 
+    ${tab === "piercing" ? `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 class="section-title" style="margin:0;">Piercing <span class="mono" style="color:var(--ink-faint);font-size:13px;">(${gioielli.length})</span></h3>
+        <button class="btn btn-accent btn-sm" data-action="gioiello-new">+ Aggiungi gioiello</button>
+      </div>
+      ${state.showGioielloForm ? `
+        <div class="inv-form">
+          <div class="grid-2">
+            <div class="field"><label>Nome / descrizione</label><input type="text" data-inv-field="nome" value="${esc(eb.nome||'')}" placeholder="Es. Barbell titanio 1.2mm"></div>
+            <div class="field"><label>Materiale</label><input type="text" data-inv-field="materiale" value="${esc(eb.materiale||'')}" placeholder="Es. Titanio ASTM F136, oro 18k…"></div>
+          </div>
+          <div class="grid-2">
+            <div class="field"><label>Tipo di sterilizzazione</label><input type="text" data-inv-field="tipoSterilizzazione" value="${esc(eb.tipoSterilizzazione||'')}" placeholder="Es. autoclave in studio, monouso sterile da fornitore…"></div>
+            <div class="field"><label>Numero di lotto</label><input type="text" data-inv-field="lotto" value="${esc(eb.lotto||'')}" placeholder="Es. PZ-2024-118"></div>
+          </div>
+          <div class="grid-2">
+            <div class="field"><label>Scadenza</label><input type="date" data-inv-field="scadenza" value="${esc(eb.scadenza||'')}"></div>
+            <div class="field"></div>
+          </div>
+          <div class="grid-2">
+            <div class="field"><label>Quantità</label><input type="number" min="0" step="1" data-inv-field="quantita" value="${esc(eb.quantita!=null?eb.quantita:'')}" placeholder="Es. 10"></div>
+            <div class="field"><label>Soglia di riordino</label><input type="number" min="0" step="1" data-inv-field="soglia" value="${esc(eb.soglia!=null?eb.soglia:'')}" placeholder="Avvisami sotto…"></div>
+          </div>
+          ${campoProprietario(eb.proprietario)}
+          <div class="btn-row">
+            <button class="btn btn-primary btn-sm" data-action="gioiello-save">${eb.id ? "Salva modifiche" : "Aggiungi"}</button>
+            <button class="btn btn-ghost btn-sm" data-action="inv-cancel">Annulla</button>
+          </div>
+        </div>` : ""}
+      ${gioielli.length ? `
+        <div class="inv-list">
+          ${gioielli.map(it => `
+            <div class="inv-row">
+              <div class="inv-main"><b>${esc(it.nome||"—")}</b>${it.materiale ? ` · ${esc(it.materiale)}` : ""} ${scadBadge(it.scadenza)}
+                <span class="inv-sub">Lotto ${esc(it.lotto||"—")}${it.tipoSterilizzazione ? " · " + esc(it.tipoSterilizzazione) : ""}${it.scadenza ? " · scad. " + fmtDate(it.scadenza) : ""}${it.proprietario ? " · " + esc(it.proprietario) : ""}</span>
+                ${renderScortaRow(it)}
+              </div>
+              <div class="inv-actions">
+                <button class="btn btn-ghost btn-sm" data-action="gioiello-edit" data-id="${it.id}">Modifica</button>
+                <button class="btn btn-ghost btn-sm" data-action="gioiello-delete" data-id="${it.id}">Elimina</button>
+              </div>
+            </div>`).join("")}
+        </div>` : (!state.showGioielloForm ? `<p class="section-desc">Nessun gioiello in archivio. Aggiungine uno per poterlo selezionare nei consensi piercing.</p>` : "")}
+    </div>
+    ` : ""}
+
     ${tab === "lotti" ? `
     <div class="card">
       <h3 class="section-title">Tracciabilità lotto</h3>
-      <p class="section-desc">Cerca un numero di lotto (inchiostro o ago): trovi subito tutti i clienti trattati con quel lotto — utile per un richiamo prodotto o un controllo ASL.</p>
+      <p class="section-desc">Cerca un numero di lotto (inchiostro, ago o gioiello): trovi subito tutti i clienti trattati con quel lotto — utile per un richiamo prodotto o un controllo ASL.</p>
       <div class="field"><input type="text" placeholder="Numero di lotto…" value="${esc(state.lottoQuery||"")}" data-action="search-lotto"></div>
       <div id="lotto-results">${renderLottoResults(cercaSessioniPerLotto(state.lottoQuery))}</div>
     </div>
@@ -6929,9 +7029,10 @@ function cercaSessioniPerLotto(query){
   if (!q) return [];
   return loadSessions().filter(s => s.status === "archiviato").filter(s => {
     const sd = s.seduta || {};
-    const inch = sd.inchiostri || [], aghi = sd.aghi || [];
+    const inch = sd.inchiostri || [], aghi = sd.aghi || [], gioielli = sd.gioielli || [];
     return inch.some(it => (it.lotto||"").toLowerCase().includes(q)) ||
-           aghi.some(it => (it.lotto||"").toLowerCase().includes(q));
+           aghi.some(it => (it.lotto||"").toLowerCase().includes(q)) ||
+           gioielli.some(it => (it.lotto||"").toLowerCase().includes(q));
   });
 }
 function renderLottoResults(list){
@@ -7589,12 +7690,20 @@ function buildPdf(s){
   section("Dati della seduta (compilati in studio)");
   kv("Data applicazione", sd.dataApplicazione ? fmtDate(sd.dataApplicazione) : "—");
   kv("Zona trattata", sd.sedeEffettiva);
-  if ((sd.inchiostri||[]).length){
-    kv("Inchiostri usati", sd.inchiostri.map(it => `${it.nome||"—"}${it.colore?" ("+it.colore+")":""} · lotto ${it.lotto||"—"}${it.scadenza?" · scad. "+fmtDate(it.scadenza):""}`).join("\n"));
-  } else kv("Inchiostri usati", "—");
-  if ((sd.aghi||[]).length){
-    kv("Aghi usati", sd.aghi.map(it => `${it.tipo||"—"}${it.marca?" ("+it.marca+")":""} · lotto ${it.lotto||"—"}${it.scadenza?" · scad. "+fmtDate(it.scadenza):""}`).join("\n"));
+  if (s.tipoApplicazione !== "piercing"){
+    if ((sd.inchiostri||[]).length){
+      kv("Inchiostri usati", sd.inchiostri.map(it => `${it.nome||"—"}${it.colore?" ("+it.colore+")":""} · lotto ${it.lotto||"—"}${it.scadenza?" · scad. "+fmtDate(it.scadenza):""}`).join("\n"));
+    } else kv("Inchiostri usati", "—");
+  }
+  const aghiPdf = aghiPertinenti(sd, s.tipoApplicazione);
+  if (aghiPdf.length){
+    kv("Aghi usati", aghiPdf.map(it => `${it.tipo||"—"}${it.marca?" ("+it.marca+")":""} · lotto ${it.lotto||"—"}${it.scadenza?" · scad. "+fmtDate(it.scadenza):""}`).join("\n"));
   } else kv("Aghi usati", "—");
+  if (s.tipoApplicazione === "piercing"){
+    if ((sd.gioielli||[]).length){
+      kv("Gioielli usati", sd.gioielli.map(it => `${it.nome||"—"}${it.materiale?" ("+it.materiale+")":""} · lotto ${it.lotto||"—"}${it.scadenza?" · scad. "+fmtDate(it.scadenza):""}`).join("\n"));
+    } else kv("Gioielli usati", "—");
+  }
   if (sd.materiali) kv("Note materiali", sd.materiali);
   kv("Scheda tecnica allegata", sd.schedaTecnicaAllegata ? "Sì" : "No");
   if (sd.reazioniAvverse) kv("Reazioni avverse", sd.reazioniAvverse);
@@ -8614,7 +8723,22 @@ document.addEventListener("click", (e) => {
   }
   else if (action === "prev-step"){ state.step -= 1; state.showErrors = null; render(); }
   else if (action === "toggle-minorenne"){ draft.minorenne = !draft.minorenne; renderStepOnly(); }
-  else if (action === "set-tipo"){ draft.tipoApplicazione = btn.dataset.v; renderStepOnly(); }
+  else if (action === "set-tipo"){
+    const nuovo = btn.dataset.v;
+    // Prompt_piercing, punto 3: cambiare tatuaggio<->piercing dopo aver
+    // già scelto materiali per l'altro tipo non deve cancellarli in
+    // silenzio — restano salvati nel consenso (semplicemente non
+    // mostrati né inclusi finché non si torna sulla scelta precedente),
+    // ma va avvisato esplicitamente: altrimenti sembra che siano spariti.
+    if (nuovo !== draft.tipoApplicazione){
+      const sd = draft.seduta || {};
+      const materialiTatuaggio = (sd.inchiostri||[]).length || (sd.aghi||[]).some(a => (a.tipoAgo||"tatuaggio") !== "piercing");
+      const materialiPiercing = (sd.gioielli||[]).length || (sd.aghi||[]).some(a => a.tipoAgo === "piercing");
+      const perdiVista = nuovo === "piercing" ? materialiTatuaggio : materialiPiercing;
+      if (perdiVista && !confirm(`Hai già selezionato materiali per ${draft.tipoApplicazione === "piercing" ? "il piercing" : "il tatuaggio"}. Passando a ${nuovo === "piercing" ? "piercing" : "tatuaggio"} restano salvati ma non saranno più mostrati né inclusi nel consenso finché non torni su questa scelta. Continuare?`)) return;
+    }
+    draft.tipoApplicazione = nuovo; renderStepOnly();
+  }
   else if (action === "toggle-informativa"){ draft.informativaLetta = !draft.informativaLetta; renderStepOnly(); }
   else if (action === "toggle-privacy"){ draft.privacyConsenso = !draft.privacyConsenso; renderStepOnly(); }
   else if (action === "toggle-disegno"){ draft.disegnoConfermato = !draft.disegnoConfermato; renderStepOnly(); }
@@ -8694,10 +8818,12 @@ document.addEventListener("click", (e) => {
     draft.status = "archiviato";
     assignProgressivo(draft); // numero di registro definitivo
     upsertSession(draft);
-    // fix_magazzino_online punto 4: gli aghi selezionati in questa seduta
-    // sono ora davvero usati — scala la quantità solo qui, non alla
-    // selezione in bozza.
-    (draft.seduta.aghi||[]).forEach(a => scalaAgoUsato(a.id));
+    // fix_magazzino_online punto 4 (esteso ai gioielli da Prompt_piercing
+    // punto 1): gli aghi/gioielli selezionati in questa seduta sono ora
+    // davvero usati — scala la quantità solo qui, non alla selezione in
+    // bozza.
+    aghiPertinenti(draft.seduta, draft.tipoApplicazione).forEach(a => scalaAgoUsato(a.id));
+    (draft.seduta.gioielli||[]).forEach(g => scalaGioielloUsato(g.id));
     attachDiagrams(draft).then(() => { try { buildPdf(draft); } catch(err){ console.warn("PDF non riuscito:", err); state.pdfWarning = true; render(); } });
     syncLicenseOnFinalize();
     state.view = "archive"; render();
@@ -8738,8 +8864,8 @@ document.addEventListener("click", (e) => {
     })();
   }
   else if (action === "print-registro"){ window.print(); }
-  else if (action === "ink-new"){ state.showInkForm = true; state.showNeedleForm = false; state.editBuffer = {}; render(); }
-  else if (action === "ink-edit"){ state.editBuffer = { ...(loadInks().find(x=>x.id===btn.dataset.id)||{}) }; state.showInkForm = true; state.showNeedleForm = false; render(); }
+  else if (action === "ink-new"){ state.showInkForm = true; state.showNeedleForm = false; state.showGioielloForm = false; state.editBuffer = {}; render(); }
+  else if (action === "ink-edit"){ state.editBuffer = { ...(loadInks().find(x=>x.id===btn.dataset.id)||{}) }; state.showInkForm = true; state.showNeedleForm = false; state.showGioielloForm = false; render(); }
   else if (action === "ink-save"){
     const b = state.editBuffer || {};
     if (!(b.nome||"").trim()){ alert("Inserisci almeno marca/nome dell'inchiostro."); return; }
@@ -8749,18 +8875,29 @@ document.addEventListener("click", (e) => {
   else if (action === "ink-delete"){
     if (confirm("Eliminare questo inchiostro dall'archivio?")){ deleteInk(btn.dataset.id); render(); }
   }
-  else if (action === "needle-new"){ state.showNeedleForm = true; state.showInkForm = false; state.editBuffer = {}; render(); }
-  else if (action === "needle-edit"){ state.editBuffer = { ...(loadNeedles().find(x=>x.id===btn.dataset.id)||{}) }; state.showNeedleForm = true; state.showInkForm = false; render(); }
+  else if (action === "needle-new"){ state.showNeedleForm = true; state.showInkForm = false; state.showGioielloForm = false; state.editBuffer = {}; render(); }
+  else if (action === "needle-edit"){ state.editBuffer = { ...(loadNeedles().find(x=>x.id===btn.dataset.id)||{}) }; state.showNeedleForm = true; state.showInkForm = false; state.showGioielloForm = false; render(); }
   else if (action === "needle-save"){
     const b = state.editBuffer || {};
     if (!(b.tipo||"").trim()){ alert("Inserisci almeno il tipo dell'ago (es. 3RL)."); return; }
-    upsertNeedle({ id: b.id || newId(), marca: b.marca||"", tipo: b.tipo||"", lotto: b.lotto||"", scadenza: b.scadenza||"", proprietario: b.proprietario||"", quantita: parseInt(b.quantita,10)||0, soglia: parseInt(b.soglia,10)||0 });
+    upsertNeedle({ id: b.id || newId(), tipoAgo: b.tipoAgo==='piercing'?'piercing':'tatuaggio', marca: b.marca||"", tipo: b.tipo||"", lotto: b.lotto||"", scadenza: b.scadenza||"", proprietario: b.proprietario||"", quantita: parseInt(b.quantita,10)||0, soglia: parseInt(b.soglia,10)||0 });
     state.showNeedleForm = false; state.editBuffer = {}; render();
   }
   else if (action === "needle-delete"){
     if (confirm("Eliminare questo ago dall'archivio?")){ deleteNeedle(btn.dataset.id); render(); }
   }
-  else if (action === "inv-cancel"){ state.showInkForm = false; state.showNeedleForm = false; state.showFornForm = false; state.fornLoadMode = false; state.fornLoadId = null; state.editBuffer = {}; render(); }
+  else if (action === "gioiello-new"){ state.showGioielloForm = true; state.showInkForm = state.showNeedleForm = state.showFornForm = false; state.editBuffer = {}; render(); }
+  else if (action === "gioiello-edit"){ state.editBuffer = { ...(loadGioielli().find(x=>x.id===btn.dataset.id)||{}) }; state.showGioielloForm = true; state.showInkForm = state.showNeedleForm = state.showFornForm = false; render(); }
+  else if (action === "gioiello-save"){
+    const b = state.editBuffer || {};
+    if (!(b.nome||"").trim()){ alert("Inserisci almeno nome/descrizione del gioiello."); return; }
+    upsertGioiello({ id: b.id || newId(), nome: b.nome||"", materiale: b.materiale||"", tipoSterilizzazione: b.tipoSterilizzazione||"", lotto: b.lotto||"", scadenza: b.scadenza||"", proprietario: b.proprietario||"", quantita: parseInt(b.quantita,10)||0, soglia: parseInt(b.soglia,10)||0 });
+    state.showGioielloForm = false; state.editBuffer = {}; render();
+  }
+  else if (action === "gioiello-delete"){
+    if (confirm("Eliminare questo gioiello dall'archivio?")){ deleteGioiello(btn.dataset.id); render(); }
+  }
+  else if (action === "inv-cancel"){ state.showInkForm = false; state.showNeedleForm = false; state.showFornForm = false; state.showGioielloForm = false; state.fornLoadMode = false; state.fornLoadId = null; state.editBuffer = {}; render(); }
   else if (action === "toggle-privacy-blur"){ state.privacyBlur = !state.privacyBlur; render(); }
   else if (action === "toggle-mostra-id-licenza"){ state.mostraIdLicenza = !state.mostraIdLicenza; render(); }
   else if (action === "toggle-accordion"){
@@ -8908,7 +9045,7 @@ document.addEventListener("click", (e) => {
     if (s) attachDiagrams(s).then(() => { try { buildPdf(s); } catch(err){ alert("Impossibile generare il PDF: serve connessione per la libreria la prima volta."); } });
   }
   else if (action === "subscription-refresh"){ refreshLicenseFromSupabase().then(render); }
-  else if (action === "mag-tab"){ state.magTab = btn.dataset.t; state.showInkForm = state.showNeedleForm = state.showFornForm = false; state.editBuffer = {}; render(); }
+  else if (action === "mag-tab"){ state.magTab = btn.dataset.t; state.showInkForm = state.showNeedleForm = state.showFornForm = state.showGioielloForm = false; state.editBuffer = {}; render(); }
   else if (action === "mag-refresh"){ aggiornaMagazzinoRemoto(); }
   else if (action === "mag-conflict-open"){ state.magConflictView = true; render(); }
   else if (action === "mag-conflict-back"){ state.magConflictView = false; render(); }
@@ -8950,6 +9087,7 @@ document.addEventListener("click", (e) => {
   else if (action === "forn-remove-photo"){ state.editBuffer = { ...(state.editBuffer||{}), foto: "" }; render(); }
   else if (action === "seduta-remove-ink"){ draft.seduta.inchiostri = (draft.seduta.inchiostri||[]).filter(x => x.id !== btn.dataset.id); upsertSession(draft); renderStepOnly(); }
   else if (action === "seduta-remove-needle"){ draft.seduta.aghi = (draft.seduta.aghi||[]).filter(x => x.id !== btn.dataset.id); upsertSession(draft); renderStepOnly(); }
+  else if (action === "seduta-remove-gioiello"){ draft.seduta.gioielli = (draft.seduta.gioielli||[]).filter(x => x.id !== btn.dataset.id); upsertSession(draft); renderStepOnly(); }
   else if (action === "save-studio"){
     // CORREZIONE (PromptFixFinal, Task 3 aggiunta): stesso controllo del
     // bottone disabilitato, ripetuto qui — non fidarsi solo del DOM,
@@ -9602,7 +9740,12 @@ document.addEventListener("change", (e) => {
   }
   if (selAction === "seduta-add-needle" && e.target.value && draft){
     const nd = loadNeedles().find(x => x.id === e.target.value);
-    if (nd){ draft.seduta.aghi = [ ...(draft.seduta.aghi||[]), { id: nd.id, marca: nd.marca, tipo: nd.tipo, lotto: nd.lotto, scadenza: nd.scadenza } ]; upsertSession(draft); renderStepOnly(); }
+    if (nd){ draft.seduta.aghi = [ ...(draft.seduta.aghi||[]), { id: nd.id, marca: nd.marca, tipo: nd.tipo, lotto: nd.lotto, scadenza: nd.scadenza, tipoAgo: nd.tipoAgo||"tatuaggio" } ]; upsertSession(draft); renderStepOnly(); }
+    return;
+  }
+  if (selAction === "seduta-add-gioiello" && e.target.value && draft){
+    const gi = loadGioielli().find(x => x.id === e.target.value);
+    if (gi){ draft.seduta.gioielli = [ ...(draft.seduta.gioielli||[]), { id: gi.id, nome: gi.nome, materiale: gi.materiale, lotto: gi.lotto, scadenza: gi.scadenza } ]; upsertSession(draft); renderStepOnly(); }
     return;
   }
   if (e.target.id === "forn-photo" && e.target.files && e.target.files[0]){
@@ -11238,19 +11381,29 @@ function renderStepFirma(ctx){
 
 function renderStepSeduta(ctx){
   const s = draft.seduta;
+  const ePiercing = draft.tipoApplicazione === "piercing";
+  // Prompt_piercing, punto 3: quale materiale ha senso dipende dalla
+  // spunta tatuaggio/piercing fatta prima — un piercing non usa
+  // inchiostri, un tatuaggio non usa gioielli. Gli aghi restano in
+  // entrambi i casi ma filtrati per tipoAgo (vedi punto 2), mai
+  // mescolati: un ago da tatuaggio non compare tra quelli selezionabili
+  // per un piercing e viceversa.
   const inks = loadInks();
-  const needles = loadNeedles();
+  const needles = loadNeedles().filter(it => (it.tipoAgo||"tatuaggio") === (ePiercing ? "piercing" : "tatuaggio"));
+  const gioielli = loadGioielli();
   const selInk = new Set((s.inchiostri||[]).map(x => x.id));
   const selNeedle = new Set((s.aghi||[]).map(x => x.id));
+  const selGioiello = new Set((s.gioielli||[]).map(x => x.id));
   return `
   ${renderErrors(7)}
   <h3 class="section-title">Dati seduta <span class="stamp stamp-attesa" style="vertical-align:middle;">solo studio</span></h3>
-  <p class="section-desc">Da compilare in studio il giorno dell'appuntamento, davanti al cliente. Sono i dati tecnici che esistono solo a tatuaggio eseguito.</p>
+  <p class="section-desc">Da compilare in studio il giorno dell'appuntamento, davanti al cliente. Sono i dati tecnici che esistono solo a ${ePiercing ? "piercing eseguito" : "tatuaggio eseguito"}.</p>
   <div class="grid-2">
     <div class="field"><label>Data effettiva dell'applicazione</label><input type="date" data-field="seduta.dataApplicazione" value="${esc(s.dataApplicazione)}"></div>
     <div class="field"><label>Zona effettivamente trattata</label><input type="text" data-field="seduta.sedeEffettiva" value="${esc(s.sedeEffettiva)}" placeholder="Es. avambraccio destro"></div>
   </div>
 
+  ${!ePiercing ? `
   <div class="subhead">Inchiostri usati</div>
   ${(s.inchiostri||[]).length ? `<div>${s.inchiostri.map(it => `<span class="inv-chip">${esc(it.nome)}${it.colore?` · ${esc(it.colore)}`:""} · lotto ${esc(it.lotto||"—")} <button data-action="seduta-remove-ink" data-id="${it.id}">${icon("close",12)}</button></span>`).join("")}</div>` : ""}
   ${inks.length ? `
@@ -11260,16 +11413,29 @@ function renderStepSeduta(ctx){
         ${inks.filter(it => !selInk.has(it.id)).map(it => `<option value="${it.id}">${esc(it.nome)}${it.colore?` · ${esc(it.colore)}`:""} · lotto ${esc(it.lotto||"—")}${it.scadenza?` · scad. ${fmtDate(it.scadenza)}`:""}</option>`).join("")}
       </select>
     </div>` : `<p class="section-desc">Nessun inchiostro in archivio. <a href="#" data-action="nav" data-view="magazzino">Aggiungine nel Magazzino</a> per selezionarli qui.</p>`}
+  ` : ""}
 
   <div class="subhead">Aghi usati</div>
-  ${(s.aghi||[]).length ? `<div>${s.aghi.map(it => `<span class="inv-chip">${esc(it.tipo)}${it.marca?` · ${esc(it.marca)}`:""} · lotto ${esc(it.lotto||"—")} <button data-action="seduta-remove-needle" data-id="${it.id}">${icon("close",12)}</button></span>`).join("")}</div>` : ""}
+  ${aghiPertinenti(s, draft.tipoApplicazione).length ? `<div>${aghiPertinenti(s, draft.tipoApplicazione).map(it => `<span class="inv-chip">${esc(it.tipo)}${it.marca?` · ${esc(it.marca)}`:""} · lotto ${esc(it.lotto||"—")} <button data-action="seduta-remove-needle" data-id="${it.id}">${icon("close",12)}</button></span>`).join("")}</div>` : ""}
   ${needles.length ? `
     <div class="field" style="margin-top:8px;">
       <select data-action="seduta-add-needle">
         <option value="">+ Aggiungi ago dall'archivio…</option>
         ${needles.filter(it => !selNeedle.has(it.id)).map(it => `<option value="${it.id}">${esc(it.tipo)}${it.marca?` · ${esc(it.marca)}`:""} · lotto ${esc(it.lotto||"—")}${it.scadenza?` · scad. ${fmtDate(it.scadenza)}`:""}</option>`).join("")}
       </select>
-    </div>` : `<p class="section-desc">Nessun ago in archivio. <a href="#" data-action="nav" data-view="magazzino">Aggiungine nel Magazzino</a> per selezionarli qui.</p>`}
+    </div>` : `<p class="section-desc">Nessun ago di tipo ${ePiercing?"piercing":"tatuaggio"} in archivio. <a href="#" data-action="nav" data-view="magazzino">Aggiungine nel Magazzino</a> per selezionarli qui.</p>`}
+
+  ${ePiercing ? `
+  <div class="subhead">Gioielli usati</div>
+  ${(s.gioielli||[]).length ? `<div>${s.gioielli.map(it => `<span class="inv-chip">${esc(it.nome)}${it.materiale?` · ${esc(it.materiale)}`:""} · lotto ${esc(it.lotto||"—")} <button data-action="seduta-remove-gioiello" data-id="${it.id}">${icon("close",12)}</button></span>`).join("")}</div>` : ""}
+  ${gioielli.length ? `
+    <div class="field" style="margin-top:8px;">
+      <select data-action="seduta-add-gioiello">
+        <option value="">+ Aggiungi gioiello dall'archivio…</option>
+        ${gioielli.filter(it => !selGioiello.has(it.id)).map(it => `<option value="${it.id}">${esc(it.nome)}${it.materiale?` · ${esc(it.materiale)}`:""} · lotto ${esc(it.lotto||"—")}${it.scadenza?` · scad. ${fmtDate(it.scadenza)}`:""}</option>`).join("")}
+      </select>
+    </div>` : `<p class="section-desc">Nessun gioiello in archivio. <a href="#" data-action="nav" data-view="magazzino">Aggiungine nel Magazzino</a> per selezionarli qui.</p>`}
+  ` : ""}
 
   <div class="field" style="margin-top:14px;"><label>Note aggiuntive sui materiali (facoltativo)</label><input type="text" data-field="seduta.materiali" value="${esc(s.materiali)}" placeholder="Es. cartuccia sterile monouso, altro…"></div>
   <div class="check-row">
@@ -11296,7 +11462,9 @@ function renderStepControfirma(ctx){
     <div class="kv"><span>Zona</span><b>${zonaSummary}</b></div>
     <div class="kv"><span>Grandezza</span><b>${esc(draft.grandezza || "—")}</b></div>
     <div class="kv"><span>Nei nell'area</span><b>${draft.zoneNei === 'si' ? "Sì — vedi nota" : "No"}</b></div>
-    <div class="kv"><span>Inchiostri / Aghi</span><b>${(draft.seduta.inchiostri||[]).length} inchiostro/i · ${(draft.seduta.aghi||[]).length} ago/aghi</b></div>
+    ${draft.tipoApplicazione === "piercing"
+      ? `<div class="kv"><span>Aghi / Gioielli</span><b>${aghiPertinenti(draft.seduta, draft.tipoApplicazione).length} ago/aghi · ${(draft.seduta.gioielli||[]).length} gioiello/i</b></div>`
+      : `<div class="kv"><span>Inchiostri / Aghi</span><b>${(draft.seduta.inchiostri||[]).length} inchiostro/i · ${aghiPertinenti(draft.seduta, draft.tipoApplicazione).length} ago/aghi</b></div>`}
     <div class="kv"><span>Consenso e privacy</span><b>${draft.informativaLetta && draft.privacyConsenso && draft.disegnoConfermato ? "Confermati" : "Incompleti"}</b></div>
     <div class="kv"><span>Firma cliente</span><b>${draft.firmaClienteAt ? fmtDateTime(draft.firmaClienteAt) : "Mancante"}</b></div>
   </div>
